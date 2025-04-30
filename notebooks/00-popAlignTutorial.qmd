@@ -1,0 +1,935 @@
+------------------------------------------------------------------------
+
+title: "WildR Brain Tissue Spatial Transcriptomics Analysis" editor: visual author: "Joe Boktor" date: '2024-04-13' jupyter: /central/groups/MazmanianLab/joeB/software/mambaforge/envs/spatialomics/bin/python3 format: html: font-family: helvetica neue page-layout: full toc: true toc-location: left toc-depth: 5 self-contained: true code-fold: false code-tools: true fig-align: center grid: sidebar-width: 200px body-width: 1100px margin-width: 200px gutter-width: 1.5em ---
+
+# Background
+
+```{r}
+library(tidyverse)
+library(magrittr)
+library(spdep)
+library(Voyager)
+library(SingleCellExperiment)
+library(SpatialExperiment)
+library(SpatialFeatureExperiment)
+library(batchelor)
+library(scran)
+library(scater)
+library(bluster)
+library(fossil)
+library(glue)
+library(Seurat)
+library(scCustomize)
+library(glmGamPoi)
+library(spatialLIBD)
+library(reticulate)
+library(SeuratDisk)
+library(rhdf5)
+library(anndata)
+library(grid)
+library(biomaRt)
+library(SingleR)
+library(DropletUtils)
+
+# stats 
+library(lme4)
+library(broom)
+
+# parallelization
+library(BiocParallel)
+library(future)
+library(furrr)
+
+# plotting
+library(RColorBrewer)
+library(ggsci)
+library(Matrix)
+library(plotly)
+library(DT)
+library(gtsummary)
+library(aplot)
+library(pheatmap)
+library(patchwork)
+library(VennDiagram)
+library(viridis)
+
+# setting paths
+homedir <- "/central/groups/mthomson/jboktor"
+wkdir <- glue("{homedir}/spatial_genomics/jess_2024-01-23")
+# 6gb  limit (1500*1024^2 = 1572864000) * 4
+# options(future.globals.maxSize= 6291456000)
+# future::plan("multisession", workers = 24)
+
+use_condaenv(condaenv = 'spatialomics', required = TRUE)
+
+```
+
+Formatting seurat object for PopAlign analysis
+
+```{r, eval=FALSE}
+popAlign_data <- glue("{wkdir}/data/interim/popAlign-input_{Sys.Date()}")
+
+merged_rois_nmf <- readRDS(
+  glue(
+    "{wkdir}/data/interim/",
+    "2024-06-24_merged_roi_seurat_singleR-annot_osNMF-K11.rds"
+  )
+)
+
+seur_obj <- merged_rois_nmf %>%
+  subset(osNMF_8 > 0.75)
+
+retain_cell_types <-
+  table(seur_obj@meta.data$singleR_labels) > 100
+
+seur_obj <- seur_obj %>%
+  subset(singleR_labels %in% names(retain_cell_types)[retain_cell_types])
+
+seur_obj
+table(seur_obj@meta.data$singleR_labels)
+
+write10xCounts(
+  x = seur_obj@assays$Spatial@counts,
+  path = popAlign_data
+)
+
+seur_obj@meta.data %>%
+  rownames_to_column(var = "cell_barcode") %>%
+  mutate(group = toupper(group)) %>%
+  dplyr::rename(
+    sample_id = group,
+    cell_type = singleR_labels
+  ) %>%
+  # glimpse()
+  write.csv(
+    glue("{popAlign_data}/metadata.csv"),
+    quote = FALSE, row.names = FALSE
+  )
+
+
+```
+
+```{python, eval=FALSE}
+# !pip uninstall -y popalign
+# !pip cache purge
+
+# !pip install git+https://github.com/jboktor/popalign.git
+```
+
+```{python}
+import popalign as PA
+import numpy as np
+import pickle
+from datetime import datetime
+```
+
+```{python}
+
+folder = '/central/groups/mthomson/jboktor/spatial_genomics/jess_2024-01-23/data/input/tutorial_data/popAlignTutorial/PopAlign_Data/drugscreen/'
+
+mymatrix = folder + 'drugscreen.mtx'
+mybarcodes = folder + 'barcodes.tsv'
+mygenes = folder + 'features.tsv'
+mymetadata = folder + 'meta.csv'
+
+pop = PA.load_multiplexed(matrix=mymatrix,
+                     barcodes=mybarcodes,
+                     genes=mygenes,
+                     metafile=mymetadata,
+                     controlstring='CTRL', # This can also be directly reset later using: pop['controlstring'] = 'newname'
+                     outputfolder='output_drugscreen',
+                     only=[], # list of sample names to only load the specified samples
+                     col=None, # either None or a column name from the meta data
+                     value=None, # if col != None, specify value in column to filter samples
+                     existing_obj=None)
+```
+
+```{python}
+# pop
+PA.print_ncells(pop)
+
+```
+
+```{python}
+PA.normalize(pop, scaling_factor=1000)
+```
+
+```{python}
+PA.plot_gene_filter(pop, offset=1.3)
+```
+
+```{python}
+PA.filter(pop, remove_ribsomal=False, remove_mitochondrial=False)
+```
+
+```{python}
+len(pop['filtered_genes'])
+```
+
+```{python}
+'''
+Compute feature spaces and minimize the reconstruction error to pick a final feature space
+Run Gene Set Enrichment Analysis (GSEA)
+
+Parameters
+----------
+pop : dict
+    Popalign object
+ncells : int
+    Number of cells to use
+nfeats : int or list of ints
+    Number(s) of features to use
+nreps : int
+    Number of repetitions to perform for each k in nfeats
+niter : int
+    Maximum number of iterations to perform for each instance of the algorithm
+'''
+
+PA.onmf(pop, ncells=5000, nfeats=list(range(10,12)), nreps=2, niter=500);
+
+```
+
+```{python}
+'''
+Choose featureset from stored oNMF calculations.
+Either user directly supplies a preferred m value or the hyperparameters for the loss function
+
+NB: Currently only supports oNMF features
+
+Parameters
+----------
+errors : list
+  list of MSE errors from oNMF
+alpha : float
+  power of polynomial
+multiplier : float
+  multiplies constant C in f(m)
+
+Plots can be found in output folder: qc/features/
+
+'''
+
+# save files for one featureset
+PA.choose_featureset(pop, alpha = 3, multiplier=3)
+
+```
+
+```{python}
+# Define markers for cell types
+pbmc_types = {
+		'Monocytes' : [
+			'CD14',
+			'CD33',
+			'LYZ',
+			'FCER1G',
+			'LGALS3',
+			'CSF1R',
+			'ITGAX',
+			'ITGAM',
+			'CD86',
+			'HLA-DRB1'],
+		'B-cells' : [
+			'MS4A1',
+			'CD19',
+			'CD79A'],
+    'T cells' : [
+			'CD27',
+			'CD69',
+			'CD2',
+			'CD3D',
+			'CXCR3',
+			'CCL5',
+			'IL7R',
+			'CXCL8',
+			'GZMK'],
+	}
+```
+
+```{python}
+'''
+Build a Gaussian Mixture Model on feature projected data for each sample
+
+Parameters
+----------
+pop : dict
+  Popalign object
+ks : int or tuple
+  Number or range of components to use
+niters : int
+  number of iterations to build for each k in `ks` during model selection phase
+training : int or float
+  If training is float, the value will be used a percentage to select cells for the training set. Must follow 0<value<1
+  If training is int, that number of cells will be used for the training set.
+nreplicates : int
+  Number of replicates to generate. These replicate model will be used to provide confidence intervals later in the analysis.
+  Each replicate is stored with zero-indexed numbering:  pop['samples'][x]['replicates'][0] is the first replicate
+reg_covar : str or float
+  If 'auto', the regularization value will be computed from the feature data (For oNMF: reg_covar is set to 1% of the max eigenvalue of all data)
+  If float, value will be used as reg_covar parameter to build GMMs
+types : dict, str or None
+  Dictionary of cell types.
+  If None, a default PBMC cell types dictionary is provided
+only: list or str, optional
+  Sample label or list of sample labels. Will force GMM construction for specified samples only. Defaults to None
+featuretype: str
+  either 'pca' or 'onmf'
+criteria : str
+  either 'bic' or 'aic'
+'''
+
+PA.build_gmms(pop, 
+              ks=(3), # For this analysis, we find that setting the k directly works well
+              niters=2,
+              training=.8, 
+              nreplicates=0,
+              reg_covar='auto', 
+              types=pbmc_types, # either None, 'defaultpbmc' or a dictionary
+              criteria='aic',
+              only=None)
+
+```
+
+```{python}
+PA.render_models(pop, figsizegrouped=(30,30), samples=pop['order'], figsizesingle=(6,5), mode='grouped');
+```
+
+```{python}
+'''
+Generate a ranking plot of the samples against a reference model
+Parameters
+----------
+pop : dict
+Popalign object
+ref : str
+Reference sample name
+k : int
+Number of random cells to use
+niter : int
+Number of iterations to perform
+method : str
+Scoring method to use. 'LLR' for log-likelihood ratio, 'LL' for log-likelihood.
+mincells : int
+If a sample has less than `mincells` cells, is discarded
+figsize : tuple, optional
+Size of the figure. Default is (10,5)
+
+Plots can be found in output folder: ranking/
+'''
+PA.rank(pop,
+ref='CTRL2', # label of the reference sample
+k=100, # number of cells per bootstrapping sample
+niter=200, # number of iterations
+method='LLR', # LLR for log-likelihood ratio or LL for log-likelihood
+mincells=50, # sample's minimum number of cells to be included in ranking
+figsize=(10,5)) # plot figure size
+
+```
+
+```{python}
+'''
+Align the components of each sample's model to the components of a reference model
+
+Parameters
+----------
+pop : dict
+    Popalign object
+ref : str
+    Name of reference sample
+method : str
+    Method to perform the alignment
+    If 'conservative', the reference component and the test component have to be each other's best match to align
+    If 'test2ref', the closest reference component is found for each test component
+    If 'ref2test', the closest test component is found for each test component
+figsizedeltas : tuple, optional
+    Size of the figure for the delta plot. Default is (10,5)
+figsizeentropy : tuple, optional
+    Size of the figure for the entropy plot. Default is (10,5)
+'''
+PA.align(pop, ref='CTRL2',
+         method='test2ref', # one of: test2ref, ref2test, conservative
+         figsizedeltas=(10,10),
+         figsizeentropy=(10,10))
+```
+
+```{python}
+'''
+Generate delta mu and delta w plots for the computed alignments
+
+Parameters
+----------
+pop : dict
+  Popalign object
+figsize : tuple, optional
+  Size of the figure. Default is (10,10)
+sortby : string
+  Either 'mu' (gene expression) or 'w' (abundance)
+pthresh : float 
+  p-value threshold at which colors are no longer plotted
+
+Outputs
+----------
+pop['deltas'] is inserted into the dictionary and contains the following: 
+
+pop['deltas'][currtype]['combined'] : dataframe, 
+  contains: 'origidx','orderedsamples', 'mean_delta_w','pvals_w', 'mean_delta_mu', 'pvals_mu','mean_delta_cov','pvals_cov'
+
+% The following should not need to be accessed directly:
+pop['deltas'][currtype]['idx'] = indices of ordered samples
+pop['deltas'][currtype]['orderedsamples'] = ordered samples in currtype
+
+'''
+PA.plot_deltas(pop, figsize=(10,10), sortby='mu', pthresh = 0.5)
+```
+
+```{python}
+pop['deltas'].keys()
+pop['deltas'][' 6ewqyu'][]
+```
+
+```{python}
+'''
+Generate a grid plot of sample plots in an embedding space
+
+Parameters
+----------
+pop : dict
+  Popalign object
+method : str
+  Embedding method. One of tsne, umap
+figsize : tuple
+  Figure size
+size_background : float, int
+  Point size for the embedding scatter in the background
+size_samples : float, int
+  Point size for the highlighted samples
+showplot: bool
+  whether to show the plot inline
+'''
+PA.samples_grid(pop, method='tsne', figsize=(20,20), size_background=.1, size_samples=.3, samplecolor='magenta', showplot=True)
+
+```
+
+```{python}
+'''
+Run an embedding algorithm and plot the data in a scatter plot
+
+pop: dict
+  Popalign object
+method : str
+  Embedding method. One of umap, tsne. Defaults to umap
+marker : str
+  Either `samples` or a valid gene symbol. Defaults to None
+size : float or int
+  Point size. Defaults to .1
+extension: string
+  File extension like 'png' or 'pdf' to designate how to save the plot
+showplot: bool
+  whether to show the plot inline
+'''
+PA.scatter(pop, method='tsne', sample=None, compnumber=None, marker='LYZ', size=.3, extension='pdf', cmap='Blues',samplecolor='red', showplot=True)
+```
+
+```{python}
+
+```
+
+```{python}
+# pop['deltas'] 
+# pop['deltas']['Monocytes']['combined']
+delta_stats = pop['deltas']['Monocytes']['combined']
+
+```
+
+# TESTING WITH OUR OWN DATA
+
+```{python}
+wkdir = '/central/groups/mthomson/jboktor/spatial_genomics/jess_2024-01-23'
+input_folder = f'{wkdir}/data/interim/popAlign-input_2024-07-09/'
+output_folder = f'{wkdir}/data/interim/popAlign_results/testruns_v2/'
+
+mymatrix = input_folder + 'matrix.mtx'
+mybarcodes = input_folder + 'barcodes.tsv'
+mygenes = input_folder + 'genes.tsv'
+mymetadata = input_folder + 'metadata.csv'
+```
+
+```{python}
+
+pop = PA.load_multiplexed(matrix=mymatrix,
+                     barcodes=mybarcodes,
+                     genes=mygenes,
+                     metafile=mymetadata,
+                     controlstring='SPF',
+                     outputfolder=output_folder,
+                     only=[], # list of sample names to only load the specified samples
+                     col=None, # either None or a column name from the meta data
+                     value=None, # if col != None, specify value in column to filter samples
+                     existing_obj=None)
+```
+
+```{python}
+PA.print_ncells(pop)
+PA.normalize(pop, scaling_factor=1000)
+PA.plot_gene_filter(pop, offset=0.6)
+PA.filter(pop, remove_ribsomal=False, remove_mitochondrial=False)
+len(pop['filtered_genes'])
+```
+
+oNMF analysis
+
+```{python}
+PA.onmf(pop, ncells=1000, nfeats=list(range(3,12)), nreps=2, niter=100);
+```
+
+save files for one featureset
+
+```{python}
+PA.choose_featureset(pop, alpha = 3, multiplier=3)
+```
+
+```{python}
+PA.build_gmms_by_celltypes(
+    pop, 
+    ks=(3,7), 
+    niters=3, 
+    training=0.7, 
+    nreplicates=0, 
+    reg_covar='auto', 
+    types=None, 
+    criteria='aic', 
+    only=None
+)
+
+```
+
+Saving pop object progress
+
+```{python}
+current_date = datetime.now().strftime('%Y-%m-%d')
+filename = f'{output_folder}/popalign_{current_date}.pkl'
+
+with open(filename, 'wb') as file:
+    pickle.dump(pop, file)
+
+```
+
+## Checkpoint
+
+Load in pop object
+
+```{python}
+filename = f'{output_folder}/popalign_2024-07-09.pkl'
+
+with open(filename, 'rb') as file:
+    pop = pickle.load(file)
+
+```
+
+```{python}
+PA.render_models(pop, figsizegrouped=(30,30), samples=pop['order'], figsizesingle=(6,5), mode='grouped');
+```
+
+```{python}
+
+PA.rank(pop,
+    ref='SPF', # label of the reference sample
+    k=200, # number of cells per bootstrapping sample
+    niter=500, # number of iterations
+    method='LLR', # LLR for log-likelihood ratio or LL for log-likelihood
+    mincells=50, # sample's minimum number of cells to be included in ranking
+    figsize=(10,5)) # plot figure size
+
+```
+
+```{python}
+pop.keys()
+pop['rankings']
+pop['ref']
+```
+
+```{python}
+
+PA.align(pop, ref='SPF',
+         method='test2ref', # one of: test2ref, ref2test, conservative
+         figsizedeltas=(10,10),
+         figsizeentropy=(10,10))
+```
+
+```{python}
+
+PA.plot_deltas(pop, figsize=(10,10), sortby='mu', pthresh = 2)
+```
+
+```{python}
+import pandas as pd
+
+df_list = []
+
+# Iterate over the keys in pop['deltas']
+for k in pop['deltas'].keys():
+    # Get the dataframe and transpose it
+    df = pop['deltas'][k]['combined'].transpose()
+    # Add a column for cell type
+    df['cell_type'] = k
+    # Append the dataframe to the list
+    df_list.append(df)
+
+# Concatenate all dataframes in the list into a single dataframe
+combined_df = pd.concat(df_list, ignore_index=True)
+
+# Save the combined dataframe as a CSV file
+delta_stats_df = f'{output_folder}/delta_stats.csv'
+combined_df.to_csv(delta_stats_df, index=False)
+
+
+# for k in pop['deltas'].keys():
+#     print(k)
+#     print(pop['deltas'][k]['combined'].transpose())
+
+```
+
+```{python}
+
+PA.samples_grid(pop, method='tsne', figsize=(20,20), size_background=.1, size_samples=.3, samplecolor='magenta', showplot=True)
+
+```
+
+```{python}
+
+PA.scatter(pop, method='tsne', sample=None, compnumber=None, marker='LYZ', size=.3, extension='pdf', cmap='Blues',samplecolor='red', showplot=True)
+
+```
+
+```{python}
+
+pop['deltas']['Monocytes']
+
+# ['combined']
+
+# print(type(pop))
+# print(dir(pop))
+# help(pop)
+# print(vars(pop))
+
+# ['Monocytes']['combined']
+```
+
+```{python}
+
+import popalign as PA
+import numpy as np
+import pandas as pd
+import pickle
+from datetime import datetime
+
+wkdir = '/central/groups/mthomson/jboktor/spatial_genomics/jess_2024-01-23'
+input_folder = f'{wkdir}/data/interim/popAlign-input_2024-07-09/'
+output_folder = f'{wkdir}/data/interim/popAlign_results/testruns_v2/'
+
+mymatrix = input_folder + 'matrix.mtx'
+mybarcodes = input_folder + 'barcodes.tsv'
+mygenes = input_folder + 'genes.tsv'
+mymetadata = input_folder + 'metadata.csv'
+
+pop = PA.load_multiplexed(matrix=mymatrix,
+                     barcodes=mybarcodes,
+                     genes=mygenes,
+                     metafile=mymetadata,
+                     controlstring='SPF',
+                     outputfolder=output_folder,
+                     only=[], # list of sample names to only load the specified samples
+                     col=None, # either None or a column name from the meta data
+                     value=None, # if col != None, specify value in column to filter samples
+                     existing_obj=None)
+
+PA.print_ncells(pop)
+PA.normalize(pop, scaling_factor=1000)
+PA.plot_gene_filter(pop, offset=0.6)
+PA.filter(pop, remove_ribsomal=False, remove_mitochondrial=False)
+len(pop['filtered_genes'])
+
+# osNMF analysis
+PA.onmf(pop, ncells=1000, nfeats=list(range(3,12)), nreps=2, niter=100);
+
+#save files for one featureset
+PA.choose_featureset(pop, alpha = 3, multiplier=3)
+
+PA.build_gmms_by_celltypes(
+    pop, 
+    ks=(3,7), 
+    niters=3, 
+    training=0.7, 
+    nreplicates=0, 
+    reg_covar='auto', 
+    types=None, 
+    criteria='aic', 
+    only=None
+)
+
+# Visualize GMMs
+PA.render_models(pop, figsizegrouped=(30,30), samples=pop['order'], figsizesingle=(6,5), mode='grouped');
+
+# Calculate LLR ranking
+PA.rank(pop,
+    ref='SPF', # label of the reference sample
+    k=200, # number of cells per bootstrapping sample
+    niter=500, # number of iterations
+    method='LLR', # LLR for log-likelihood ratio or LL for log-likelihood
+    mincells=50, # sample's minimum number of cells to be included in ranking
+    figsize=(10,5)) # plot figure size
+
+
+PA.align(pop, ref='SPF',
+         method='test2ref', # one of: test2ref, ref2test, conservative
+         figsizedeltas=(10,10),
+         figsizeentropy=(10,10))
+
+
+PA.plot_deltas(pop, figsize=(10,10), sortby='mu', pthresh = 2)
+
+# collect delta stats
+df_list = []
+for k in pop['deltas'].keys():
+    # Get the dataframe and transpose it
+    df = pop['deltas'][k]['combined'].transpose()
+    # Add a column for cell type
+    df['cell_type'] = k
+    # Append the dataframe to the list
+    df_list.append(df)
+
+# Save the combined dataframe as a CSV file
+combined_df = pd.concat(df_list, ignore_index=True)
+delta_stats_df = f'{output_folder}/delta_stats.csv'
+combined_df.to_csv(delta_stats_df, index=False)
+
+PA.samples_grid(pop, method='tsne', figsize=(20,20), size_background=.1, size_samples=.3, samplecolor='magenta', showplot=True)
+
+# Save pop object as a pickle file
+current_date = datetime.now().strftime('%Y-%m-%d')
+filename = f'{output_folder}/popalign_{current_date}.pkl'
+
+with open(filename, 'wb') as file:
+    pickle.dump(pop, file)
+
+```
+
+# RUNNING LOOP FOR SLICES
+
+## Checkpoint
+
+```{python}
+import popalign as PA
+import numpy as np
+import pickle
+from datetime import datetime
+import pandas as pd
+matplotlib.pyplot.style.use('default')
+
+```
+
+Load in pop object
+
+```{python}
+wkdir = '/central/groups/mthomson/jboktor/spatial_genomics/jess_2024-01-23'
+# input_folder = f'{wkdir}/data/interim/popAlign-input_2024-07-09/'
+output_dir_root = f'{wkdir}/data/interim/popAlign_results/2024-07-24_SCT-counts/osNMF_11_postqc_dup'
+filename = f'{output_dir_root}/popalign_2024-07-24.pkl'
+
+with open(filename, 'rb') as file:
+    pop = pickle.load(file)
+
+```
+
+```{python}
+print(pop['ncores'])
+# pop.keys()
+```
+
+Looping through folders and slices and doing all against all comparisons
+
+```{python}
+analysis_dir = f'{wkdir}/data/interim/popAlign_results/2024-07-24_SCT-counts/'
+
+directory_names = [os.path.join(analysis_dir, d) for d in os.listdir(analysis_dir) if os.path.isdir(os.path.join(analysis_dir, d))]
+directory_names
+# os.path.join(analysis_dir, directory_names)
+
+quality_slices = [
+  "SPF run1 roi1", 
+  "WILDR run2 roi1",
+  "SPF run3 roi1", 
+  "SPF run4 roi1", 
+  "WILDR run1 roi2",
+  "SPF run2 roi2", 
+  "WILDR run4 roi2", 
+  "WILDR run1 roi3", 
+  "SPF run2 roi3", 
+  "WILDR run3 roi3", 
+  "WILDR run4 roi3", 
+  "SPF run1 roi4", 
+  "WILDR run2 roi4", 
+  "SPF run3 roi4", 
+  "SPF run4 roi4"
+  ]
+
+
+for output_dir_root in directory_names:
+  filename = f'{output_dir_root}/popalign_2024-07-24.pkl'
+  
+  with open(filename, 'rb') as file:
+    pop = pickle.load(file)
+
+  pop['ncores'] = 64
+  
+  for qs in quality_slices:
+    
+    print(qs + os.path.basename(output_dir_root))
+    
+    output_dir_sub = f'{output_dir_root}/multicomp/{qs}'
+    PA.mkdir(output_dir_sub) 
+    pop['output'] = output_dir_sub
+
+    PA.align(pop, ref=qs,
+              method='conservative', # one of: test2ref, ref2test, conservative
+              figsizedeltas=(10,10),
+              figsizeentropy=(10,10))
+
+    PA.plot_deltas(pop, figsize=(10,10), sortby='mu', pthresh=2)
+
+    # Collect delta stats
+    df_list = []
+    for k in pop['deltas'].keys():
+        df = pop['deltas'][k]['combined'].transpose()
+        df['cell_type'] = k
+        df_list.append(df)
+
+    # Save the combined dataframe as a CSV file
+    combined_df = pd.concat(df_list, ignore_index=True)
+    delta_stats_df = os.path.join(output_dir_sub, 'delta_stats.csv')
+    combined_df.to_csv(delta_stats_df, index=False)
+    print(f"Combined dataframe saved to {delta_stats_df}")
+
+    # # # Calculate LLR ranking
+    # PA.rank(pop,
+    #         ref=qs, # label of the reference sample
+    #         k=20000, # number of cells per bootstrapping sample
+    #         niter=200, # number of iterations
+    #         method='LLR', # LLR for log-likelihood ratio or LL for log-likelihood
+    #         mincells=50, # sample's minimum number of cells to be included in ranking
+    #         figsize=(10,5)) # plot figure size
+    
+    # # saving LLR data
+    # ranking_stats_df = os.path.join(output_dir_sub, 'ranking_stats.csv')
+    # pop['rankings'].to_csv(ranking_stats_df, index=True)
+
+
+
+```
+
+```{python}
+
+for output_dir_root in directory_names:
+    try:
+        filename = f'{output_dir_root}/popalign_2024-07-24.pkl'
+        with open(filename, 'rb') as file:
+            pop = pickle.load(file)
+
+        pop['ncores'] = 64
+
+        for qs in quality_slices:
+            try:
+                print(qs + os.path.basename(output_dir_root))
+
+                output_dir_sub = f'{output_dir_root}/multicomp/{qs}'
+                PA.mkdir(output_dir_sub) 
+                pop['output'] = output_dir_sub
+
+                PA.align(pop, ref=qs,
+                          method='conservative', # one of: test2ref, ref2test, conservative
+                          figsizedeltas=(10,10),
+                          figsizeentropy=(10,10))
+
+                PA.plot_deltas(pop, figsize=(10,10), sortby='mu', pthresh=2)
+
+                # Collect delta stats
+                df_list = []
+                for k in pop['deltas'].keys():
+                    df = pop['deltas'][k]['combined'].transpose()
+                    df['cell_type'] = k
+                    df_list.append(df)
+
+                # Save the combined dataframe as a CSV file
+                combined_df = pd.concat(df_list, ignore_index=True)
+                delta_stats_df = os.path.join(output_dir_sub, 'delta_stats.csv')
+                combined_df.to_csv(delta_stats_df, index=False)
+                print(f"Combined dataframe saved to {delta_stats_df}")
+            except Exception as e:
+                print(f"Error processing quality slice '{qs}' in directory '{output_dir_root}': {e}")
+    except Exception as e:
+        print(f"Error processing directory '{output_dir_root}': {e}")
+
+```
+
+Scrap single run example
+
+```{python}
+quality_slices = [
+  "SPF run1 roi1", 
+  "WILDR run2 roi1",
+  "SPF run3 roi1", 
+  "SPF run4 roi1", 
+  "WILDR run1 roi2",
+  "SPF run2 roi2", 
+  "WILDR run4 roi2", 
+  "WILDR run1 roi3", 
+  "SPF run2 roi3", 
+  "WILDR run3 roi3", 
+  "WILDR run4 roi3", 
+  "SPF run1 roi4", 
+  "WILDR run2 roi4", 
+  "SPF run3 roi4", 
+  "SPF run4 roi4"
+  ]
+
+
+for qs in quality_slices:
+  print(qs)
+  output_dir_sub = f'{output_dir_root}/multicomp/{qs}'
+  PA.mkdir(output_dir_sub) 
+  pop['output'] = output_dir_sub
+
+  PA.align(pop, ref=qs,
+            method='conservative', # one of: test2ref, ref2test, conservative
+            figsizedeltas=(10,10),
+            figsizeentropy=(10,10))
+
+  PA.plot_deltas(pop, figsize=(10,10), sortby='mu', pthresh=2)
+
+  # Collect delta stats
+  df_list = []
+  for k in pop['deltas'].keys():
+      df = pop['deltas'][k]['combined'].transpose()
+      df['cell_type'] = k
+      df_list.append(df)
+
+  # Save the combined dataframe as a CSV file
+  combined_df = pd.concat(df_list, ignore_index=True)
+  delta_stats_df = os.path.join(output_dir_sub, 'delta_stats.csv')
+  combined_df.to_csv(delta_stats_df, index=False)
+  print(f"Combined dataframe saved to {delta_stats_df}")
+
+  # # Calculate LLR ranking
+  PA.rank(pop,
+          ref=qs, # label of the reference sample
+          k=20000, # number of cells per bootstrapping sample
+          niter=200, # number of iterations
+          method='LLR', # LLR for log-likelihood ratio or LL for log-likelihood
+          mincells=50, # sample's minimum number of cells to be included in ranking
+          figsize=(10,5)) # plot figure size
+  
+  # saving LLR data
+  ranking_stats_df = os.path.join(output_dir_sub, 'ranking_stats.csv')
+  pop['rankings'].to_csv(ranking_stats_df, index=True)
+
+
+```

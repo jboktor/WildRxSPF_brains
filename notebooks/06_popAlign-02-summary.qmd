@@ -1,0 +1,1681 @@
+
+title: "Probabilisitic mixture modeling of NMF dimensions | Summary Analysis"
+editor: source
+author: "Joe Boktor"
+date: '2024-07-10'
+jupyter: /central/groups/MazmanianLab/joeB/software/mambaforge/envs/popalign/bin/python3
+eval: false
+format: 
+  html:
+    font-family: helvetica neue
+    page-layout: full
+    toc: true
+    toc-location: left
+    toc-depth: 5
+    self-contained: true
+    code-fold: false
+    code-tools: true
+    fig-align: center
+    grid:
+      sidebar-width: 200px
+      body-width: 1100px
+      margin-width: 200px
+      gutter-width: 1.5em
+---
+
+# Analysis Setup
+
+```{r}
+#| messages: false
+#| warnings: false
+
+library(tidyverse)
+library(magrittr)
+library(glue)
+library(Seurat)
+library(grid)
+library(biomaRt)
+library(SingleR)
+library(batchtools)
+library(strex)
+# stats 
+library(lme4)
+library(broom)
+library(vegan)
+library(nlme)
+# parallelization
+library(BiocParallel)
+library(future)
+library(furrr)
+# plotting
+library(RColorBrewer)
+library(ggsci)
+library(Matrix)
+library(plotly)
+library(DT)
+library(gtsummary)
+library(aplot)
+library(patchwork)
+library(viridis)
+
+# setting paths
+homedir <- "/central/groups/mthomson/jboktor"
+wkdir <- glue("{homedir}/spatial_genomics/jess_2024-01-23")
+source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
+
+```
+
+## Running all-v-all slice GMM comparisons
+
+```{python}
+#| messages: false
+#| warnings: false
+
+import popalign as PA
+import numpy as np
+import pickle
+from datetime import datetime
+import pandas as pd
+matplotlib.pyplot.style.use('default')
+
+wkdir = '/central/groups/mthomson/jboktor/spatial_genomics/jess_2024-01-23'
+
+```
+
+Load in pop object
+
+```{python, eval = FALSE}
+
+# input_folder = f'{wkdir}/data/interim/popAlign-input_2024-07-09/'
+# output_dir_root = f'{wkdir}/data/interim/popAlign_results/2024-07-24_SCT-counts/osNMF_11_postqc_dup'
+
+# print(pop['ncores'])
+# pop.keys()
+
+# filename = f'{output_dir_root}/popalign_2024-07-24.pkl'
+# with open(filename, 'rb') as file:
+#     pop = pickle.load(file)
+
+```
+
+Looping through folders and quality slices and doing all against all comparisons
+
+```{python, eval = FALSE}
+
+quality_slices = [
+  "SPF run1 roi1", 
+  "WILDR run2 roi1",
+  "WILDR run3 roi2",
+  "SPF run3 roi1", 
+  "SPF run4 roi1", 
+  "WILDR run1 roi2",
+  "SPF run2 roi2", 
+  "WILDR run4 roi2", 
+  "WILDR run1 roi3", 
+  "SPF run2 roi3", 
+  "WILDR run3 roi3", 
+  "WILDR run4 roi3", 
+  "SPF run1 roi4", 
+  "WILDR run2 roi4", 
+  "SPF run3 roi4", 
+  "SPF run4 roi4"
+  ]
+
+```
+
+
+Looping through whole slice comparisons
+
+```{python, eval = FALSE}
+
+analysis_dir = f'{wkdir}/data/interim/popAlign_results/2024-08-07_SCT-counts/'
+directory_names = [os.path.join(analysis_dir, d) for d in os.listdir(analysis_dir) if os.path.isdir(os.path.join(analysis_dir, d))]
+directory_names
+
+for output_dir_root in directory_names:
+    try:
+        filename = f'{output_dir_root}/popalign_2024-08-07.pkl'
+        with open(filename, 'rb') as file:
+            pop = pickle.load(file)
+
+        pop['ncores'] = 32
+
+        for qs in quality_slices:
+            try:
+                print(qs + os.path.basename(output_dir_root))
+
+                output_dir_sub = f'{output_dir_root}/multicomp/{qs}'
+                PA.mkdir(output_dir_sub) 
+                pop['output'] = output_dir_sub
+
+                PA.align(pop, ref=qs,
+                          method='celltype', # one of: test2ref, ref2test, conservative
+                          figsizedeltas=(10,10),
+                          figsizeentropy=(10,10))
+
+                PA.plot_deltas(pop, figsize=(10,10), sortby='mu', pthresh=1)
+
+                # Collect delta stats
+                df_list = []
+                for k in pop['deltas'].keys():
+                    df = pop['deltas'][k]['combined'].transpose()
+                    df['cell_type'] = k
+                    df['correct_orderedsamples'] = pop['deltas'][k]['orderedsamples']
+                    df_list.append(df)
+
+                # Save the combined dataframe as a CSV file
+                combined_df = pd.concat(df_list, ignore_index=True)
+
+                current_date = datetime.now().strftime('%Y-%m-%d')
+                delta_stats_path = os.path.join(output_dir_sub, f'delta_stats_{current_date}.csv')
+                combined_df.to_csv(delta_stats_path, index=False)
+                print(f"Combined dataframe saved to {delta_stats_path}")
+            
+            except Exception as e:
+                print(f"Error processing quality slice '{qs}' in directory '{output_dir_root}': {e}")
+    
+    except Exception as e:
+        print(f"Error processing directory '{output_dir_root}': {e}")
+
+
+```
+
+Looping through NMF filtered runs
+
+```{python, eval = FALSE}
+
+analysis_dir = f'{wkdir}/data/interim/popAlign_results/2024-08-08_SCT-counts-nmf/'
+directory_names = [os.path.join(analysis_dir, d) for d in os.listdir(analysis_dir) if os.path.isdir(os.path.join(analysis_dir, d))]
+directory_names
+
+for output_dir_root in directory_names:
+    try:
+        filename = f'{output_dir_root}/popalign_2024-08-08.pkl'
+        with open(filename, 'rb') as file:
+            pop = pickle.load(file)
+
+        pop['ncores'] = 32
+
+        for qs in quality_slices:
+            try:
+                print(qs + os.path.basename(output_dir_root))
+                output_dir_sub = f'{output_dir_root}/multicomp/{qs}'
+                PA.mkdir(output_dir_sub) 
+                pop['output'] = output_dir_sub
+
+                PA.align(pop, ref=qs,
+                          method='celltype',
+                          figsizedeltas=(10,10),
+                          figsizeentropy=(10,10))
+
+                PA.plot_deltas(pop, figsize=(10,10), sortby='mu', pthresh=1)
+
+                # Collect delta stats
+                df_list = []
+                for k in pop['deltas'].keys():
+                    df = pop['deltas'][k]['combined'].transpose()
+                    df['cell_type'] = k
+                    df['correct_orderedsamples'] = pop['deltas'][k]['orderedsamples']
+                    df_list.append(df)
+
+                # Save the combined dataframe as a CSV file
+                combined_df = pd.concat(df_list, ignore_index=True)
+
+                current_date = datetime.now().strftime('%Y-%m-%d')
+                delta_stats_path = os.path.join(output_dir_sub, f'delta_stats_{current_date}.csv')
+                combined_df.to_csv(delta_stats_path, index=False)
+                print(f"Combined dataframe saved to {delta_stats_path}")
+            
+            except Exception as e:
+                print(f"Error processing quality slice '{qs}' in directory '{output_dir_root}': {e}")
+    
+    except Exception as e:
+        print(f"Error processing directory '{output_dir_root}': {e}")
+
+
+```
+
+Loading in Seurat object.
+
+```{r, eval = FALSE}
+abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
+merged_rois <- readRDS(
+    glue(
+      "{wkdir}/data/interim/",
+      "merged_roi_seurat_filtered_staNMF-updated_2024-07-24.rds"
+    )
+)
+meta_df <- merged_rois@meta.data %>% glimpse()
+
+```
+
+Loading in results.
+# All against all popAlign delta stats
+
+```{r, eval = FALSE}
+meta_df <- merged_rois@meta.data %>% glimpse()
+ref_meta <- meta_df %>%
+  tibble() %>%
+  select(
+    ref_slice = slice_id, ref_group = group, 
+    ref_run = run, ref_roi = roi, ref_bregma = bregma
+    ) %>%
+  distinct()
+
+test_meta <- meta_df %>%
+  tibble() %>%
+  select(
+    test_slice = slice_id, test_group = group, 
+    test_run = run, test_roi = roi, test_bregma = bregma
+    ) %>%
+  distinct()
+
+```
+
+```{r, eval = FALSE}
+#------------------
+
+all_delta_stats_paths <- list.files(
+  glue("{wkdir}/data/interim/popAlign_results/2024-08-07_SCT-counts"),
+  recursive = TRUE,
+  pattern = "delta_stats_2024-08-17.csv",
+  full.names = TRUE
+) %>%
+  keep(~ grepl("multicomp", .))
+
+all_delta_stats_df_raw <- all_delta_stats_paths %>%
+  purrr::set_names() %>%
+  purrr::map(
+    ~ read.csv(.x)
+  ) %>%
+  bind_rows(.id = "filepath") %>%
+  dplyr::select(-orderedsamples) %>% # faulty sample order
+  glimpse()
+
+all_delta_stats_df <- all_delta_stats_df_raw %>%
+  mutate(
+    ref_slice = str_before_last(filepath, "/") %>% str_after_last("/"), 
+    nmf_dim = str_before_last(filepath, "/multicomp") %>% str_after_last("/")
+    ) %>%
+  tibble() %>%
+  dplyr::rename(test_slice = correct_orderedsamples) %>%
+  left_join(ref_meta, by = c("ref_slice" )) %>%
+  left_join(test_meta, by = c("test_slice" )) %>%
+  dplyr::mutate(bregma_delta = ref_bregma - test_bregma) %>%
+  mutate(pair_type = case_when(
+    ref_group == test_group & ref_group == "spf" ~ "Within-SPF",
+    ref_group == test_group & ref_group == "wildr" ~ "Within-WildR",
+    ref_group == "wildr" ~ "Between-WildR-to-SPF",
+    ref_group == "spf" ~ "Between-SPF-to-WildRSPF",
+    TRUE ~ "Error"
+  )) %>%
+  mutate(sample_pair = purrr::map2_chr(ref_slice, test_slice, 
+    ~paste(sort(c(.x, .y)), collapse = "__"))
+  ) %>%
+  mutate(sample_pair_asym = glue("{ref_slice}__{test_slice}")) %>%
+  glimpse()
+
+all_delta_stats_df_long <- all_delta_stats_df %>% 
+  dplyr::select(-contains("pvals"), -origidx) %>%
+  pivot_longer(
+    cols = c(mean_delta_w, mean_delta_mu, mean_delta_cov),
+    names_to = "metric",
+    values_to = "metric_value"
+  ) %>%
+    mutate(metric_formatted = case_when(
+      metric == "mean_delta_w" ~ "Delta * omega",
+      metric == "mean_delta_mu" ~ "Delta * mu",
+      metric == "mean_delta_cov" ~ "Delta * Sigma"
+  )) %>%
+  glimpse()
+
+```
+
+Exploratory Analysis of all-vs-all slice comparisons
+
+```{r, eval = FALSE}
+
+sp_order <- all_delta_stats_df_long %>% 
+  # filter(test_slice != ref_slice) %>%
+  filter(metric == "mean_delta_cov") %>%
+  group_by(sample_pair_asym) %>%
+  summarize(mean_metric = mean(metric_value)) %>%
+  arrange(mean_metric) %>%
+  pull(sample_pair_asym)
+
+p_dist <- all_delta_stats_df_long %>%
+  # filter(test_slice != ref_slice) %>%
+  mutate(sample_pair_asym = factor(sample_pair_asym, levels = sp_order, ordered  = TRUE)) %>%
+  ggplot(aes(y=sample_pair_asym, x=metric_value)) +
+  geom_point(aes(color = cell_type),
+    position = position_jitter(width = 0, height = 0.1), alpha = 0.7, size = 0.6) +
+  geom_boxplot(alpha = 0.3, outlier.alpha = 0) +
+  facet_grid(pair_type ~ metric_formatted, labeller = label_parsed, 
+    scales = "free", space = "free_y") +
+  scale_color_manual(values = abca_color_pal[["class_colors"]]) +
+  guides(colour = guide_legend(override.aes = list(size=4))) +
+  theme_bw()
+
+ggsave(
+  glue("{wkdir}/figures/popAlign/delta_stats_pairwise_grouped_{Sys.Date()}.png"),
+  p_dist,
+  width = 17, height = 25
+)
+
+# all_delta_stats_df %>% glimpse()
+# all_delta_stats_df_long %>% glimpse()
+# all_delta_stats_df_long$ref_slice %>% unique()
+
+p_pairclass_bxplt <- all_delta_stats_df_long %>%
+  filter(test_slice != ref_slice) %>%
+  filter(test_slice != "SPF run1 roi1") %>%
+  ggplot(aes(x = pair_type, y = metric_value)) +
+  geom_point(aes(color = ref_run), position = position_jitter(0.3), size = 0.3) +
+  geom_boxplot(outlier.alpha = 0, alpha = 0.3) +
+  labs(x = NULL, y = NULL, color = "Reference Run") +
+  guides(color = guide_legend(override.aes = list(size=4))) +
+  scale_color_d3(palette = "category10") +
+  facet_wrap( ~ metric_formatted, 
+    scales = "free", 
+    labeller = label_parsed) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+    legend.position = "left")
+
+ggsave(
+  glue("{wkdir}/figures/popAlign/dstats_pairtype_boxplt_{Sys.Date()}.png"),
+  p_pairclass_bxplt,
+  width = 8, height = 6
+)
+
+p_pairclass_bxplt_runs <- all_delta_stats_df_long %>%
+  filter(test_slice != ref_slice) %>%
+  filter(test_slice != "SPF run1 roi1") %>%
+  ggplot(aes(x = pair_type, y = metric_value, color = ref_run)) +
+  geom_point(position = position_jitterdodge(0.1), size = 0.3) +
+  geom_boxplot(outlier.alpha = 0, alpha = 0.3) +
+  labs(x = NULL, y = NULL, color = "Reference Run") +
+  guides(color = guide_legend(override.aes = list(size=4))) +
+  scale_color_d3(palette = "category10") +
+  facet_wrap( ~ metric_formatted, 
+    scales = "free", 
+    labeller = label_parsed) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+    legend.position = "left")
+
+ggsave(
+  glue("{wkdir}/figures/popAlign/dstats_pairtype-runs_boxplt_{Sys.Date()}.png"),
+  p_pairclass_bxplt_runs,
+  width = 16, height = 6
+)
+
+
+```
+
+
+![Fig exp. here](../figures/popAlign/dstats_pairtype_boxplt_2024-08-17.png){#fig-pairs_bxplt_ws}
+
+![Fig exp. here](../figures/popAlign/dstats_pairtype-runs_boxplt_2024-08-17.png){#fig-pairs-runs_bxplt_ws}
+
+![Fig exp. here](../figures/popAlign/delta_stats_pairwise_grouped_2024-08-17.png){#fig-pairs-full}
+
+
+PERMANOVA analysis function
+```{r}
+run_popalign_permanova <- function(df_input, celltype, param, ref2test = TRUE) {
+  # Compute distance matrix (e.g., Euclidean distance)
+  distances_df <- df_input %>%
+    filter(cell_type == celltype & metric == param) %>%
+    select(ref_slice, test_slice, metric_value) %>%
+    arrange(test_slice, ref_slice) %>%
+    pivot_wider(names_from = test_slice, values_from = metric_value) %>%
+    column_to_rownames("ref_slice")
+  
+  if (ref2test) {
+    dist_mat <- as.dist(distances_df)
+  } else {
+    dist_mat <- as.dist(t(distances_df))
+  }
+
+  # PERMANOVA incorporating covariates
+  permanova_result <- adonis2(
+    dist_mat ~ group + bregma + run,
+    data = metadata_for_dist,
+    permutations = 10000
+  )
+
+  return(permanova_result)
+}
+
+```
+
+Generating sample metadata table.
+
+```{r}
+df_input <- all_delta_stats_df_long %>%
+  mutate(metric_value = abs(metric_value))
+
+slice_order <- df_input %>%
+  arrange(test_slice) %>%
+  pull(test_slice) %>% unique()
+
+metadata_for_dist <- merged_rois@meta.data %>%
+  dplyr::select(slice_id, group, run, bregma) %>%
+  distinct() %>%
+  filter(slice_id %in% slice_order) %>%
+  arrange(slice_id) %>%
+  as.data.frame()
+
+rownames(metadata_for_dist)  <- metadata_for_dist$slice_id
+metadata_for_dist
+
+```
+
+Running PERMANOVA on whole slice popAlign delta statistics.
+
+```{r, eval = FALSE}
+perm_params <- all_delta_stats_df_long %>%
+  dplyr::select(cell_type, metric) %>%
+  distinct() %>%
+  arrange(cell_type, metric) %>%
+  glimpse()
+
+permanova_res <- seq(nrow(perm_params)) %>% 
+  purrr::set_names(glue(
+    "{perm_params[., 1][[1]]}__{perm_params[., 2][[1]]}__Symmetric"
+  )) %>%
+  purrr::map( ~ run_popalign_permanova(
+    df_input, 
+    perm_params[., 1][[1]], 
+    perm_params[., 2][[1]]
+    )
+  )
+
+permanova_res_df <- permanova_res %>% 
+  purrr::map_dfr(broom::tidy, .id = "id") %>% 
+  dplyr::mutate(
+    celltype = strex::str_before_first(id, "__"),
+    metric = strex::str_after_first(id, "__") %>% strex::str_before_last("__"),
+    ref2test = strex::str_after_last(id, "__")
+  ) %>% 
+  janitor::clean_names() %>%
+  mutate(metric_formatted = case_when(
+    metric == "mean_delta_w" ~ "Delta * omega",
+    metric == "mean_delta_mu" ~ "Delta * mu",
+    metric == "mean_delta_cov" ~ "Delta * Sigma"
+    )) %>%
+  glimpse()
+
+saveRDS(
+  permanova_res_df,
+  glue(
+    "{wkdir}/data/interim/popAlign_results/2024-08-07_SCT-counts/",
+    "permanova_res_df_k10000{Sys.Date()}.rds"
+    )
+)
+
+```
+
+Visualizing PERMANOVA results
+
+```{r, eval = FALSE}
+permanova_res_df <- readRDS(
+  glue(
+    "{wkdir}/data/interim/popAlign_results/2024-08-07_SCT-counts/",
+    "permanova_res_df_k100002024-08-19.rds"
+    )
+)
+
+
+p1 <- permanova_res_df %>% 
+  filter(term %nin% c("Residual", "Total")) %>% 
+  # filter(p_value < 0.05) %>% 
+  ggplot(aes(x = r2, y = celltype)) +
+  geom_col(aes(fill = celltype), position = "stack", width = 0.5) +
+  facet_grid(term ~  metric_formatted, scales = "free", space = "free", 
+    labeller = label_parsed
+  ) +
+  scale_fill_manual(values = abca_color_pal[["class_colors"]]) +
+  labs(x = expression(R^2), y = NULL) +
+  theme_bw()
+
+ggsave(
+  glue("{wkdir}/figures/popAlign/permanova_r2_whole-slice_{Sys.Date()}.png"),
+  p1,
+  width = 8, height = 9
+)
+
+p_bubble_perm_ws <- permanova_res_df %>% 
+  filter(term == "group") %>%
+  ggplot(aes(x = statistic, y = r2, 
+             size = -log10(p_value), color = celltype, shape = metric)) +
+  geom_point() +
+  scale_color_manual(values = abca_color_pal[["class_colors"]]) +
+  # geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  labs(y = expression(R^2), size = "-log10(p-value)", 
+  x = "WildR/SPF pseudo-F", color = NULL) +
+  guides(
+    size = guide_legend(order = 1, title.position = "top"),
+    shape = guide_legend(order = 2, title.position = "top"),
+    color = guide_legend(order = 3, title.position = "right", override.aes = list(size=4))
+  ) +
+  theme_bw() +
+  theme(
+    legend.box = "vertical", # Makes sure that the color legend stays vertical
+    legend.position = "bottom"
+  )
+
+ggsave(
+  glue("{wkdir}/figures/popAlign/permanova_bubble_whole-slice_{Sys.Date()}.png"),
+  p_bubble_perm_ws,
+  width = 9, height = 10
+)
+
+```
+
+
+
+
+## NMF split delta stat analysis
+
+```{r, eval = FALSE}
+
+all_delta_stats_paths <- list.files(
+  glue("{wkdir}/data/interim/popAlign_results/2024-08-08_SCT-counts-nmf"),
+  recursive = TRUE,
+  pattern = "delta_stats_2024-08-17.csv",
+  full.names = TRUE
+) %>%
+  keep(~ grepl("multicomp", .))
+
+all_delta_stats_df_raw <- all_delta_stats_paths %>%
+  purrr::set_names() %>%
+  purrr::map(
+    ~ read.csv(.x)
+  ) %>%
+  bind_rows(.id = "filepath") %>%
+  dplyr::select(-orderedsamples) %>% # faulty sample order
+  glimpse()
+
+all_delta_stats_df <- all_delta_stats_df_raw %>%
+  mutate(
+    ref_slice = str_before_last(filepath, "/") %>% str_after_last("/"), 
+    nmf_dim = str_before_last(filepath, "/multicomp") %>% str_after_last("/")
+    ) %>%
+  tibble() %>%
+  dplyr::rename(test_slice = correct_orderedsamples) %>%
+  left_join(ref_meta, by = c("ref_slice" )) %>%
+  left_join(test_meta, by = c("test_slice" )) %>%
+  dplyr::mutate(bregma_delta = ref_bregma - test_bregma) %>%
+  mutate(pair_type = case_when(
+    ref_group == test_group & ref_group == "spf" ~ "Within-SPF",
+    ref_group == test_group & ref_group == "wildr" ~ "Within-WildR",
+    ref_group == "wildr" ~ "Between-WildR-to-SPF",
+    ref_group == "spf" ~ "Between-SPF-to-WildRSPF",
+    TRUE ~ "Error"
+  )) %>%
+  mutate(sample_pair = purrr::map2_chr(ref_slice, test_slice, 
+    ~paste(sort(c(.x, .y)), collapse = "__"))
+  ) %>%
+  mutate(sample_pair_asym = glue("{ref_slice}__{test_slice}")) %>%
+  glimpse()
+
+all_delta_stats_df_long <- all_delta_stats_df %>% 
+  dplyr::select(-contains("pvals"), -origidx) %>%
+  pivot_longer(
+    cols = c(mean_delta_w, mean_delta_mu, mean_delta_cov),
+    names_to = "metric",
+    values_to = "metric_value"
+  ) %>%
+    mutate(metric_formatted = case_when(
+      metric == "mean_delta_w" ~ "Delta * omega",
+      metric == "mean_delta_mu" ~ "Delta * mu",
+      metric == "mean_delta_cov" ~ "Delta * Sigma"
+  )) %>%
+  glimpse()
+
+nmdf_dims <- all_delta_stats_df_long$nmf_dim %>% unique()
+
+# Plotting pairwise distance metrics for each NMF dimension
+for (ndim in nmdf_dims) {
+  sp_order <- all_delta_stats_df_long %>% 
+    filter(nmf_dim == ndim) %>%
+    # filter(test_slice != ref_slice) %>%
+    filter(metric == "mean_delta_cov") %>%
+    group_by(sample_pair_asym) %>%
+    summarize(mean_metric = mean(metric_value)) %>%
+    arrange(mean_metric) %>%
+    pull(sample_pair_asym)
+
+  p_dist <- all_delta_stats_df_long %>%
+    # filter(test_slice != ref_slice) %>%
+    filter(nmf_dim == ndim) %>%
+    mutate(sample_pair_asym = factor(sample_pair_asym, levels = sp_order, ordered  = TRUE)) %>%
+    ggplot(aes(y=sample_pair_asym, x=metric_value)) +
+    geom_point(aes(color = cell_type),
+      position = position_jitter(width = 0, height = 0.1), alpha = 0.4, size = 0.8) +
+    geom_boxplot(alpha = 0.3, outlier.alpha = 0) +
+    facet_grid(pair_type ~ metric_formatted, labeller = label_parsed, 
+      scales = "free", space = "free_y") +
+    scale_color_manual(values = abca_color_pal[["class_colors"]]) +
+    guides(colour = guide_legend(override.aes = list(size=4))) +
+    labs(title = glue("Pairwise Distance Metrics : {ndim}")) +
+    theme_bw()
+
+  ggsave(
+    glue("{wkdir}/figures/popAlign/osNMFK11/delta_stats_pairwise_grouped_{ndim}_{Sys.Date()}.png"),
+    p_dist,
+    width = 17, height = 25
+  )
+}
+
+all_delta_stats_df_long %>% glimpse()
+
+perm_params <- all_delta_stats_df_long %>%
+  dplyr::select(cell_type, metric, nmf_dim) %>%
+  filter(metric != "mean_delta_w") %>%
+  distinct()
+
+names_vector <- perm_params %>%
+  dplyr::mutate(name = glue::glue("{cell_type}__{metric}__{nmf_dim}")) %>%
+  dplyr::pull(name)
+
+# Apply pmap and set the names
+permanova_res <- perm_params %>%
+  purrr::pmap(function(cell_type, metric, nmf_dim) {
+    run_popalign_permanova(
+      df_input %>% filter(nmf_dim == nmf_dim), 
+      cell_type, 
+      metric, 
+      TRUE
+    )
+  }) %>%
+  purrr::set_names(names_vector)
+
+permanova_res_df <- permanova_res %>% 
+  purrr::map_dfr(broom::tidy, .id = "id") %>% 
+  dplyr::mutate(
+    celltype = strex::str_before_first(id, "__"),
+    metric = strex::str_after_first(id, "__") %>% strex::str_before_last("__"),
+    nmf_dim = strex::str_after_last(id, "__")
+  ) %>% 
+  janitor::clean_names() %>%
+  glimpse()
+
+saveRDS(
+  permanova_res_df,
+  glue(
+    "{wkdir}/data/interim/popAlign_results/2024-08-08_SCT-counts-nmf/",
+    "permanova_results_iter-100k_{Sys.Date()}.rds"
+    )
+)
+# permanova_res_df %>% 
+#   filter(term == "group") %>%  View
+#   filter(p_value < 0.05) %>% 
+#   DT::datatable(
+#     options = list(
+#       pageLength = 10,
+#       scrollX = TRUE
+#     )
+#   )
+
+p1 <- permanova_res_df %>% 
+  filter(term %nin% c("Residual", "Total")) %>% 
+  # filter(p_value < 0.05) %>% 
+  ggplot(aes(x = r2, y = celltype)) +
+  geom_col(aes(fill = celltype), position = "stack", 
+    width = 0.5, color = "black", linewidth =  0.02) +
+  facet_grid(term ~  metric, scales = "free", space = "free"
+  # , labeller = label_parsed
+  ) +
+  scale_fill_manual(values = abca_color_pal[["class_colors"]]) +
+  labs(x = NULL, y = NULL) +
+  theme_bw()
+
+ggsave(
+  glue("{wkdir}/figures/popAlign/osNMFK11/permanova_r2_{Sys.Date()}.png"),
+  p1,
+  width = 8, height = 6
+)
+
+
+```
+
+
+## Modeling GMM comparison statistics across all-vs-all slice comparisons with hierarchical linear mixture models
+
+Our nested linear mixed model is specified as:
+
+$$
+\text{param} \sim\ \text{test_group} + \text{bregma_delta} + \text{1 | reference_run/reference_slice}
+$$
+
+or
+
+$$
+Y_{ijk} = \beta_0 + \beta_1 \cdot \text{test_group}_i + \beta_2 \cdot \text{bregma_delta}_i + u_{jk} + v_{j(k)} + \epsilon_{ijk}
+$$
+
+Where:
+
+-   $Y_{ijk}$ is the response variable $param$ ($\Delta\mu$, $\Delta \omega$ , $\Delta \Sigma$) for the $i\text{-th}$ observation.
+
+-   $u_{jk} \sim N(0, \sigma^2_{u})$ are the random effects for the reference run (ref_run).
+
+-   $v_{j(k)} \sim N(0, \sigma^2_{v})$ are the nested random effects for the reference slice (ref_slice) within the ref_run.
+
+-   $\epsilon_{ijk} \sim N(0, \sigma^2)$ are the residual errors.
+
+Modeling results
+
+```{r, eval = FALSE}
+# Initialize the results data frame and model list
+allvall_stats <- tibble()
+model_list <- list()
+
+# Loop through parameters, dimensions, and cell types
+for (param in c("mean_delta_w", "mean_delta_mu", "mean_delta_cov")) {
+  for (nd in unique(all_delta_stats_df$nmf_dim)) {
+    nmf_dim_df <- all_delta_stats_df %>%
+      filter(nmf_dim == nd) %>%
+      filter(ref_group != test_group)
+    for (ct in unique(nmf_dim_df$cell_type)) {
+      message("Fitting model ", param, " ", nd, " ", ct)
+      filtered_df <- nmf_dim_df %>% 
+        filter(cell_type == ct)
+      
+      # Fit the nlme model
+      model_list[[nd]][[ct]][[param]] <- nlme::lme(fixed = as.formula(glue("{param} ~ test_group + bregma_delta")),
+                                             random = ~ 1 | ref_run/ref_slice,
+                                            #  random = ~ 1 | ref_run + sample_pair,
+                                             data = filtered_df,
+                                             method = "REML")
+      
+      # Extract the model summary and convert to a tidy format
+      res <- summary(model_list[[nd]][[ct]][[param]])$tTable %>%
+        as.data.frame() %>%
+        rownames_to_column("term") %>%
+        as_tibble() %>%
+        mutate(nmf_dim = nd, cell_type = ct, metric = param)
+      
+      # Combine results
+      allvall_stats %<>% bind_rows(res)
+    }
+  }
+}
+
+allvall_stats %<>%
+  janitor::clean_names() %>%
+    mutate(metric = case_when(
+    metric == "mean_delta_w" ~ "beta (Delta * omega)",
+    metric == "mean_delta_mu" ~ "beta (Delta * mu)",
+    metric == "mean_delta_cov" ~ "beta (Delta * Sigma)"
+  ))
+
+saveRDS(
+  allvall_stats,
+  glue(
+    "{wkdir}/data/interim/popAlign_results/2024-08-01_SCT-counts/",
+    "whole_slice/lmm_stats/",
+    "whole-slice_lmm_stats_{Sys.Date()}.rds"
+    )
+)
+
+```
+
+```{r}
+
+allvall_stats <- readRDS(
+  glue(
+    "{wkdir}/data/interim/popAlign_results/2024-08-01_SCT-counts/",
+    "whole_slice/lmm_stats/",
+    "whole-slice_lmm_stats_2024-08-07.rds"
+    )
+)
+allvall_stats %>% glimpse()
+
+# print significant results in a table
+allvall_stats %>% 
+  filter(grepl("test_group", term)) %>% 
+  filter(p_value < 0.05) %>%
+  DT::datatable(
+    options = list(
+      pageLength = 10,
+      scrollX = TRUE
+    )
+  )
+
+```
+
+```{r, eval = FALSE}
+# plotting significant results
+p_lmm_sig_bars <- allvall_stats %>%
+  janitor::clean_names() %>%
+  #   mutate(metric = case_when(
+  #   metric == "mean_delta_w" ~ "beta (Delta * omega)",
+  #   metric == "mean_delta_mu" ~ "beta (Delta * mu)",
+  #   metric == "mean_delta_cov" ~ "beta (Delta * Sigma)"
+  # )) %>%
+  filter(
+    term != "(Intercept)",
+     p_value <= 0.05
+     ) %>%
+  ggplot(aes(x = value, y = cell_type)) +
+  geom_col(aes(fill = cell_type), position = "identity", width = 0.5) +
+  facet_grid(term ~ metric, labeller = label_parsed, 
+    scales = "free", space = "free_y") +
+    scale_fill_manual(values = abca_color_pal[["class_colors"]]) +
+    labs(x = NULL, y = NULL) +
+  theme_bw()
+
+ggsave(
+  glue("{wkdir}/figures/popAlign/delta_stats_lm_sig_bars_{Sys.Date()}.png"),
+  p_lmm_sig_bars,
+  width = 8, height = 5
+)
+
+```
+
+```{python, eval = FALSE, include = FALSE}
+# Loop without error handeling
+
+# for output_dir_root in directory_names:
+#   filename = f'{output_dir_root}/popalign_2024-08-01.pkl'
+  
+#   with open(filename, 'rb') as file:
+#     pop = pickle.load(file)
+
+#   pop['ncores'] = 24
+  
+#   for qs in quality_slices:
+    
+#     print(qs + os.path.basename(output_dir_root))
+    
+#     output_dir_sub = f'{output_dir_root}/multicomp/{qs}'
+#     PA.mkdir(output_dir_sub) 
+#     pop['output'] = output_dir_sub
+
+#     PA.align(pop, ref=qs,
+#               method='conservative', # one of: test2ref, ref2test, conservative
+#               figsizedeltas=(10,10),
+#               figsizeentropy=(10,10))
+
+#     PA.plot_deltas(pop, figsize=(10,10), sortby='mu', pthresh=2)
+
+#     # Collect delta stats
+#     df_list = []
+#     for k in pop['deltas'].keys():
+#         df = pop['deltas'][k]['combined'].transpose()
+#         df['cell_type'] = k
+#         df_list.append(df)
+
+#     # Save the combined dataframe as a CSV file
+#     combined_df = pd.concat(df_list, ignore_index=True)
+#     delta_stats_df = os.path.join(output_dir_sub, 'delta_stats.csv')
+#     combined_df.to_csv(delta_stats_df, index=False)
+#     print(f"Combined dataframe saved to {delta_stats_df}")
+
+    # # # Calculate LLR ranking
+    # PA.rank(pop,
+    #         ref=qs, # label of the reference sample
+    #         k=10000, # number of cells per bootstrapping sample
+    #         niter=200, # number of iterations
+    #         method='LLR', # LLR for log-likelihood ratio or LL for log-likelihood
+    #         mincells=50, # sample's minimum number of cells to be included in ranking
+    #         figsize=(10,5)) # plot figure size
+    
+    # # saving LLR data
+    # ranking_stats_df = os.path.join(output_dir_sub, 'ranking_stats.csv')
+    # pop['rankings'].to_csv(ranking_stats_df, index=True)
+
+```
+
+Visualizing delta statistics from the popAlign results
+
+```{r, eval=FALSE}
+popAlign_output_root <- glue(
+  "{wkdir}/data/interim/popAlign_results/2024-07-24_SCT-counts"
+)
+
+delta_stats_df <- list.files(
+  popAlign_output_root,
+  recursive = TRUE,
+  pattern = "delta_stats.csv"
+) %>%
+  purrr::set_names() %>%
+  purrr::map(
+    ~ read.csv(glue("{popAlign_output_root}/{.}"))
+  ) %>%
+    bind_rows(.id = "path") %>%
+      mutate(nmf = strex::str_before_first(path, "/")) %>%
+        # strex::str_before_last("_")) %>%
+      dplyr::select(-c(origidx, path)) %>%
+      filter(nmf != "testruns", 
+      # orderedsamples != "SPF"
+      ) %>% 
+      glimpse()
+
+
+abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
+names(abca_color_pal)
+
+delta_stats_df %>% glimpse
+# delta_stats_df %>% View
+
+# delta_stats_df %>%
+#   write.csv(
+#     glue("{wkdir}/data/interim/popAlign_results/delta_stats_df_compiled.csv"),
+#     quote = FALSE, row.names = FALSE
+#   )
+
+# mu_mat <- delta_stats_df %>%
+#   dplyr::select(mean_delta_mu, nmf, cell_type) %>%
+#   pivot_wider(
+#     names_from = "cell_type",
+#     values_from = "mean_delta_mu", values_fill = 0
+#   ) %>%
+#   tibble::column_to_rownames(var = "nmf") %>%
+#     as.matrix() %>%
+#     glimpse()
+
+mu_mat <- delta_stats_df %>%
+  filter(orderedsamples != "SPF run2 roi2") %>%
+  dplyr::group_by(nmf, cell_type) %>%
+  dplyr::summarize(mean_delta_mu = mean(mean_delta_mu)) %>%
+  pivot_wider(
+    names_from = "cell_type",
+    values_from = "mean_delta_mu", values_fill = 0
+  ) %>%
+  tibble::column_to_rownames(var = "nmf") %>%
+    as.matrix() %>%
+    glimpse()
+
+nmf_order <- seriate_matrix_rows(mu_mat)
+cell_order <- seriate_matrix_rows(t(mu_mat))
+print(names(mu_mat)) == trimws(names(mu_mat))
+
+delta_stats_df_long <- delta_stats_df %>%
+  pivot_longer(
+    cols = c(mean_delta_w, mean_delta_mu, mean_delta_cov),
+    names_to = "mean_type",
+    values_to = "mean_value"
+  ) %>%
+  pivot_longer(
+    cols = c(pvals_w, pvals_mu, pvals_cov),
+    names_to = "pval_type",
+    values_to = "pval_value"
+  ) %>%
+    mutate(mean_type = case_when(
+      mean_type == "mean_delta_w" ~ "Delta * omega",
+      mean_type == "mean_delta_mu" ~ "Delta * mu",
+      mean_type == "mean_delta_cov" ~ "Delta * Sigma"
+    )) %>%
+      mutate(
+        nmf = factor(nmf, levels = nmf_order),
+        cell_type = factor(cell_type, levels = cell_order)
+      ) %>%
+  glimpse()
+
+
+p_pop_csum_by_celltype <- delta_stats_df_long %>%
+  mutate(orderedsamples = gsub(" ", "", orderedsamples)) %>%
+  ggplot(aes(x = mean_value, y = cell_type)) +
+    geom_bar(stat = "identity", width = 0.7,
+    aes(fill = nmf)) +
+  facet_grid(orderedsamples ~ mean_type, scales = "free", labeller = label_parsed) +
+    scale_fill_d3(palette = "category20") +
+    labs(x = NULL, y = NULL) +
+  theme_bw()
+
+ggsave(
+  glue("{wkdir}/figures/popAlign/",
+  "GMM_celltype_csum_delta_stats_{Sys.Date()}.png"),
+  p_pop_csum_by_celltype,
+  width = 12, height = 30
+)
+
+
+p_pop_csum <- delta_stats_df_long %>%
+  mutate(orderedsamples = gsub(" ", "_", orderedsamples)) %>%
+  ggplot(aes(x = mean_value, y = nmf)) +
+  geom_bar(stat = "identity", width = 0.7,
+    aes(fill = cell_type)) +
+  facet_grid(orderedsamples ~ mean_type, scales = "free_y", space = "free",
+  labeller = label_parsed) +
+  scale_fill_manual(values = abca_color_pal[["cluster_colors"]]) +
+  labs(x = NULL, y = NULL) +
+  theme_bw()
+
+ggsave(
+  glue("{wkdir}/figures/popAlign/GMM_NMF_csum_delta_stats_{Sys.Date()}.png"),
+  p_pop_csum,
+  width = 11, height = 30
+)
+
+```
+
+# Extracting $\Delta \mu$ vectors from popAlign results to examine NMF dimensions driving cell type differences
+
+```{python, eval = FALSE}
+import popalign as PA
+import numpy as np
+import pandas as pd
+import pickle
+from datetime import datetime
+
+```
+
+Function to calculate delta mu vectors from pre-saved pop align results
+
+```{python, eval = FALSE}
+
+testfile = '/central/groups/mthomson/jboktor/spatial_genomics/jess_2024-01-23/data/interim/popAlign_results/2024-08-06_SCT-counts/whole_slice'
+
+# testfile
+
+os.path.dirname(testfile)
+```
+
+```{python}
+# def align(pop, ref=None, method='conservative', figsizedeltas=(10,10), figsizeentropy=(10,10)):
+# 	'''
+# 	Align the components of each sample's model to the components of a reference model
+
+# 	Parameters
+# 	----------
+# 	pop : dict
+# 		Popalign object
+# 	ref : str
+# 		Name of reference sample
+# 	method : str
+# 		Method to perform the alignment
+# 		If conservative, the reference component and the test component have to be each other's best match to align
+# 		If test2ref, the closest reference component is found for each test component
+# 		If ref2test, the closest test component is found for each ref component
+# 	figsizedeltas : tuple, optional
+# 		Size of the figure for the delta plot. Default is (10,5)
+# 	figsizeentropy : tuple, optional
+# 		Size of the figure for the entropy plot. Default is (10,5)
+# 	'''
+# 	if ref == None:
+# 		raise Exception('Please provide sample id of reference')
+# 	elif ref not in pop['samples']:
+# 		raise Exception('Provided reference not in sample list.\nYou can print the list of available samples with show_samples()')
+
+# 	pop['ref'] = ref # store reference sample name
+
+# 	refgmm = pop['samples'][ref]['gmm'] # get reference gmm
+# 	for x in pop['order']: # for each sample x
+# 		for j in range(pop['nreplicates']): # for each replicate j
+# 			testgmm = pop['samples'][x]['replicates'][j]['gmm'] # grab replicate gmm
+# 			alignments, arr = aligner(refgmm, testgmm, method) # align that replicate to reference model
+# 			pop['samples'][x]['replicates'][j]['alignments'] = alignments
+# 			pop['samples'][x]['replicates'][j]['fullalignments'] = arr
+
+# 			if j == 0: 
+# 				pop['samples'][x]['alignments'] = alignments
+# 				pop['samples'][x]['fullalignments'] = arr
+
+# 		# if x != ref: # if sample is not ref
+# 		# for all samples, re-align the 'main' gmm at the upper level
+# 		testgmm = pop['samples'][x]['gmm'] # get test gmm
+# 		alignments, arr = aligner(refgmm, testgmm, method) # align gmm to reference
+# 		pop['samples'][x]['alignments'] = alignments
+# 		pop['samples'][x]['fullalignments'] = arr
+
+# 	pop['alignmentmethod'] = method
+
+
+```
+
+Updated Alignr function
+
+```{python}
+# def aligner(refgmm, testgmm, method):
+#     '''
+#     Align the components of two models
+
+#     Parameters
+#     ----------
+#     refgmm : sklearn.mixture.GaussianMixture
+#         Reference model
+#     testgmm : sklearn.mixture.GaussianMixture
+#         Test model
+#     method : str
+#         Alignment method. Must be one of: test2ref, ref2test, conservative, celltype
+
+#     Output
+#     ----------
+#     arr: array, int
+#         Pairwise JD values between two GMMs
+#     res: array, int
+#         Array giving best alignments. Leftmost matrix:  'boolean' shows associated pairs 
+#         Rightmost column: JD values for those associated pairs 
+#     '''
+#     ltest = testgmm.n_components # get test number of components
+#     lref = refgmm.n_components # get ref number of components
+#     arr = np.zeros((ltest, lref)) # create empty array to store all pairwise JD values
+
+#     for i in range(ltest):
+#         mutest = testgmm.means_[i, :]
+#         covtest = testgmm.covariances_[i]
+#         for j in range(lref):
+#             muref = refgmm.means_[j, :]
+#             covref = refgmm.covariances_[j]
+#             arr[i, j] = PA.JeffreyDiv(mutest, covtest, muref, covref) # compute all pairwise JD values
+
+#     if method not in ['test2ref', 'ref2test', 'conservative', 'celltype']:
+#         raise Exception('method must be one of: test2ref, ref2test, conservative, celltype')
+    
+#     if method == 'test2ref':
+#         minsidx = np.argmin(arr, axis=1) # get idx of closest ref mixture for each test mixture
+#         mins = np.min(arr, axis=1) # get min divergence values
+#         res = np.zeros((ltest, 3))
+#         for i in range(ltest):
+#             res[i, :] = np.array([i, minsidx[i], mins[i]])
+
+#     elif method == 'ref2test':
+#         minsidx = np.argmin(arr, axis=0) # get idx of closest ref mixture for each test mixture
+#         mins = np.min(arr, axis=0) # get min divergence values
+#         res = np.zeros((lref, 3))
+#         for i in range(lref):
+#             res[i, :] = np.array([minsidx[i], i, mins[i]])
+
+#     elif method == 'conservative':
+#         minstest = [[i, x] for i, x in enumerate(np.argmin(arr, axis=1))]
+#         minsref = [[x, i] for i, x in enumerate(np.argmin(arr, axis=0))]
+#         mins = np.min(arr, axis=1)
+#         minsidx = np.argmin(arr, axis=1)
+#         idx = []
+#         for i, row in enumerate(minstest):
+#             if row in minsref:
+#                 idx.append(i)
+#         res = np.zeros((len(idx), 3))
+#         for ii, i in enumerate(idx):
+#             res[ii, :] = np.array([i, minsidx[i], mins[i]])
+    
+#     elif method == 'celltype':
+#         if ltest != lref:
+#             raise ValueError("Number of components in refgmm and testgmm must be the same for 'celltype' method")
+#         res = np.zeros((ltest, 3))
+#         for i in range(ltest):
+#             res[i, :] = np.array([i, i, arr[i, i]])
+
+#     return res, arr
+
+```
+
+Script for calculating the delta mu vectors prior to L2 norm
+
+```{python}
+# pop
+# pop['samples']['SPF run2 roi2'].keys()
+# pop['samples']['SPF run2 roi2']['fullalignments']
+
+# pop['samples']['SPF run2 roi2']['alignments']
+# pop['samples']['SPF run2 roi2']['replicates']
+# arr = pop['samples'][sample]['replicates'][0]['alignments'] # retrive test sample alignments
+
+# itest = PA.getalignedcompnum(pop, i, sample, rep)
+# irow = 
+# np.where(arr[:,1] == refcomp)
+
+# pop['samples'][x]['replicates'][j]['alignments'] = alignments
+# pop['samples'][x]['replicates'][j]['fullalignments'] = arr
+
+```
+
+```{python, eval = FALSE}
+wkdir = '/central/groups/mthomson/jboktor/spatial_genomics/jess_2024-01-23'
+analysis_root = f'{wkdir}/data/interim/popAlign_results/2024-08-01_SCT-counts' 
+dirs = [d for d in os.listdir(analysis_root) if os.path.isdir(os.path.join(analysis_root, d))]
+date_str = "2024-08-01"
+sample = 'WILDR run2 roi1'
+ref = 'SPF run1 roi1'
+# dirs = [d for d in dirs if date_str in d]
+
+
+for subdir in dirs:
+    print(subdir)
+    filename = f'{analysis_root}/{subdir}/popalign_{date_str}.pkl'
+    with open(filename, 'rb') as file:
+      pop = pickle.load(file)
+
+    align(pop, ref=ref,
+      method='celltype', # one of: test2ref, ref2test, conservative
+      figsizedeltas=(10,10),
+      figsizeentropy=(10,10))
+
+    samplist = pop['order']
+    celltypes = pop['samples'][ref]['gmm_types']
+
+    # Initialize lists to store data for the DataFrame
+    ref_cell_types = []
+    rep_id = []
+    aligned_cell_types = []
+    delta_mu_vectors = []
+
+    for i, currtype in enumerate(celltypes):  # for each reference subpopulation
+        mu_ref = PA.get_gmm_means(pop, ref, rep = 0)[i]
+        
+        # # for matching exact cell types rather than best matching GMM 
+        # curr_del_mu = compute_delta_mu_prenorm(pop, mu_ref, i, sample, rep)
+        # rep_id.append(rep)
+        # ref_cell_types.append(currtype)
+        # delta_mu_vectors.append(curr_del_mu)
+        
+        itest = PA.getalignedcompnum(pop, i, sample, rep = 0)
+        
+        if len(itest) > 0:
+            curr_del_mu = compute_delta_mu_prenorm(pop, mu_ref, itest, sample, rep = 0)
+            
+            # rep_id.append(rep)
+            ref_cell_types.append(currtype)
+            aligned_cell_types.append([celltypes[j] for j in itest])
+            delta_mu_vectors.append(curr_del_mu)
+
+    # Create the DataFrame
+    df = pd.DataFrame({
+        'Reference': ref,
+        'Test': sample,
+        'Reference_Cell_Type': ref_cell_types,
+        'Aligned_Cell_Types': aligned_cell_types,
+        'Delta_Mu_Vectors': delta_mu_vectors
+    })
+
+    csv_path =  f'{analysis_root}/{subdir}/delta_mu_vectors.csv'
+    df.to_csv(csv_path, index=False)
+    
+df
+```
+
+```{python}
+
+wkdir = '/central/groups/mthomson/jboktor/spatial_genomics/jess_2024-01-23'
+analysis_root = f'{wkdir}/data/interim/popAlign_results/2024-08-01_SCT-counts' 
+dirs = [d for d in os.listdir(analysis_root) if os.path.isdir(os.path.join(analysis_root, d))]
+date_str = "2024-08-01"
+all_dfs = []
+
+quality_slices = [
+  "SPF run1 roi1", 
+  "WILDR run2 roi1",
+  "WILDR run3 roi2",
+  "SPF run3 roi1", 
+  "SPF run4 roi1", 
+  "WILDR run1 roi2",
+  "SPF run2 roi2", 
+  "WILDR run4 roi2", 
+  "WILDR run1 roi3", 
+  "SPF run2 roi3", 
+  "WILDR run3 roi3", 
+  "WILDR run4 roi3", 
+  "SPF run1 roi4", 
+  "WILDR run2 roi4", 
+  "SPF run3 roi4", 
+  "SPF run4 roi4"
+  ]
+
+for ref in quality_slices[:2]:
+  for sample in quality_slices[:3]:
+    if sample == ref: 
+      continue
+  
+    print(ref + ' - ' + sample)
+
+    for subdir in dirs:
+        print(subdir)
+        filename = f'{analysis_root}/{subdir}/popalign_{date_str}.pkl'
+        with open(filename, 'rb') as file:
+          pop = pickle.load(file)
+
+        PA.align(pop, ref=ref,
+            method='celltype', # one of: test2ref, ref2test, conservative
+            figsizedeltas=(10,10),
+            figsizeentropy=(10,10))
+
+        samplist = pop['order']
+        celltypes = pop['samples'][ref]['gmm_types']
+        go_labels = [pop['top_feat_labels']] * len(aligned_cell_types)
+
+        # Initialize lists to store data for the DataFrame
+        ref_cell_types = []
+        rep_id = []
+        aligned_cell_types = []
+        delta_mu_vectors = []
+
+        for i, currtype in enumerate(celltypes):  # for each reference subpopulation
+            mu_ref = PA.get_gmm_means(pop, ref, rep = 0)[i]
+            itest = PA.getalignedcompnum(pop, i, sample, rep = 0)
+            if len(itest) > 0:
+                curr_del_mu = PA.compute_delta_mu_prenorm(pop, mu_ref, itest, sample, rep = 0)
+                ref_cell_types.append(currtype)
+                aligned_cell_types.append([celltypes[j] for j in itest])
+                delta_mu_vectors.append(curr_del_mu)
+
+                # if currtype != [celltypes[j] for j in itest]:
+                #   print("CELLTYPE MISMATCH")
+
+        # Create the DataFrame
+        df = pd.DataFrame({
+            'Reference': ref,
+            'Test': sample,
+            'Reference_Cell_Type': ref_cell_types,
+            'Aligned_Cell_Types': aligned_cell_types,
+            'Delta_Mu_Vectors': delta_mu_vectors,
+            'top_go_labels': go_labels
+        })
+
+        # Append the dataframe to the list
+        all_dfs.append(df)
+        
+# Concatenate all dataframes into one
+final_df = pd.concat(all_dfs, ignore_index=True)
+
+# Save the final dataframe to a CSV file
+csv_path =  f'{analysis_root}/delta_mu_vectors_all.csv'
+final_df.to_csv(csv_path, index=False)
+
+```
+
+```{python}
+# go_labels
+# delta_mu_vectors
+ref
+```
+
+Looping through every slice combination.
+
+```{python, eval = FALSE}
+
+wkdir = '/central/groups/mthomson/jboktor/spatial_genomics/jess_2024-01-23'
+analysis_root = f'{wkdir}/data/interim/popAlign_results/2024-08-01_SCT-counts' 
+dirs = [d for d in os.listdir(analysis_root) if os.path.isdir(os.path.join(analysis_root, d))]
+date_str = "2024-08-01"
+all_dfs = []
+
+quality_slices = [
+  "SPF run1 roi1", 
+  "WILDR run2 roi1",
+  "WILDR run3 roi2",
+  "SPF run3 roi1", 
+  "SPF run4 roi1", 
+  "WILDR run1 roi2",
+  "SPF run2 roi2", 
+  "WILDR run4 roi2", 
+  "WILDR run1 roi3", 
+  "SPF run2 roi3", 
+  "WILDR run3 roi3", 
+  "WILDR run4 roi3", 
+  "SPF run1 roi4", 
+  "WILDR run2 roi4", 
+  "SPF run3 roi4", 
+  "SPF run4 roi4"
+  ]
+
+for ref in quality_slices:
+  for sample in quality_slices:
+    if sample == ref: 
+      continue
+    
+    print(ref + ' - ' + sample)
+
+    for subdir in dirs:
+        filename = f'{analysis_root}/{subdir}/popalign_{date_str}.pkl'
+        with open(filename, 'rb') as file:
+          pop = pickle.load(file)
+
+        nreps = np.max([pop['nreplicates'], 1])
+        samplist = pop['order']
+        celltypes = pop['samples']['ref']['gmm_types']
+
+        # Initialize lists to store data for the DataFrame
+        ref_cell_types = []
+        rep_id = []
+        aligned_cell_types = []
+        delta_mu_vectors = []
+
+        for i, currtype in enumerate(celltypes):  # for each reference subpopulation
+            for rep in range(nreps):
+                mu_ref = PA.get_gmm_means(pop, ref, rep)[i]
+                itest = PA.getalignedcompnum(pop, i, sample, rep)
+                if len(itest) > 0:
+                    curr_del_mu = compute_delta_mu_prenorm(pop, mu_ref, itest, sample, rep)
+                    
+                    rep_id.append(rep)
+                    ref_cell_types.append(currtype)
+                    aligned_cell_types.append([celltypes[j] for j in itest])
+                    delta_mu_vectors.append(curr_del_mu)
+
+        # Create the DataFrame
+        df = pd.DataFrame({
+            'Reference': ref,
+            'Test': sample,
+            'Reference_Cell_Type': ref_cell_types,
+            'Aligned_Cell_Types': aligned_cell_types,
+            'Delta_Mu_Vectors': delta_mu_vectors,
+            'top_go_labels': pop['top_feat_labels']
+        })
+
+        all_dfs.append(df)
+        # csv_path =  f'{analysis_root}/{subdir}/delta_mu_vectors_all.csv'
+        # df.to_csv(csv_path, index=False)
+
+        # Append the dataframe to the list
+
+# # Concatenate all dataframes into one
+final_df = pd.concat(all_dfs, ignore_index=True)
+
+# Save the final dataframe to a CSV file
+csv_path =  f'{analysis_root}/delta_mu_vectors_all.csv'
+final_df.to_csv(csv_path, index=False)
+
+```
+
+
+
+Functions for converting pandas dataframe into tidyverse friendly format
+
+```{r, eval=FALSE}
+convert_muvec_to_rlist <- function(py_list_str) {
+  list_feats <- py_list_str %>%
+    gsub("\\\n ", "", .) %>%
+    str_split("]") %>%
+    unlist() %>%
+    gsub("\\[", "", .)
+
+  feat_to_keep <- length(list_feats) - 2
+  list_feats <- list_feats[1:feat_to_keep]
+
+  num_vector <- list_feats %>%
+    purrr::map(~ strsplit(., " ") %>%
+      unlist() %>%
+      as.numeric() %>%
+      na.omit())
+
+  return(num_vector)
+}
+
+convert_celltype_to_rlist <- function(py_list_str) {
+  # Remove brackets and split the string into numeric values
+  cleaned_str <- gsub("\\[|\\]", "", py_list_str) %>%
+    gsub("'", "", .)
+  cell_vec <- as.character(unlist(strsplit(cleaned_str, ", ")))
+  return(cell_vec)
+}
+
+```
+
+Reading in the delta mu vectors for a specific NMF dimension
+
+```{r, eval=FALSE}
+popAlign_output_root <- glue(
+  "{wkdir}/data/interim/popAlign_results/2024-08-07_SCT-counts"
+)
+delta_mu_vecfiles <- list.files(
+  popAlign_output_root,
+  recursive = TRUE, 
+  pattern = "delta_mu_vectors_all.csv",
+)
+
+```
+
+
+
+```{r, eval=FALSE}
+dmu_vec_df <- read.csv(
+  glue("{popAlign_output_root}/{delta_mu_vecfiles[1]}")
+) %>%
+  glimpse()
+
+dmu_vec_df %<>%
+  mutate(
+    aligned_celltypes =
+      purrr::map(Aligned_Cell_Types, convert_celltype_to_rlist),
+    top_go_labels =
+      purrr::map(top_go_labels, convert_celltype_to_rlist)
+  ) %>%
+  mutate(delta_mu = 
+    purrr::map(Delta_Mu_Vectors, ~ convert_muvec_to_rlist(.) %>% 
+      unlist() %>% as.list())) %>%
+  dplyr::select(-c(Aligned_Cell_Types, Delta_Mu_Vectors)) %>%
+  glimpse()
+ 
+  
+dmu_vec_df_unnest <- dmu_vec_df %>%
+  unnest(c(aligned_celltypes, delta_mu)) %>%
+  glimpse()
+  
+
+# dmu_vec_df_unnest$delta_mu %>% 
+#   purrr::map(length) %>% 
+#   unlist() %>%
+#   summary()
+
+```
+
+```{r, eval=FALSE}
+
+# Plotting full delta mu vector for each cell type pair
+dmu_vec_df_unnest %>%
+  unnest(delta_mu) %>%
+  group_by(Reference_Cell_Type, aligned_celltypes) %>%
+  mutate(onmf_dim = glue("{row_number()}_NMF")) %>%
+  mutate(cell_pair = glue("{Reference_Cell_Type} - {aligned_celltypes}")) %>%
+  ggplot(aes(x = cell_pair, y = delta_mu)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point(
+    aes(color = onmf_dim), size = 3, alpha = 0.8,
+    position = position_jitter(0.2)) +
+  theme_bw() +
+  labs(x = NULL, y = expression(mu[i]^ref - mu[j]^test)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+```
+
+# Extracting NMF weights for all cells
+
+```{python, eval=FALSE}
+#| messages: false
+#| warnings: false
+
+import popalign as PA
+import numpy as np
+import pickle
+from datetime import datetime
+import pandas as pd
+matplotlib.pyplot.style.use('default')
+
+wkdir = '/central/groups/mthomson/jboktor/spatial_genomics/jess_2024-01-23'
+```
+
+```{python, eval=FALSE}
+pkl_path = "/central/groups/mthomson/jboktor/spatial_genomics/jess_2024-01-23/data/interim/popAlign_results/2024-08-07_SCT-counts/whole_slice/popalign_2024-08-07.pkl"
+
+with open(pkl_path, 'rb') as file:
+  pop = pickle.load(file)
+
+pop
+
+```
+
+```{python}
+
+nmf_mean_list = []
+
+# Loop through each sample name in 'pop['order']'
+for x in pop['order']:
+    # Extract the GMM means matrix of NMF values
+    gmm_means = pop['samples'][x]['gmm_means']
+    row_names = pop['samples']['WILDR run2 roi4']['gmm_types']
+    column_names = pop['top_feat_labels']
+    
+    df = pd.DataFrame(gmm_means, columns=column_names)
+    df.insert(0, 'celltype', row_names)
+    df.insert(0, 'sample', x)
+    
+    nmf_mean_list.append(df)
+
+# Concatenate all DataFrames in the list into a single DataFrame
+final_df = pd.concat(nmf_mean_list, ignore_index=True)
+
+# Display the final DataFrame
+final_df
+
+output_folder = os.path.dirname(pkl_path)
+csv_path =  f'{output_folder}/mean_gmm_weights_all_cells.csv'
+final_df.to_csv(csv_path, index=False)
+
+
+```
+
+### Pulling out mean weights of cells (example)
+
+
+```{r, eval = FALSE}
+# Plotting NMF weights per cell type 
+analysis_root <- glue("{wkdir}/data/interim/popAlign_results/2024-08-07_SCT-counts/whole_slice")
+
+gmm_nmf_weights <-read.csv(
+  glue("{analysis_root}/mean_gmm_weights_all_cells.csv")
+) %>%
+  glimpse()
+
+mat <- gmm_nmf_weights %>%
+  filter(celltype == "11 CNU-HYa GABA") %>%
+  select(-c(celltype)) %>%
+  column_to_rownames("sample") %>%
+  as.matrix()
+
+sample_order <- seriate_matrix_rows(mat)
+gene_order <- seriate_matrix_rows(t(mat))
+
+gmm_nmf_weights_long <- gmm_nmf_weights %>%
+  filter(celltype == "11 CNU-HYa GABA") %>%
+  pivot_longer(
+    cols = -c(celltype, sample),
+    names_to = "gene_program",
+    values_to = "weight"
+  ) %>%
+  mutate(
+    group = strex::str_before_first(sample, " "),
+    sample = factor(sample, levels = sample_order),
+    gene_program = factor(gene_program, levels = gene_order)) %>%
+  glimpse()
+
+p_gmmnmf_heat <- gmm_nmf_weights_long %>%
+  ggplot(aes(y = gene_program, x = sample, fill = weight)) +
+  geom_tile() +
+  scale_fill_viridis_c(option = "magma") +
+  theme_bw() +
+  facet_grid( ~ group, scales = "free") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ggsave(
+  glue("{wkdir}/figures/popAlign/gmm_nmf_weights_{Sys.Date()}.png"),
+  p_gmmnmf_heat,
+  width = 12, height = 6
+)
+
+```

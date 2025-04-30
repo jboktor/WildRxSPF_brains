@@ -1,0 +1,462 @@
+---
+title: "WildR Brain Tissue Spatial Transcriptomics Analysis"
+editor: visual
+author: "Joe Boktor"
+date: '2024-01-23'
+format: 
+  html:
+    font-family: helvetica neue
+    page-layout: full
+    toc: true
+    toc-location: left
+    toc-depth: 5
+    self-contained: true
+    code-fold: false
+    code-tools: true
+    fig-align: center
+    grid:
+      sidebar-width: 200px
+      body-width: 1100px
+      margin-width: 200px
+      gutter-width: 1.5em
+---
+
+Environment setup.
+
+```{r, eval = TRUE}
+#| warning: false
+
+library(tidyverse)
+library(magrittr)
+library(patchwork)
+library(spdep)
+library(Voyager)
+library(SingleCellExperiment)
+library(SpatialExperiment)
+library(SpatialFeatureExperiment)
+library(batchelor)
+library(scater)
+library(scran)
+library(bluster)
+library(fossil)
+library(glue)
+library(Seurat)
+library(scCustomize)
+library(glmGamPoi)
+library(spatialLIBD)
+library(reticulate)
+# parallelization
+library(BiocParallel)
+library(future)
+library(furrr)
+
+library(RColorBrewer)
+library(ggsci)
+library(Matrix)
+library(plotly)
+library(DT)
+
+# setting paths
+homedir <- "/central/groups/mthomson/jboktor"
+wkdir <- glue("{homedir}/spatial_genomics/jess_2024-01-23")
+# 6gb  limit (1500*1024^2 = 1572864000) * 4
+options(future.globals.maxSize= 6291456000)
+future::plan("multisession", workers = 20)
+
+```
+
+
+### Results
+
+![UMAPs of individual ROIs](../figures/merged_all-roi_UMAP.png){#fig_1}
+
+![UMAPs of microbiome status](../figures/merged_group_UMAP.png){#fig_2}
+
+![Cell type relative abundance per ROI](../figures/celltype_barplot.png){#fig_3}
+
+![Cell type counts per ROI](../figures/celltype_barplot_counts.png){#fig_4}
+
+
+::: panel-tabset
+### SPF (ROI 1)
+![](../figures/ROI_1_tissue_plot.png)
+
+### SPF (ROI 4)
+![](../figures/ROI_4_tissue_plot.png)
+
+### WildR (ROI 2)
+![](../figures/ROI_2_tissue_plot.png)
+
+### WildR (ROI 3)
+![](../figures/ROI_3_tissue_plot.png)
+
+:::
+
+
+```{r}
+tissue_plots <- readRDS(
+    glue("{wkdir}/data/interim/roi-list_tissue_ggplots.rds")
+)
+```
+
+
+::: panel-tabset
+### SPF (ROI 1)
+
+```{r}
+plotly::ggplotly(tissue_plots$ROI_1)
+```
+
+### SPF (ROI 4)
+
+```{r}
+plotly::ggplotly(tissue_plots$ROI_4)
+```
+
+### WildR (ROI 2)
+
+```{r}
+plotly::ggplotly(tissue_plots$ROI_2)
+```
+
+### WildR (ROI 3)
+
+```{r}
+plotly::ggplotly(tissue_plots$ROI_3)
+```
+
+
+:::
+
+
+
+### Analysis
+
+
+```{r}
+load_ROI_seurat <- function(cbg_path, meta_path) {
+  cell_by_gene_matrix <-
+    read.csv(cbg_path, row.names = 1) %>%
+    dplyr::rename_all( ~ toupper(.)) %>%
+    t()
+  
+  # select for cells with at least 20 counts
+  cell_by_gene_matrix %>% dim
+  quality_cells <- colSums(cell_by_gene_matrix) > 20
+  message("Trimming: ",
+          ncol(cell_by_gene_matrix) - sum(quality_cells),
+          " Cells ", sum(quality_cells), " Remaining")
+  cell_by_gene_matrix <- cell_by_gene_matrix[, quality_cells]
+  
+  # load in cell-coordinates / metadata
+  cell_attributes <- read.csv(meta_path)
+  
+  # Create Seurat object
+  seur <-
+    Seurat::CreateSeuratObject(counts = cell_by_gene_matrix, project = "SeqFISH") %>%
+    Seurat::AddMetaData(metadata = cell_attributes[quality_cells, ])
+  
+  # add assay and make active
+  seur@assays[["Spatial"]] <-
+    CreateAssayObject(counts = cell_by_gene_matrix)
+  seur@active.assay <- "Spatial"
+  DefaultAssay(seur) <- "Spatial"
+  
+  seur %<>%
+    UpdateSeuratObject() %>%
+    SCTransform(assay = "Spatial")
+  seur %<>% RunPCA(npcs = 30, features = rownames(seur)) %>%
+    RunUMAP(dims = 1:30) %>%
+    FindNeighbors(reduction = "pca", dims = 1:30) %>%
+    FindClusters(resolution = 0.3)
+  return(seur)
+}
+```
+
+Loading, formatting, and merging data.
+
+```{r, eval = FALSE}
+
+data_dir <- glue("{wkdir}/data/input/round_1")
+
+roi1 <- load_ROI_seurat(
+  cbg_path = glue("{data_dir}/roi1_cellbygenematrix.csv"),
+  meta_path = glue("{data_dir}/roi1_cellattributes.csv")
+)
+roi2 <- load_ROI_seurat(
+  cbg_path = glue("{data_dir}/roi2_cellbygenematrix.csv"),
+  meta_path = glue("{data_dir}/roi2_cellattributes.csv")
+)
+roi3 <- load_ROI_seurat(
+  cbg_path = glue("{data_dir}/roi3_cellbygenematrix.csv"),
+  meta_path = glue("{data_dir}/roi3_cellattributes.csv")
+)
+roi4 <- load_ROI_seurat(
+  cbg_path = glue("{data_dir}/roi4_cellbygenematrix.csv"),
+  meta_path = glue("{data_dir}/roi4_cellattributes.csv")
+)
+
+# Adding essential metadata
+roi1$roi <- "ROI_1"
+roi2$roi <- "ROI_2"
+roi3$roi <- "ROI_3"
+roi4$roi <- "ROI_4"
+# Defining group
+roi1$group <- "SPF"
+roi4$group <- "SPF"
+roi2$group <- "WildR"
+roi3$group <- "WildR"
+
+
+merged_rois <- Merge_Seurat_List(
+  list(roi1, roi2, roi3, roi4),
+  add.cell.ids = c("roi1", "roi2", "roi3", "roi4"),
+  merge.data = TRUE,
+  project = "SeuratProject"
+)
+
+merged_rois %<>%
+  UpdateSeuratObject() %>%
+  SCTransform(assay = "Spatial")
+
+saveRDS(
+    merged_rois,
+    glue("{wkdir}/data/interim/{Sys.Date()}_merged_roi_seurat.rds")
+)
+
+merged_rois <- readRDS(
+    glue("{wkdir}/data/interim/{Sys.Date()}_merged_roi_seurat.rds")
+)
+
+merged_rois_umap <- merged_rois %>% 
+  RunPCA(npcs = 4, features = rownames(merged_rois)) %>%
+  RunUMAP(dims = 1:4) %>%
+  FindNeighbors(reduction = "pca", dims = 1:4) %>%
+  FindClusters(resolution = 0.3)
+
+saveRDS(
+    merged_rois_umap,
+    glue("{wkdir}/data/interim/{Sys.Date()}_merged_roi_umap_seurat.rds")
+)
+
+```
+
+
+Identifying differentially expressed genes in UMAP clusters.
+
+```{r, eval = FALSE}
+merged_rois <- readRDS(
+    glue("{wkdir}/data/interim/2024-01-23_merged_roi_umap_seurat.rds")
+)
+
+cluster_markers <- unique(merged_rois$seurat_clusters) %>% 
+  purrr::set_names() %>% 
+  purrr::map(~ FindMarkers(merged_rois, ident.1 = ., min.pct = 0.25) %>% 
+               as.data.frame() %>% 
+               rownames_to_column(var = "gene_symbol"))
+
+cluster_markers_df <- cluster_markers %>% bind_rows(.id = "cluster number")
+saveRDS(
+    cluster_markers_df,
+    glue("{wkdir}/data/interim/{Sys.Date()}_cluster_markers_df.rds")
+)
+
+```
+
+
+```{r, eval = TRUE}
+cluster_markers_df <- readRDS(
+    glue("{wkdir}/data/interim/2024-01-23_cluster_markers_df.rds")
+)
+cluster_markers_df %>% DT::datatable(options = list(scrollX = TRUE))
+```
+
+
+Manually identified cell types.
+
+```{r, eval = FALSE}
+cell_type_list <- list(
+  `0` = "Astrocyte",
+  `1` = "Pyramidal Neuron",
+  `2` = "GABAergic Interneuron",
+  `3` = "Astrocyte",
+  `4` = "Neuron",
+  `5` = "Microglia (Moderately Active)",
+  `6` = "Oligodendrocyte",
+  `7` = "Endothelial",
+  `8` = "Oligodendrocyte (Mature)",
+  `9` = "Endothelial",
+  `10` = "Microglia (Highly Active)",
+  `11` = "Pericytes",
+  `12` = "Microglia (Reactive)"
+)
+
+color_pal <- ggsci::pal_jco()(11)
+color_pal[11] <-  "#B14380"
+
+# relabel cluster identity using chatgpt generated cluster -cell type assignment 
+merged_rois$cluster_labels <-
+  cell_type_list[merged_rois$seurat_clusters] %>% 
+  unlist() %>% 
+  unname() %>% 
+  as.factor()
+
+
+```
+
+Plotting UMAP with cell type labels.
+
+```{r, eval = FALSE}
+p_umap_roi <- Seurat::DimPlot(
+  object = merged_rois,
+  reduction = "umap",
+  group.by = "cluster_labels",
+  label = TRUE,
+  label.size = 3,
+  repel = TRUE,
+  label.box = TRUE,
+  label.color = "black",
+  split.by = 'roi',
+  raster=FALSE,
+  alpha = 0.5
+) + 
+  labs(x = "UMAP 1", y = "UMAP 2", title = NULL) +
+  NoLegend() +
+  scale_color_manual(values = color_pal) +
+  scale_fill_manual(values = color_pal)
+
+ggsave(
+  glue("{wkdir}/figures/merged_all-roi_UMAP.png"),
+  p_umap_roi,
+  width = 18, height = 5
+)
+
+p_umap_group <- Seurat::DimPlot(
+  object = merged_rois,
+  reduction = "umap",
+  group.by = "cluster_labels",
+  label = TRUE,
+  label.size = 3,
+  repel = TRUE,
+  label.box = TRUE,
+  label.color = "black",
+  split.by = 'group',
+  raster=FALSE,
+  alpha = 0.7
+) + 
+  labs(x = "UMAP 1", y = "UMAP 2", title = NULL) +
+  NoLegend() +
+  scale_color_manual(values = color_pal) +
+  scale_fill_manual(values = color_pal)
+
+ggsave(
+  glue("{wkdir}/figures/merged_group_UMAP.png"),
+  p_umap_group,
+  width = 9, height = 5
+)
+
+```
+
+Comparing cell types counts and relative abundance between groups.
+
+```{r, eval = FALSE}
+
+count_df <- table(
+  merged_rois$group,
+  merged_rois$roi,
+  merged_rois$cluster_labels
+  ) %>% 
+  as.data.frame() %>% 
+  dplyr::rename(
+    group = Var1,
+    roi = Var2,
+    cell_label = Var3,
+    counts = Freq
+    ) %>% 
+  filter(counts > 0) %>% 
+  group_by(roi) %>% 
+  dplyr::mutate(relab = counts/sum(counts) * 100)
+
+# count_df %>% glimpse
+
+p_bar <- count_df %>% 
+  ggplot(aes(x=roi, y=relab, fill = cell_label)) +
+  geom_bar(stat = "identity", color = "black", size = 0.3) +
+  scale_fill_manual(values = color_pal) +
+  facet_wrap(~group, ncol = 2, scales = "free") +
+  labs(x =NULL, y= "Relative Abundance (%)", fill = NULL) +
+  theme_classic() 
+
+ggsave(
+  glue("{wkdir}/figures/celltype_barplot.png"),
+  p_bar,
+  width = 9, height = 5
+)
+
+p_bar_counts <- count_df %>% 
+  ggplot(aes(x=roi, y=counts, fill = cell_label)) +
+  geom_bar(stat = "identity", color = "black", size = 0.3) +
+  scale_fill_manual(values = color_pal) +
+  facet_wrap(~group, ncol = 2, scales = "free_x") +
+  labs(x =NULL, y= "Cell Counts", fill = NULL) +
+  theme_classic() 
+
+ggsave(
+  glue("{wkdir}/figures/celltype_barplot_counts.png"),
+  p_bar_counts,
+  width = 9, height = 5
+)
+
+```
+
+Plotting cell type spatial distribution.
+
+```{r, eval = FALSE}
+
+merged_cell_data <- tibble(
+  label = merged_rois$label,
+  center_x = merged_rois$center_x,
+  center_y = merged_rois$center_y,
+  area = merged_rois$area,
+  roi = merged_rois$roi,
+  group = merged_rois$group,
+  cluster_labels = merged_rois$cluster_labels,
+)
+
+tissue_plots <- unique(merged_cell_data$roi) %>% 
+  purrr::set_names() %>% 
+  purrr::map(
+    ~  filter(merged_cell_data, roi == .) %>% 
+  ggplot(aes(x=center_x, y=-center_y)) +
+  geom_point(aes(color = cluster_labels), size = 0.1, alpha = 0.6) +
+  scale_color_manual(values = color_pal) +
+  guides(colour = guide_legend(override.aes = list(size=3))) +
+  coord_fixed() +
+  labs(color = "Cell Type") +
+  theme_minimal()
+  )
+
+names(tissue_plots) %>% 
+  purrr::map(
+    ~ ggsave(
+      filename = glue("{wkdir}/figures/{.}_tissue_plot.png"),
+      plot = tissue_plots[[.]],
+      width = 9, height = 9
+    )
+  )
+
+saveRDS(
+    tissue_plots, 
+    glue("{wkdir}/data/interim/roi-list_tissue_ggplots.rds")
+)
+
+```
+
+
+
+
+
+
+```{r}
+sessionInfo()
+```

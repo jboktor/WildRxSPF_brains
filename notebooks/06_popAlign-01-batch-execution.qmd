@@ -1,0 +1,484 @@
+---
+title: "Probabilisitic mixture modeling of NMF dimensions | Summary Analysis"
+editor: source
+author: "Joe Boktor"
+jupyter: /central/groups/MazmanianLab/joeB/software/mambaforge/envs/spatialomics/bin/python3
+date: '2024-07-10'
+eval: false
+format: 
+  html:
+    font-family: helvetica neue
+    page-layout: full
+    toc: true
+    toc-location: left
+    toc-depth: 5
+    self-contained: true
+    code-fold: false
+    code-tools: true
+    fig-align: center
+    grid:
+      sidebar-width: 200px
+      body-width: 1100px
+      margin-width: 200px
+      gutter-width: 1.5em
+---
+
+# Analysis Setup
+
+```{r}
+library(tidyverse)
+library(magrittr)
+library(fossil)
+library(glue)
+library(Seurat)
+library(scCustomize)
+library(glmGamPoi)
+library(spatialLIBD)
+library(reticulate)
+library(SeuratDisk)
+library(rhdf5)
+library(anndata)
+library(grid)
+library(biomaRt)
+library(SingleR)
+library(DropletUtils)
+
+# stats 
+library(lme4)
+library(broom)
+
+# parallelization
+library(BiocParallel)
+library(future)
+library(batchtools)
+library(furrr)
+
+# plotting
+library(RColorBrewer)
+library(ggsci)
+library(Matrix)
+library(plotly)
+library(DT)
+library(gtsummary)
+library(aplot)
+library(pheatmap)
+library(patchwork)
+library(VennDiagram)
+library(viridis)
+
+# setting paths
+homedir <- "/central/groups/mthomson/jboktor"
+wkdir <- glue("{homedir}/spatial_genomics/jess_2024-01-23")
+src_dir <- paste0(wkdir, "/notebooks")
+source(paste0(src_dir, "/R_scripts/_misc_functions.R"))
+
+# use_condaenv(condaenv = 'spatialomics', required = TRUE)
+
+```
+
+Formatting seurat object for PopAlign analysis
+
+```{r, eval = FALSE}
+merged_rois <- readRDS(
+    glue("{wkdir}/data/interim/merged_roi_seurat_filtered_staNMF-updated_2024-07-24.rds")
+)
+
+```
+
+Binning cell weights for each NMF dimension into quantiles and adding as seurat metadata.
+
+```{r}
+nmf_vars <- merged_rois@meta.data %>%
+  colnames() %>%
+  grep("osNMF", ., value = TRUE) %>%
+  grep("_postqc", ., value = TRUE)
+
+nmf_cell_type_df <- tibble()
+for (nmf_col in nmf_vars) {
+  df <- merged_rois@meta.data %>%
+    dplyr::select(singleR_labels, nmf_var = !!sym(nmf_col))
+
+  quantiles <- quantile(df$nmf_var, probs = seq(0, 1, by = 0.1)) %>%
+    unique()
+
+  df <- df %>%
+    mutate(quantile = cut(
+      nmf_var,
+      breaks = quantiles,
+      labels = rev(paste0("Q", seq(1, length(quantiles) - 1))),
+      include.lowest = TRUE,
+      right = FALSE
+    ))
+
+  # Adding quantile metadata column to seurat
+  merged_rois@meta.data[[glue("{nmf_col}_Q10")]] <- df$quantile
+  
+}
+merged_rois@meta.data %>% glimpse
+
+```
+
+Visualizing quantile distributions of osNMF dimensions
+
+```{r, eval = FALSE}
+
+meta_df <- merged_rois@meta.data %>% glimpse()
+
+nmf_dims <- merged_rois@meta.data %>%
+  colnames() %>%
+  keep(~ grepl("osNMF", .)) %>%
+  grep("_postqc", ., value = TRUE) %>%
+  discard(grepl("_Q10", .))
+
+for (var in nmf_dims) {
+  
+  # nmf_vals <- !!sym(var)
+  # nmf_quantiles <- !!sym(glue("{var}_Q10"))
+
+  min_q1 <- meta_df %>%
+    filter( !!sym(glue("{var}_Q10")) == "Q3") %>%
+    pull(!!sym(var)) %>%
+    min()
+    
+  p <- meta_df %>%
+    ggplot(aes(x = !!sym(var), fill =  !!sym(glue("{var}_Q10")) )) +
+    geom_histogram(bins = 100, position="identity", color = "black") +
+    scale_fill_brewer(palette = "Reds") +
+    geom_vline(xintercept = min_q1, linetype = "dashed") +
+    theme_bw()
+
+  ggsave(
+    glue("{wkdir}/figures/osNMF_K11_postqc/2024-07-24/",
+    "NMF_histograms/{var}_{Sys.Date()}.png"),
+    p,
+    width = 7, height = 5.5
+  )
+}
+
+```
+
+## Saving seurat data in popAlign acceptable format.
+
+Here we loop through each NMF dimension and select cells with weight values in the top 30th percentile of the distribution. Cell counts and metadata are then saved in their own directory for popAlign Analysis.
+
+```{r, eval=FALSE}
+# Loop through NMF dimensions and prep PopAlign Results
+nmf_dims <- merged_rois@meta.data %>%
+  colnames() %>%
+  keep(~ grepl("osNMF", .)) %>%
+  grep("_postqc", ., value = TRUE) %>%
+  discard(grepl("_Q10", .))
+
+for (nmf_dim in nmf_dims) {
+  message("\nPrepping dim: ", nmf_dim)
+  seur_obj <- merged_rois %>%
+    subset(subset = !!sym(glue("{nmf_dim}_Q10")) == "Q1" |
+    !!sym(glue("{nmf_dim}_Q10")) == "Q2" |
+    !!sym(glue("{nmf_dim}_Q10")) == "Q3"
+    )
+    # subset(subset = !!sym(nmf_dim) > 0)
+  print(seur_obj)
+
+  # remove cell types with fewer than 50 cells in any   
+  primary_cell_types <- seur_obj@meta.data %>% 
+    dplyr::group_by(slice_id, singleR_labels) %>%
+    dplyr::summarize(n = n()) %>%
+    dplyr::group_by(singleR_labels) %>%
+    dplyr::summarize(min = min(n)) %>%
+    dplyr::filter(min > 50) %>%
+    dplyr::pull(singleR_labels)
+
+  seur_obj$sufficient_cells <-
+    seur_obj@meta.data$singleR_labels %in% primary_cell_types
+
+  seur_obj@meta.data %>%
+    filter(sufficient_cells) %>% 
+    pull(singleR_labels) %>% 
+    table() %>% print()
+  
+  # write counts and metadata
+  popAlign_data <- glue(
+    "{wkdir}/data/interim/",
+    "popAlign_inputs/{Sys.Date()}_SCT-counts/{nmf_dim}"
+  )
+  dir.create(popAlign_data, recursive = TRUE, showWarnings = FALSE)
+
+  # Saving count matrix and barcodes for sufficient cell types
+  write10xCounts(
+    x = seur_obj@assays$SCT@counts[, seur_obj$sufficient_cells],
+    path = popAlign_data,
+    overwrite = TRUE
+  )
+
+  seur_obj@meta.data %>%
+    dplyr::filter(sufficient_cells) %>%
+    rownames_to_column(var = "cell_barcode") %>%
+    dplyr::rename(
+      sample_id = slice_id,
+      cell_type = singleR_labels
+    ) %>%
+    write.csv(
+      glue("{popAlign_data}/metadata.csv"),
+      quote = FALSE, row.names = FALSE
+    )
+}
+
+```
+
+## Saving seurat data in popAlign acceptable for entire brain slices
+
+```{r, eval=FALSE}
+
+# remove cell types with fewer than 25 cells in any slice
+primary_cell_types <- merged_rois@meta.data %>% 
+  dplyr::group_by(slice_id, singleR_labels) %>%
+  dplyr::summarize(n = n()) %>%
+  dplyr::group_by(singleR_labels) %>%
+  dplyr::summarize(min = min(n)) %>%
+  dplyr::filter(min > 25) %>%
+  dplyr::pull(singleR_labels)
+
+merged_rois$sufficient_cells <-
+  merged_rois@meta.data$singleR_labels %in% primary_cell_types
+
+merged_rois@meta.data %>%
+  filter(sufficient_cells) %>% 
+  pull(singleR_labels) %>% 
+  table() %>% 
+  print()
+
+# write counts and metadata
+popAlign_data <- glue(
+  "{wkdir}/data/interim/",
+  "popAlign_inputs/{Sys.Date()}_SCT-counts/whole_slice"
+)
+dir.create(popAlign_data, recursive = TRUE, showWarnings = FALSE)
+
+# Saving count matrix and barcodes for sufficient cell types
+write10xCounts(
+  x = merged_rois@assays$SCT@counts[, merged_rois$sufficient_cells],
+  path = popAlign_data,
+  overwrite = TRUE
+)
+
+merged_rois@meta.data %>%
+  dplyr::filter(sufficient_cells) %>%
+  rownames_to_column(var = "cell_barcode") %>%
+  dplyr::rename(
+    sample_id = slice_id,
+    cell_type = singleR_labels
+  ) %>%
+  write.csv(
+    glue("{popAlign_data}/metadata.csv"),
+    quote = FALSE, row.names = FALSE
+  )
+
+
+```
+
+# PopAlign Analysis
+
+## PopAlign Installation
+
+```{python, eval=FALSE}
+# !pip uninstall -y popalign
+# !pip cache purge
+# !pip install git+https://github.com/jboktor/popalign.git
+```
+
+Create a dataframe of input and output folders. Batch execute PopAlign jobs
+
+```{r, eval = FALSE}
+#' function to execute popalign workflow from R
+run_popalign <- function(input_folder, output_folder, wkdir) {
+    require(glue)
+    source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
+    dir.create(output_folder, recursive = TRUE, showWarnings = FALSE)
+    cmd <- glue(
+        "mamba run -n spatialomics ",
+        "python {wkdir}/notebooks/python_scripts/popalign_workflow.py",
+        " {input_folder} {output_folder}"
+    )
+    print(cmd)
+    shell_do(cmd)
+}
+
+run_popalign_allvall <- function(input_folder, output_folder, wkdir) {
+    require(glue)
+    source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
+    dir.create(output_folder, recursive = TRUE, showWarnings = FALSE)
+    cmd <- glue(
+        "mamba run -n spatialomics ",
+        "python {wkdir}/notebooks/python_scripts/popalign_workflow_all-vs-all.py",
+        " {input_folder} {output_folder}"
+    )
+    print(cmd)
+    shell_do(cmd)
+}
+
+
+```
+
+```{r, eval=FALSE}
+
+# REMEMBER TO UPDATE THESE FILE PATHS WHEN NECESSARY
+# creating a dataframe of input and output folders
+popAlign_input_root <- glue(
+  "{wkdir}/data/interim/popAlign_inputs/2024-07-24_SCT-counts"
+)
+popAlign_output_root <- glue(
+  "{wkdir}/data/interim/popAlign_results/2024-08-08_SCT-counts-nmf"
+)
+dir.create(popAlign_output_root)
+
+batchtools_params <- data.frame(
+  "input_folder" = list.dirs(popAlign_input_root) %>% keep( ~ grepl("osNMF", .))
+) %>%
+  mutate(
+    output_folder = glue("{popAlign_output_root}/{basename(input_folder)}"),
+    wkdir = wkdir
+  ) %>%
+  # NOTE REMOVING OSNMF 1 here 
+  filter(!grepl("^osNMF_1$", basename(input_folder))) %>%
+    glimpse()
+
+# configure registry ----
+cluster_run <- glue("{get_time()}_popAlign_workflows")
+message("\n\nRUNNING:  ", cluster_run, "\n")
+breg <- makeRegistry(
+  file.dir = glue(
+    "{wkdir}/.cluster_runs/",
+    cluster_run
+  ),
+  seed = 42
+)
+breg$cluster.functions <- batchtools::makeClusterFunctionsSlurm(
+  template = glue("{wkdir}/batchtools_templates/batchtools.slurm.tmpl"),
+  scheduler.latency = 0.1,
+  fs.latency = 1
+)
+# Submit Jobs ----
+jobs <- batchMap(
+  fun = run_popalign_allvall,
+  args = batchtools_params,
+  reg = breg
+)
+# jobs[, chunk := chunk(job.id, chunk.size = 1)]
+# print(jobs[, .N, by = chunk])
+
+submitJobs(jobs,
+    resources = list(
+        walltime = 600, # min (10hrs)
+        memory = "100G", # MB (100 GB)
+        ncpus = 16,
+        max.concurrent.jobs = 9999
+    )
+)
+
+```
+
+Running whole slice popAlign runs
+
+```{r, eval=FALSE}
+
+# REMEMBER TO UPDATE THESE FILE PATHS WHEN NECESSARY
+# creating a dataframe of input and output folders
+popAlign_input_root <- glue(
+  "{wkdir}/data/interim/popAlign_inputs/2024-08-01_SCT-counts"
+)
+popAlign_output_root <- glue(
+  "{wkdir}/data/interim/popAlign_results/2024-08-07_SCT-counts"
+)
+dir.create(popAlign_output_root, showWarnings = FALSE)
+
+
+batchtools_params <- data.frame(
+  "input_folder" = list.dirs(popAlign_input_root) %>% keep( ~ grepl("whole_slice", .))
+) %>%
+  mutate(
+    output_folder = glue("{popAlign_output_root}/{basename(input_folder)}"),
+    wkdir = wkdir
+  ) %>%
+    glimpse()
+
+# configure registry ----
+cluster_run <- glue("{get_time()}_popAlign_workflows")
+message("\n\nRUNNING:  ", cluster_run, "\n")
+breg <- makeRegistry(
+  file.dir = glue(
+    "{wkdir}/.cluster_runs/",
+    cluster_run
+  ),
+  seed = 42
+)
+breg$cluster.functions <- batchtools::makeClusterFunctionsSlurm(
+  template = glue("{wkdir}/batchtools_templates/batchtools.slurm.tmpl"),
+  scheduler.latency = 0.1,
+  fs.latency = 1
+)
+# Submit Jobs ----
+jobs <- batchMap(
+  fun = run_popalign_allvall,
+  args = batchtools_params,
+  reg = breg
+)
+# jobs[, chunk := chunk(job.id, chunk.size = 1)]
+# print(jobs[, .N, by = chunk])
+
+submitJobs(jobs,
+    resources = list(
+        walltime = 300, # min (5hrs)
+        memory = "100G",
+        ncpus = 32,
+        max.concurrent.jobs = 9999
+    )
+)
+
+```
+
+```{python}
+# import pandas as pd
+# import numpy as np
+
+# sample = 'WILDR'
+# ref = 'SPF'
+# nreps = np.max([pop['nreplicates'], 1])
+# samplist = pop['order']
+# celltypes = pop['samples'][ref]['gmm_types']
+
+# # Initialize lists to store data for the DataFrame
+# ref_cell_types = []
+# aligned_cell_types = []
+# delta_mu_vectors = []
+
+# for i, currtype in enumerate(celltypes):  # for each reference subpopulation
+#     for rep in range(nreps):
+#         mu_ref = PA.get_gmm_means(pop, ref, rep)[i]
+#         itest = PA.getalignedcompnum(pop, i, sample, rep)
+#         if len(itest) > 0:
+#             curr_del_mu = compute_delta_mu_prenorm(pop, mu_ref, itest, sample, rep)
+            
+#             ref_cell_types.append(currtype)
+#             aligned_cell_types.append([celltypes[j] for j in itest])
+#             delta_mu_vectors.append(curr_del_mu)
+
+# # Create the DataFrame
+# df = pd.DataFrame({
+#     'Reference_Cell_Type': ref_cell_types,
+#     'Aligned_Cell_Types': aligned_cell_types,
+#     'Delta_Mu_Vectors': delta_mu_vectors
+# })
+
+# # Display the DataFrame
+# df
+
+# csv_path =  f'{wkdir}/data/interim/popAlign_results/osNMF_8_2024-07-10/alignment_deltas.csv'
+# df.to_csv(csv_path, index=False)
+
+```
+
+```{r}
+
+
+
+```
