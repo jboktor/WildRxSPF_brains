@@ -1,0 +1,741 @@
+---
+title: "WildR Brain Tissue DEG Analysis"
+editor: source
+author: "Joe Boktor"
+date: '2025-10-06'
+format: 
+  html:
+    font-family: helvetica neue
+    page-layout: full
+    toc: true
+    toc-location: left
+    toc-depth: 5
+    self-contained: true
+    code-fold: false
+    code-tools: true
+    fig-align: center
+    grid:
+      sidebar-width: 200px
+      body-width: 1100px
+      margin-width: 200px
+      gutter-width: 1.5em
+---
+
+# Background
+
+Here we analyze the snRNASeq data from the WildR Brain Tissue project.
+
+# Analysis Setup
+
+Environment setup.
+
+```{r}
+#| warning: false
+library(tidyverse)
+library(magrittr)
+library(glue)
+library(Seurat)
+library(grid)
+library(biomaRt)
+library(SingleR)
+library(batchtools)
+library(strex)
+library(fs)
+# stats 
+library(lme4)
+library(broom)
+# parallelization
+library(BiocParallel)
+library(future)
+library(furrr)
+library(foreach)
+library(doParallel)
+# plotting
+library(RColorBrewer)
+library(ggsci)
+library(Matrix)
+library(plotly)
+library(DT)
+library(gtsummary)
+library(aplot)
+library(patchwork)
+library(viridis)
+
+# Load libraries
+library(cowplot)
+library(Matrix.utils)
+library(edgeR)
+library(Matrix)
+library(reshape2)
+library(S4Vectors)
+library(SingleCellExperiment)
+library(pheatmap)
+library(apeglm)
+library(png)
+library(DESeq2)
+library(RColorBrewer)
+library(data.table)
+library(DEGreport)
+library(ggrepel)
+library(tictoc)
+library(CellChat)
+
+# setting paths
+homedir <- "/central/groups/MazmanianLab/joeB"
+wkdir <- glue("{homedir}/WILDRxSPF_brains")
+source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
+sn_wkdir <- glue("{homedir}/snRNAseq_analysis/WILDRxSPF_brains")
+snrna_data_path <- glue("{sn_wkdir}/data/interim")
+snrna_deseq2_dir <- glue("{wkdir}/data/interim/DESeq2/snRNASeq")
+snrna_edgeR_dir <- glue("{wkdir}/data/interim/edgeR/snRNASeq")
+seqfish_edgeR_dir <- glue("{wkdir}/data/interim/edgeR/seqFISH")
+seqfish_deseq2_dir <- glue("{wkdir}/data/interim/DESeq2/seqFISH")
+
+# Increase the future globals max size to handle large CellChat objects
+# 20 GB = 20 * 1024^3 bytes = 21474836480
+options(future.globals.maxSize = 21474836480) 
+future::plan("multisession", workers = 7)
+
+```
+
+
+# Creating CellChat objects for seqFISH Spatial Data and snRNASeq Data
+
+Loading seqfish seurat object.
+```{r}
+abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
+seqfish_seurat <- readRDS(
+    glue(
+      "{wkdir}/data/interim/",
+      "merged_roi_seurat_filtered_staNMF-updated_2024-07-24.rds"
+    )
+)
+seqfish_meta_df_gated <- readRDS(
+  glue(
+    "{wkdir}/data/interim/",
+    "gated-seurat-metadata_2024-12-31.rds"
+    )
+  ) %>% glimpse()
+
+seqfish_meta_df_gated %>% glimpse()
+seqfish_meta_df_gated$final_gate %>% table()
+
+
+```
+
+Converting seqfish object to CellChat object.
+
+```{r}
+# Adding a column named "samples" in the seurat object
+seqfish_seurat$samples <- as.factor(seqfish_seurat@meta.data$slice_id)
+seqfish_seurat@meta.data %>% glimpse()
+seqfish_seurat$final_gate <- seqfish_meta_df_gated$final_gate
+
+# lowq_hyp_slices <- c("SPF run1 roi1", "SPF run3 roi1", "SPF run2 roi3", 
+#     "WILDR run1 roi2", "WILDR run1 roi3")
+
+# filter only good slices for hypothalamus
+seqfish_seurat_subset <- seqfish_seurat %>% 
+  subset(final_gate == "CAUD")
+  # subset(final_gate == "HYP")
+
+# seqfish_seurat_subset <- seqfish_seurat_subset %>% 
+#   subset(samples %nin% lowq_hyp_slices)
+
+seqfish_seurat_subset@meta.data %>% glimpse()
+
+# filter only cell types with at least 200 cells
+# low abundance cell types
+cell_types_to_keep <- seqfish_seurat_subset@meta.data$singleR_labels %>% table() %>% .[. > 100] %>% names()
+seqfish_seurat_subset <- seqfish_seurat_subset %>% 
+  subset(singleR_labels %in% cell_types_to_keep)
+
+# Selecting spatial locations
+spatial_locs <- seqfish_seurat_subset@meta.data[, c("center_x", "center_y")] %>% glimpse()
+
+# Setting spatial parameters for each sample
+ratio <- 0.106 # conversion factor from pixels to um
+tol <-7.5 # tolerance in um (average neuron soma is 15 um in diameter, so half that as tolerance)
+spatial_params <- data.frame(ratio = ratio, tol = tol)
+spatial_factors <- 1:length(unique(seqfish_seurat_subset@meta.data$samples)) %>% 
+  purrr::map(~ spatial_params) %>% bind_rows()
+rownames(spatial_factors) <- unique(seqfish_seurat_subset@meta.data$samples)
+spatial_factors
+
+tic("Creating CellChat object")
+cellChat_seqfish <- createCellChat(
+    object = seqfish_seurat_subset, 
+    group.by = "singleR_labels", 
+    assay = "SCT",
+    datatype = "spatial", 
+    coordinates = spatial_locs, 
+    spatial.factors = spatial_factors
+    )
+toc()
+
+rownames(cellChat_seqfish@data) <- tools::toTitleCase(tolower(rownames(cellChat_seqfish@data)))
+
+# saveRDS(cellChat_seqfish,
+#     glue("{wkdir}/data/interim/CellChat/cellChat_seqfish_{Sys.Date()}.rds")
+#     )
+
+```
+
+
+# SeqFISH Spatial Data Analysis
+
+
+```{r}
+# cellChat_seqfish <- readRDS(
+#   glue("{wkdir}/data/interim/CellChat/cellChat_seqfish_2025-10-26.rds"))
+# cellChat_seqfish
+
+
+# # Filter out rare group(s)
+# group_counts <- table(cellChat_seqfish@idents)
+# keep_groups <- names(group_counts[group_counts > 500])
+# tst <- subsetCellChat(cellChat_seqfish, idents.use = keep_groups)
+
+# setting the ligand-receptor interaction database
+# use a subset of CellChatDB for cell-cell communication analysis
+
+CellChatDB_use <- CellChat::subsetDB(CellChatDB.mouse, search = "Secreted Signaling", key = "annotation") # use Secreted Signaling
+cellChat_seqfish@DB <- CellChatDB_use
+
+sum(
+  rownames(cellChat_seqfish@data) %in% 
+  cellChat_seqfish@DB$interaction$ligand
+  )
+# 41 shared genes between seqfish and subsetted database
+
+```
+
+
+Identifying over-expressed genes and interactions.
+
+```{r}
+cellChat_seqfish_subsetted <- CellChat::subsetData(cellChat_seqfish)
+
+future::plan("multisession", workers = 8) 
+cellChat_seqfish_subsetted <- CellChat::identifyOverExpressedGenes(cellChat_seqfish_subsetted)
+cellChat_seqfish_subsetted <- CellChat::identifyOverExpressedInteractions(cellChat_seqfish_subsetted)
+# The number of highly variable ligand-receptor pairs used for signaling inference is 56
+ 
+```
+
+
+Inference of cell-cell communication network
+
+Compute the communication probability and infer cellular communication network
+
+
+```{r}
+#> truncatedMean is used for calculating the average gene expression per cell group. 
+#> [1] ">>> Run CellChat on spatial transcriptomics data without distance values as constraints of the computed communication probability <<< [2024-02-22 12:06:15.985272]"
+#> Molecules of the input L-R pairs are diffusible. Run CellChat in a diffusion manner based on the `interaction.range`.
+
+
+# cellChat_seqfish_subsetted2 <- subsetCellChat(
+#   cellChat_seqfish_subsetted,
+#   cells.use = rownames(cellChat_seqfish_subsetted@meta)[cellChat_seqfish_subsetted@meta$samples %in% c("WildR run2 roi4", "SPF run1 roi4")]
+# )
+
+cellChat_seqfish_subsetted <- CellChat::computeCommunProb(
+  cellChat_seqfish_subsetted,
+  type = "truncatedMean", 
+  trim = 0.1,
+  distance.use = FALSE, 
+  interaction.range = 250, 
+  scale.distance = NULL,
+  contact.dependent = TRUE, 
+  contact.range = 100
+)
+
+#> [1] ">>> CellChat inference is done. Parameter values are stored in `object@options$parameter` <<< [2024-02-22 12:09:10.370361]"
+
+# Infer the cell-cell communication at a signaling pathway level
+cellChat_seqfish_subsetted <- computeCommunProbPathway(cellChat_seqfish_subsetted)
+# Calculate the aggregated cell-cell communication network
+cellChat_seqfish_subsetted <- aggregateNet(cellChat_seqfish_subsetted)
+
+# saveRDS(cellChat_seqfish_subsetted,
+#     glue("{wkdir}/data/interim/CellChat/cellChat_seqfish_secreted_processed_{Sys.Date()}.rds")
+#     )
+ 
+```
+
+
+
+```{r}
+groupSize <- as.numeric(table(cellChat_seqfish_subsetted@idents))
+par(mfrow = c(1,2), xpd=TRUE)
+netVisual_circle(cellChat_seqfish_subsetted@net$count, 
+  vertex.weight = rowSums(cellChat_seqfish_subsetted@net$count), 
+  weight.scale = T, label.edge= F, title.name = "Number of interactions"
+  )
+netVisual_circle(cellChat_seqfish_subsetted@net$weight, 
+  vertex.weight = rowSums(cellChat_seqfish_subsetted@net$weight), 
+  weight.scale = T, label.edge= F, title.name = "Interaction weights/strength"
+  )
+```
+
+
+```{r}
+# p_heat <- 
+netVisual_heatmap(cellChat_seqfish_subsetted, measure = "count", color.heatmap = "Blues")
+# netVisual_heatmap(cellchat, measure = "count", color.heatmap = "Blues")
+#netVisual_heatmap(cellchat, measure = "weight", color.heatmap = "Blues")
+
+# ggsave(
+#   glue("{wkdir}/figures/CellChat/cellChat_seqfish_secreted_heatmap_{Sys.Date()}.png"), 
+#   p_heat, width = 10, height = 10
+#   )
+
+```
+
+Visualizing a pathway
+
+```{r}
+# cellChat_seqfish_subsetted@netP$pathways
+pathways.show <- c("NPY")
+# Circle plot
+# par(mfrow=c(1,1), xpd=TRUE)
+netVisual_aggregate(cellChat_seqfish_subsetted, signaling = pathways.show, layout = "circle") +
+  scale_color_manual(values = abca_color_pal[["cluster_colors"]]) +
+  scale_fill_manual(values = abca_color_pal[["cluster_colors"]]) 
+
+netAnalysis_contribution(cellChat_seqfish_subsetted, signaling = pathways.show)
+
+```
+
+```{r}
+cellChat_seqfish_subsetted@options
+gg_heatmap_to_immune <- netVisual_bubble(cellChat_seqfish_subsetted, 
+  # sources.use = 9,
+  targets.use = 9,
+  # targets.use = c(1:9), 
+  remove.isolate = TRUE) +
+  coord_flip()
+
+ggsave(
+  glue("{wkdir}/figures/CellChat/cellChat_seqfish_secreted_heatmap_to_immune_{Sys.Date()}.png"), 
+  gg_heatmap_to_immune, width = 4, height = 3
+)
+
+gg_heatmap_from_immune <- netVisual_bubble(cellChat_seqfish_subsetted, 
+  sources.use = 9,
+  # targets.use = 9,
+  remove.isolate = TRUE) +
+  coord_flip()
+
+ggsave(
+  glue("{wkdir}/figures/CellChat/cellChat_seqfish_secreted_heatmap_from_immune_{Sys.Date()}.png"), 
+  gg_heatmap_from_immune, width = 4, height = 3
+)
+```
+
+
+
+Spatial Visualization of Cell-Cell Communication
+```{r}
+
+# Compute the network centrality scores
+cellChat_seqfish_subsetted <- netAnalysis_computeCentrality(
+  cellChat_seqfish_subsetted, slot.name = "netP") # the slot 'netP' means the inferred intercellular communication network of signaling pathways
+# Visualize the computed centrality scores using heatmap, allowing ready identification of major signaling roles of cell groups
+par(mfrow=c(1,1))
+netAnalysis_signalingRole_network(cellChat_seqfish_subsetted, signaling = pathways.show,
+  width = 8, height = 2.5, font.size = 10)
+
+# Spatial plot
+pathways.show <- c("OPIOID")
+# par(mfrow=c(1,1))
+netVisual_aggregate(cellChat_seqfish_subsetted, 
+  signaling = pathways.show, 
+  sample.use = "WILDR run2 roi4", 
+  layout = "spatial", 
+  edge.width.max = 2, 
+  alpha.image = 0.2,
+  vertex.weight = "incoming", 
+  vertex.size.max = 6,
+  vertex.label.cex = 0
+  ) +
+  scale_color_manual(values = abca_color_pal[["cluster_colors"]]) +
+  scale_y_reverse() +
+  coord_fixed()
+
+
+
+```
+
+
+
+```{r}
+gg1 <- compareInteractions(cellChat_seqfish, show.legend = F, group = c(1,2))
+gg2 <- compareInteractions(cellChat_seqfish, show.legend = F, group = c(1,2), measure = "weight")
+gg1 + gg2
+
+```
+
+
+
+
+
+
+
+
+
+
+
+# Single Nucleus Analysis
+Loading snRNA-seq seurat object.
+
+```{r}
+tic()
+snrna_seurat_obj <- readRDS(glue(
+  "{snrna_data_path}/seurat/seurat_obj_clustered_celltyped_2025-05-12.rds")
+  )
+toc()
+
+snrna_seurat_obj@meta.data %>% glimpse()
+
+snrna_seurat_obj
+snrna_seurat_obj$tissue <- str_after_last(snrna_seurat_obj$sample, "_")
+snrna_seurat_obj$class_name_region <- paste(snrna_seurat_obj$class_name, snrna_seurat_obj$tissue, sep = "_")
+snrna_seurat_obj$samples <- as.factor(snrna_seurat_obj@meta.data$sample)
+snrna_meta <- snrna_seurat_obj@meta.data
+snrna_seurat_obj$group <- snrna_meta$sample %>% str_before_first("_")
+snrna_seurat_obj$region_group <- paste(snrna_seurat_obj$group, snrna_seurat_obj$tissue, sep = "_")
+snrna_seurat_obj@meta.data %>% glimpse()
+
+```
+
+
+```{r}
+# Function to filter cell types by minimum cell count
+filter_cell_types_by_count <- function(seurat_obj,
+                                       column_name = "class_name_region", 
+                                       min_cells = 200) {
+  cell_types_to_keep <- seurat_obj@meta.data[[column_name]] %>% 
+    table() %>% 
+    .[. > min_cells] %>% 
+    names()
+  
+  # Create a logical vector for filtering
+  keep_cells <- seurat_obj@meta.data[[column_name]] %in% cell_types_to_keep
+  seurat_obj[, keep_cells]
+}
+
+# Filtering for at least 200 cells per cell type x region
+snrna_seurat_obj_filtered <- filter_cell_types_by_count(
+  seurat_obj = snrna_seurat_obj,
+  column_name = "class_name_region",
+  min_cells = 200
+)
+
+# some additional manual filtering
+hyp_cell_types <- c(
+  "13 CNU-HYa Glut",
+  "12 HY GABA",
+  "11 CNU-HYa GABA",
+  "14 HY Glut",
+  "16 HY MM Glut",
+  "18 TH Glut",
+  "19 MB Glut",
+  "20 MB GABA",
+  "24 MY Glut",
+  "30 Astro-Epen",
+  "31 OPC-Oligo",
+  "33 Vascular",
+  "34 Immune",
+  "08 CNU-MGE GABA"
+)
+
+amy_cell_types <- c(
+  "01 IT-ET Glut",
+  "02 NP-CT-L6b Glut",
+  "03 OB-CR Glut",
+  "04 DG-IMN Glut",
+  "06 CTX-CGE GABA",
+  "07 CTX-MGE GABA",
+  "09 CNU-LGE GABA",
+  "11 CNU-HYa GABA",
+  "13 CNU-HYa Glut",
+  "24 MY Glut",
+  "30 Astro-Epen",
+  "31 OPC-Oligo",
+  "33 Vascular",
+  "34 Immune",
+  "08 CNU-MGE GABA"
+)
+
+
+snrna_seurat_obj@meta.data %>% glimpse()
+hyp_cell_types %in% unique(snrna_seurat_obj_filtered@meta.data$class_name)
+amy_cell_types %in% unique(snrna_seurat_obj_filtered@meta.data$class_name)
+
+# Splitting objects by Region (AMG/HYP) x Group (SPF/WildR)
+snrna_seurat_obj_filt_list <- SplitObject(
+  snrna_seurat_obj_filtered,
+  split.by = "region_group"
+)
+
+for (sample in names(snrna_seurat_obj_filt_list)) {
+  print(snrna_seurat_obj_filt_list[[sample]])
+  if (grepl("HYP", sample)) {
+    snrna_seurat_obj_filt_list[[sample]] <- subset(snrna_seurat_obj_filt_list[[sample]], class_name %in% hyp_cell_types)
+  } else {
+    snrna_seurat_obj_filt_list[[sample]] <- subset(snrna_seurat_obj_filt_list[[sample]], class_name %in% amy_cell_types)
+  }
+  print(snrna_seurat_obj_filt_list[[sample]])
+}
+
+```
+
+Running CellChat Main functions
+```{r}
+# future::plan("multisession", workers = 26)
+CellChatDB_use <- CellChat::subsetDB(CellChatDB.mouse, 
+  search = "Secreted Signaling", key = "annotation"
+  )
+
+cellChat_snrna_obj <- list()
+for (region_group in names(snrna_seurat_obj_filt_list)) {
+  final_obj_path <- glue(
+    "{wkdir}/data/interim/CellChat/",
+    "CellChat_snrna_obj_{region_group}.rds"
+    )
+  if (file.exists(final_obj_path)) { 
+    message(glue("CellChat object for {region_group} already exists"))
+    next 
+    }
+  message(glue("Creating CellChat object for {region_group}"))
+  tic(glue("Creating CellChat object for {region_group}"))
+
+  cellchat <- createCellChat(
+    object = snrna_seurat_obj_filt_list[[region_group]], 
+    group.by = "class_name", 
+    assay = "RNA")
+  rownames(cellchat@data) <- 
+    rownames(cellchat@data) %>% 
+    gsub("-GRCm39", "", .)
+
+  cellchat@DB <- CellChatDB_use
+  # sum(rownames(cellchat@data) %in% cellchat@DB$interaction$ligand) %>% print()
+
+  # calculate cell-cell communication probabilities
+  cellchat <- CellChat::subsetData(cellchat)
+  cellchat <- CellChat::identifyOverExpressedGenes(cellchat)
+  cellchat <- CellChat::identifyOverExpressedInteractions(cellchat)
+  cellchat <- CellChat::computeCommunProb(
+    cellchat,
+    type = "truncatedMean", 
+    trim = 0.1
+  )
+  # infer cell-cell communication at a signaling pathway level
+  cellchat <- computeCommunProbPathway(cellchat)
+  # calculate the aggregated cell-cell communication network
+  cellchat <- aggregateNet(cellchat)
+  cellChat_snrna_obj[[region_group]] <- cellchat
+  saveRDS(cellchat, final_obj_path)
+  toc()
+}
+
+# saveRDS(cellChat_snrna_obj, 
+#   glue("{wkdir}/data/interim/CellChat/cellChat_snrna_obj_by_region_group_{Sys.Date()}.rds")
+#   )
+
+```
+
+
+Loading in single nucleus CellChat Object
+
+```{r}
+cellchat_obj_files <- list.files(glue("{wkdir}/data/interim/CellChat/groups"))
+cellChat_snrna_obj <- cellchat_obj_files %>% 
+  purrr::set_names(gsub(".rds", "", .) %>% gsub("CellChat_snrna_obj_", "", .)) %>% 
+  purrr::map(~ readRDS(glue("{wkdir}/data/interim/CellChat/groups/{.}")))
+
+obj_list_hyp <- list(
+  "WildR_HYP" = cellChat_snrna_obj[["WildR_HYP"]],
+  "SPF_HYP" = cellChat_snrna_obj[["SPF_HYP"]]
+  )
+obj_list_amy <- list(
+  "WildR_AMY" = cellChat_snrna_obj[["WildR_AMY"]],
+  "SPF_AMY" = cellChat_snrna_obj[["SPF_AMY"]]
+  )
+
+cellChat_snrna_hyp <- mergeCellChat(obj_list_hyp, add.names = names(obj_list_hyp))
+cellChat_snrna_amy <- mergeCellChat(obj_list_amy, add.names = names(obj_list_amy))
+
+```
+
+
+
+```{r}
+rotate_x <- theme(axis.text.x = element_text(angle = 45, hjust = 1))
+gg1_hyp <- compareInteractions(cellChat_snrna_hyp, show.legend = F, group = c(1,2)) + rotate_x
+gg2_hyp <- compareInteractions(cellChat_snrna_hyp, show.legend = F, group = c(1,2), measure = "weight") + rotate_x
+p_hyp_int <- gg1_hyp + gg2_hyp
+
+gg1_amy <- compareInteractions(cellChat_snrna_amy, show.legend = F, group = c(1,2)) + rotate_x
+gg2_amy <- compareInteractions(cellChat_snrna_amy, show.legend = F, group = c(1,2), measure = "weight") + rotate_x
+p_amy_int <- gg1_amy + gg2_amy
+
+ggsave(
+  glue("{wkdir}/figures/CellChat/cellChat_snrna_hyp_interactions_{Sys.Date()}.png"),
+  p_hyp_int, width = 3, height = 4
+)
+ggsave(
+  glue("{wkdir}/figures/CellChat/cellChat_snrna_amy_interactions_{Sys.Date()}.png"),
+  p_amy_int, width = 3, height = 4
+)
+
+```
+
+
+![CellChat Interactions Hypothalamus](../figures/CellChat/cellChat_snrna_hyp_interactions_2025-11-19.png)
+![CellChat Interactions Amygdala](../figures/CellChat/cellChat_snrna_amy_interactions_2025-11-19.png)
+
+
+
+```{r}
+par(mfrow = c(1,2), xpd=TRUE)
+netVisual_diffInteraction(cellChat_snrna_hyp, weight.scale = T)
+netVisual_diffInteraction(cellChat_snrna_hyp, weight.scale = T, measure = "weight")
+
+par(mfrow = c(1,2), xpd=TRUE)
+netVisual_diffInteraction(cellChat_snrna_amy, weight.scale = T)
+netVisual_diffInteraction(cellChat_snrna_amy, weight.scale = T, measure = "weight")
+```
+
+
+![Differential Interactions Hypothalamus](../figures/CellChat/cellChat_HYP_snRNA_differentialrxn_circleplot.png)
+
+![Differential Interactions Amygdala](../figures/CellChat/cellChat_AMY_snRNA_differentialrxn_circleplot.png)
+
+**Takeaways**
+
+- Hypothalamus:
+  - NPY is the most up-regulated ligand in the hypothalamus
+  - NPY is the most up-regulated receptor in the hypothalamus
+  - NPY is the most up-regulated pathway in the hypothalamus
+  - NPY is the most up-regulated ligand in the hypothalamus
+  - NPY is the most up-regulated receptor in the hypothalamus
+  - NPY is the most up-regulated pathway in the hypothalamus
+
+
+  Amygdala:
+  - NPY is the most up-regulated ligand in the amygdala
+  - NPY is the most up-regulated receptor in the amygdala
+  - NPY is the most up-regulated pathway in the amygdala
+  - NPY is the most up-regulated ligand in the amygdala
+  - NPY is the most up-regulated receptor in the amygdala
+  - NPY is the most up-regulated pathway in the amygdala
+
+
+```{r}
+gg1_hyp_heatmap <- netVisual_heatmap(cellChat_snrna_hyp)
+gg2_hyp_heatmap <- netVisual_heatmap(cellChat_snrna_hyp, measure = "weight")
+gg1_hyp_heatmap + gg2_hyp_heatmap
+
+gg1_amy_heatmap <- netVisual_heatmap(cellChat_snrna_amy)
+gg2_amy_heatmap <- netVisual_heatmap(cellChat_snrna_amy, measure = "weight")
+gg1_amy_heatmap + gg2_amy_heatmap
+
+
+```
+
+
+![CellChat Differential Heatmap Hypothalamus](../figures/CellChat/cellChat_HYP_snRNA_differentialrxn.png)
+
+
+![CellChat Differential Heatmap Amygdala](../figures/CellChat/cellChat_AMY_snRNA_differentialrxn.png)
+
+**Takeaways**
+
+
+
+```{r}
+# CirclePlot visualizing differential interactions
+weight_max <- getMaxWeight(obj_list_hyp, attribute = c("idents","count"))
+par(mfrow = c(1,2), xpd=TRUE)
+for (i in 1:length(obj_list_hyp)) {
+  netVisual_circle(obj_list_hyp[[i]]@net$count, weight.scale = T, 
+  label.edge= F, edge.weight.max = weight_max[2], edge.width.max = 12, 
+  title.name = paste0("Number of interactions - ", 
+  names(obj_list_hyp)[i]))
+}
+
+weight_max <- getMaxWeight(obj_list_amy, attribute = c("idents","count"))
+par(mfrow = c(1,2), xpd=TRUE)
+for (i in 1:length(obj_list_amy)) {
+  netVisual_circle(obj_list_amy[[i]]@net$count, weight.scale = T, 
+  label.edge= F, edge.weight.max = weight_max[2], edge.width.max = 12, 
+  title.name = paste0("Number of interactions - ", 
+  names(obj_list_hyp)[i]))
+}
+
+
+# Use individual object since merged objects don't have direct @net$weight access
+mat <- obj_list_hyp[[1]]@net$weight
+groupSize <- as.numeric(table(obj_list_hyp[[1]]@idents))
+par(mfrow = c(4,4), xpd=TRUE)
+for (i in 1:nrow(mat)) {
+  mat2 <- matrix(0, nrow = nrow(mat), ncol = ncol(mat), dimnames = dimnames(mat))
+  mat2[i, ] <- mat[i, ]
+  netVisual_circle(mat2, vertex.weight = groupSize, weight.scale = T, edge.weight.max = max(mat), title.name = rownames(mat)[i])
+}
+
+```
+
+
+```{r}
+gg1_hyp_rankNet <- rankNet(cellChat_snrna_hyp, mode = "comparison", measure = "weight", 
+  sources.use = NULL, targets.use = NULL, stacked = T, do.stat = TRUE) +
+  scale_fill_d3()
+gg2_hyp_rankNet <- rankNet(cellChat_snrna_hyp, mode = "comparison", measure = "weight", 
+  sources.use = NULL, targets.use = NULL, stacked = F, do.stat = TRUE) +
+  scale_fill_d3()
+gg1_hyp_rankNet + gg2_hyp_rankNet
+
+
+gg1_amy_rankNet <- rankNet(cellChat_snrna_amy, mode = "comparison", measure = "weight", 
+  sources.use = NULL, targets.use = NULL, stacked = T, do.stat = TRUE) +
+  scale_fill_d3()
+gg2_amy_rankNet <- rankNet(cellChat_snrna_amy, mode = "comparison", measure = "weight", 
+  sources.use = NULL, targets.use = NULL, stacked = F, do.stat = TRUE) +
+  scale_fill_d3()
+gg1_amy_rankNet + gg2_amy_rankNet
+
+```
+
+
+```{r}
+cellChat_snrna_hyp <- netAnalysis_computeCentrality(
+    cellChat_snrna_hyp, slot.name = "netP") 
+cellChat_snrna_amy <- netAnalysis_computeCentrality(
+  cellChat_snrna_amy, slot.name = "netP") 
+
+obj_list_hyp[["WildR_HYP"]]@netP
+
+num.link <- sapply(obj_list_hyp[["WildR_HYP"]], function(x) {rowSums(x@net$count) + colSums(x@net$count)-diag(x@net$count)})
+weight.MinMax <- c(min(num.link), max(num.link)) # control the dot size in the different datasets
+gg <- list()
+for (i in 1:length(obj_list_hyp)) {
+  gg[[i]] <- netAnalysis_signalingRole_scatter(obj_list_hyp[[i]], title = names(obj_list_hyp)[i], weight.MinMax = weight.MinMax)
+}
+#> Signaling role analysis on the aggregated cell-cell communication network from all signaling pathways
+#> Signaling role analysis on the aggregated cell-cell communication network from all signaling pathways
+patchwork::wrap_plots(plots = gg)
+```
+
+
+
+```{r}
+plotGeneExpression(cellChat_snrna_hyp, signaling = "NT", enriched.only = TRUE, type = "violin")
+
+# runCellChatApp(cellChat_snrna_hyp)
+
+
+```

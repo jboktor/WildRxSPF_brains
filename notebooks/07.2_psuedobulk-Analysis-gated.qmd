@@ -309,7 +309,188 @@ meta_df_gated %<>%
   mutate(gated_cell_labels = glue("{singleR_labels}{final_gate}"))
 
 meta_df_gated$gated_cell_labels %>% table()
+meta_df_gated %>% glimpse()
 ```
+
+
+# MOVE ME - Cell type proportions analysis within gated regions
+
+```{r}
+# Analysis to determine if there is enrichment in cell types within gated regions
+nested_cell_abund <- meta_df_gated %>% 
+  filter(final_gate != "") %>%
+  group_by(slice_id, group, run, bregma, final_gate, singleR_labels) %>% 
+  summarize(n = n(), .groups = "drop") %>%
+  group_by(slice_id, final_gate) %>%
+  mutate(rel_abundance = n / sum(n)) %>%
+  ungroup() %>%
+  group_by(final_gate, singleR_labels) %>% 
+  nest()
+
+gated_cell_type_prev_models_df <- nested_cell_abund %>% 
+  mutate(count_model = purrr::map(data, possibly(function(df) lm(n ~ group + run + bregma, data = df), NULL))) %>% 
+  mutate(rel_abund_model = purrr::map(data, possibly(function(df) lm(rel_abundance ~ group + run + bregma, data = df), NULL))) %>% 
+  print(n = Inf)
+
+
+# Extract model results for count models
+count_model_results <- gated_cell_type_prev_models_df %>%
+  filter(count_model != "NULL") %>%
+  mutate(count_tidy = purrr::map(count_model, possibly(broom::tidy, NULL))) %>%
+  select(final_gate, singleR_labels, count_tidy) %>%
+  unnest(count_tidy) %>%
+  mutate(model_type = "Cell Counts") %>% 
+  glimpse()
+
+# Extract model results for relative abundance models  
+rel_abund_model_results <- gated_cell_type_prev_models_df %>%
+  mutate(rel_abund_tidy = purrr::map(rel_abund_model, possibly(broom::tidy, NULL))) %>%
+  select(final_gate, singleR_labels, rel_abund_tidy) %>%
+  unnest(rel_abund_tidy) %>%
+  mutate(model_type = "Relative Abundance") %>% 
+  glimpse()
+
+rel_abund_model_results %>% 
+  filter(term == "groupwildr") %>% 
+  View()
+
+count_model_results %>% 
+  filter(term == "groupwildr") %>% 
+  View()
+
+bothmods <- bind_rows(count_model_results, rel_abund_model_results)
+
+# Combine results and create visualization
+bothmods %>%
+  mutate(colname = glue("{final_gate}_{singleR_labels}")) %>%
+  mutate(signif = p.value <= 0.05) %>%
+  # filter(term == "groupwildr") %>%
+  ggplot(aes(
+    x = estimate,
+    y = fct_reorder(colname, estimate)
+  )) +
+  geom_bar(stat = "identity", width = 0.5, aes(fill = signif)) +
+  geom_errorbar(aes(xmin = estimate - std.error, xmax = estimate + std.error),
+                position = position_dodge(width = 0.8), width = 0.2) +
+  theme_bw() +
+  scale_fill_manual(values = c("TRUE" = "red", "FALSE" = "grey")) +
+  labs(
+    x = "Beta Coefficient WildR / SPF",
+    y = NULL,
+    fill = "Significant"
+  ) +
+  facet_grid(model_type ~ term, space = "free", scales = "free") +
+  theme(legend.position = "top")
+
+# bothmods$final_gate %>% unique()
+
+# filter for only gates that have a add_difference(
+sig_gates <- bothmods %>%
+  mutate(colname = glue("{final_gate}_{singleR_labels}")) %>%
+  mutate(signif = p.value <= 0.05) %>%
+  filter(signif) %>%
+  filter(term == "groupwildr") %>%
+  filter(model_type == "Cell Counts") %>%
+  group_by(final_gate) %>%
+  summarize(n = n()) %>%
+  pull(final_gate)
+
+p_count_mod <- bothmods %>%
+  mutate(colname = glue("{final_gate}_{singleR_labels}")) %>%
+  mutate(signif = p.value <= 0.05) %>%
+  filter(term == "groupwildr") %>%
+  filter(model_type == "Cell Counts") %>%
+  filter(final_gate %in% sig_gates) %>%
+  ggplot(aes(
+    x = estimate,
+    y = fct_reorder(colname, estimate)
+  )) +
+  geom_bar(stat = "identity", width = 0.5, aes(fill = signif)) +
+  theme_bw() +
+  scale_fill_manual(values = c("TRUE" = "red", "FALSE" = "grey")) +
+  labs(
+    x = "Beta Coefficient WildR / SPF",
+    y = NULL,
+    fill = "Significant",
+    title = "Cell Counts Models"
+  ) +
+  facet_grid(rows = vars(final_gate), space = "free", scales = "free") +
+  theme(legend.position = "bottom",
+        axis.text.y = element_text(size = 6),
+        strip.text.y = element_text(angle = 0)) +
+  scale_y_discrete(breaks = function(x) {
+    # Only show labels for significant results
+    sig_labels <- bothmods %>%
+      filter(term == "groupwildr",
+             model_type == "Cell Counts",
+             p.value <= 0.05) %>%
+      mutate(colname = glue("{final_gate}_{singleR_labels}")) %>%
+      pull(colname)
+    x[x %in% sig_labels]
+  })
+
+ggsave(
+  glue("{wkdir}/figures/Celltype_prop_LM/",
+    "celltype_counts_lm_results-counts-GATED_{Sys.Date()}.png"),
+  p_count_mod,
+  width = 4, height = 6
+)
+
+sig_gates_relab <- bothmods %>%
+  mutate(colname = glue("{final_gate}_{singleR_labels}")) %>%
+  mutate(signif = p.value <= 0.05) %>%
+  filter(signif) %>%
+  filter(term == "groupwildr") %>%
+  filter(model_type == "Relative Abundance") %>%
+  group_by(final_gate) %>%
+  summarize(n = n()) %>%
+  pull(final_gate)
+
+p_relab_mod <- bothmods %>%
+  mutate(colname = glue("{final_gate}_{singleR_labels}")) %>%
+  mutate(signif = p.value <= 0.05) %>%
+  filter(term == "groupwildr") %>%
+  filter(model_type == "Relative Abundance") %>%
+  filter(final_gate %in% sig_gates_relab) %>%
+  ggplot(aes(
+    x = estimate,
+    y = fct_reorder(colname, estimate)
+  )) +
+  geom_bar(stat = "identity", width = 0.5, aes(fill = signif)) +
+  # geom_errorbar(aes(xmin = estimate - std.error, xmax = estimate + std.error),
+  #               position = position_dodge(width = 0.8), width = 0.2) +
+  theme_bw() +
+  scale_fill_manual(values = c("TRUE" = "red", "FALSE" = "grey")) +
+  labs(
+    x = "Beta Coefficient WildR / SPF",
+    y = NULL,
+    fill = "Significant",
+    title = "Relative Abundance Models"
+  ) +
+  facet_grid(rows = vars(final_gate), space = "free", scales = "free") +
+  theme(legend.position = "bottom",
+        axis.text.y = element_text(size = 6),
+        strip.text.y = element_text(angle = 0)) +
+  scale_y_discrete(breaks = function(x) {
+    # Only show labels for significant results
+    sig_labels <- bothmods %>%
+      filter(term == "groupwildr",
+             model_type == "Relative Abundance",
+             p.value <= 0.05) %>%
+      mutate(colname = glue("{final_gate}_{singleR_labels}")) %>%
+      pull(colname)
+    x[x %in% sig_labels]
+  })
+
+ggsave(
+  glue("{wkdir}/figures/Celltype_prop_LM/",
+    "celltype_counts_lm_results-relab_GATED_{Sys.Date()}.png"),
+  p_relab_mod,
+  width = 4, height = 3.5
+)
+
+```
+
 
 
 Adding metadata to seurat object
@@ -328,7 +509,7 @@ merged_rois@meta.data$singleR_labels %>% table()
 
 # Get cell counts per label
 label_counts <- table(merged_rois$gated_cell_labels)
-# Get labels that have at least 500 cells
+# Get labels that have at least 200 cells
 keep_labels <- names(label_counts[label_counts >= 200])
 # Filter the Seurat object
 merged_rois <- subset(merged_rois, gated_cell_labels %in% keep_labels)

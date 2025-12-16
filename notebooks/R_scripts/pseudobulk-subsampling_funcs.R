@@ -91,3 +91,99 @@ subsample_celltype <- function(df, cell_id, subsamp_n, seed) {
     dplyr::select(c(sample_id))
   return(res)
 }
+
+
+
+run_deseq2_sensitivity_analysis <- function(wkdir, clust, nthreads) {
+  
+  require(glue)
+  source(glue("{wkdir}/notebooks/R_scripts/pseudobulk-subsampling_funcs.R"))
+  doParallel::registerDoParallel(cores = nthreads)
+
+  #' Following variables are loaded from saved files
+  # sample_n_list
+  # count_df
+  # core_deseq_meta_df
+
+  deseq2_clust_dir <- glue(
+    "{wkdir}/data/interim/DESeq2/subsampling/",
+    "gated_12-samples_group-run/{clust}"
+  )
+
+  # Middle loop for subsampling numbers
+  for (subsamp_n in sample_n_list[[clust]]) {
+    # Check if all iterations for this cluster and subsample size already exist
+    all_iterations_exist <- all(sapply(1:50, function(niter) {
+      deseq2_dir <- glue("{deseq2_clust_dir}/n_{subsamp_n}/iter_{niter}")
+      dir.exists(deseq2_dir)
+    }))
+
+    if (all_iterations_exist) {
+      message("All iterations already exist for cluster ",
+        clust, " and subsample size ", subsamp_n
+      )
+      next
+    }
+
+    # Parallel execution of iterations
+    results <- foreach::foreach(niter = 1:50, .packages = c("glue", "DESeq2", "dplyr", "Matrix.utils")) %dopar% {
+      deseq2_dir <- glue("{deseq2_clust_dir}/n_{subsamp_n}/iter_{niter}")
+      if (dir.exists(deseq2_dir)) {
+        return(NULL)
+      }
+
+      dir.create(deseq2_dir, showWarnings = FALSE, recursive = TRUE)
+
+      # Subsampling cell type
+      subsamp_data <- subsample_celltype(
+        df = count_df,
+        cell_id = clust,
+        subsamp_n = subsamp_n,
+        seed = 42 + niter  # Use different seed for each iteration
+      )
+
+      aggr_counts_subsamp <- Matrix.utils::aggregate.Matrix(
+        subsamp_data$subsamp_counts,
+        groupings = subsamp_data$subsamp_meta,
+        fun = "sum"
+      ) %>% t()
+
+      deseq_meta <- dplyr::distinct(subsamp_data$subsamp_meta) %>% 
+        dplyr::left_join(core_deseq_meta_df, by = c("sample_id")) %>% 
+        dplyr::mutate_if(is.character, as.factor) %>%
+        dplyr::distinct()
+
+      # Create DESeq2 object        
+      dds <- DESeq2::DESeqDataSetFromMatrix(aggr_counts_subsamp, 
+                                    colData = deseq_meta, 
+                                    design = ~ group + run)
+
+      # RUNNING DESEQ2
+      tryCatch({
+        dds <- DESeq2::DESeq(dds)
+        saveRDS(dds, glue("{deseq2_dir}/dds_{Sys.Date()}.rds"))
+
+        # Generate results object
+        res <- DESeq2::results(dds, 
+                        name = "group_wildr_vs_spf",
+                        alpha = 0.05,
+                        contrast = c("group", "wildr", "spf"))
+        res <- DESeq2::lfcShrink(dds, 
+                          coef = "group_wildr_vs_spf",
+                          res=res,
+                          type = "apeglm")
+
+        saveRDS(res, glue("{deseq2_dir}/res_{Sys.Date()}.rds"))
+
+        return(TRUE)  # Indicate successful completion
+      }, error = function(e) {
+        message("Error occurred in iteration ", niter,
+                " for cluster ", clust,
+                " and subsample ", subsamp_n,
+                ": ", e$message)
+        return(FALSE)  # Indicate unsuccessful completion
+      })
+    }
+  }
+}
+

@@ -1,0 +1,233 @@
+---
+title: "NEUROeSTIMator Analysis"
+editor: source
+author: "Joe Boktor"
+date: '2025-04-30'
+format: 
+  html:
+    font-family: helvetica neue
+    page-layout: full
+    toc: true
+    toc-location: left
+    toc-depth: 5
+    self-contained: true
+    code-fold: false
+    code-tools: true
+    fig-align: center
+---
+
+# Background
+
+The goal of NeuronChat is to infer, visualize and analyze neural-specific cell-cell communication from single cell transcriptomics or spatially resolved transcriptomics data.
+
+
+# Analysis Setup
+
+Environment setup.
+
+```{r}
+#| warning: false
+library(tidyverse)
+library(magrittr)
+library(glue)
+library(Seurat)
+library(grid)
+library(biomaRt)
+library(SingleR)
+library(batchtools)
+library(strex)
+# stats 
+library(lme4)
+library(broom)
+# parallelization
+library(BiocParallel)
+library(future)
+library(furrr)
+# plotting
+library(RColorBrewer)
+library(ggsci)
+library(Matrix)
+library(plotly)
+library(DT)
+library(gtsummary)
+library(aplot)
+library(patchwork)
+library(viridis)
+
+# Load libraries
+library(cowplot)
+library(Matrix.utils)
+library(edgeR)
+library(Matrix)
+library(reshape2)
+library(S4Vectors)
+library(SingleCellExperiment)
+library(RColorBrewer)
+library(data.table)
+library(NeuronChat)
+library(CellChat)
+library(ComplexHeatmap)
+library(circlize)
+library(ggalluvial)
+
+
+# setting paths
+homedir <- "/central/groups/mthomson/jboktor"
+wkdir <- glue("{homedir}/spatial_genomics/jess_2024-01-23")
+source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
+
+# # 12gb  limit (1500*1024^2 = 1572864000) * 8
+# options(future.globals.maxSize= 12582912000)
+# future::plan("multisession", workers = 30)
+
+
+```
+
+Loading in data.
+
+```{r, eval = FALSE}
+abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
+merged_rois <- readRDS(
+    glue(
+      "{wkdir}/data/interim/",
+      "merged_roi_seurat_filtered_staNMF-updated_2024-07-24.rds"
+    )
+)
+meta_df <- merged_rois@meta.data %>% glimpse()
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+TUTORIAL
+
+```{r}
+data(list = "cortex_data")
+# subset the data by choosing the region VISp
+region_name <- "VISp"
+cell_class <- names(table(meta$class_label))
+cell_idx <- which(meta$region_label %in% region_name & meta$class_label %in% cell_class & !(meta$subclass_label %in% c("Car3", "CR", "DG", "L2/3 IT PPP", "L5/6 IT TPE-ENT")))
+target_df_single <- target_df[cell_idx, ] # a data frame: row  cell, column gene (the last column is the cell subclass)
+meta_tmp <- meta[cell_idx, ]
+rownames(meta_tmp) <- meta_tmp$sample_name # subset meta
+df_group <- meta_tmp[!duplicated(meta_tmp$subclass_label), c("class_label", "subclass_label")]
+group <- structure(df_group$class_label, names = df_group$subclass_label) # create the cell class for the subclasses, used for plot
+
+# creat NeuronChat object; choose the database 'mouse' for mouse data; 'human' for human data
+# note that the first parameter should be a numeric matrix with row gene and column cell
+x <- createNeuronChat(t(as.matrix(target_df_single[, 1:(dim(target_df_single)[2] - 1)])), DB = "mouse", group.by = target_df_single$cell_subclass)
+#> Create a NeuronChat object from a data matrix
+```
+
+
+Part II: Run NeuronChat to infer the neural-specific cell-cell communication networks
+
+```{r}
+# M is for the permutation test; typically ~4 mins when M=100, depending on the dataset size and the number of cell groups
+# setting M=10 to get a quick start
+x <- run_NeuronChat(x,M=100)
+#> Time difference of 5.181635 mins
+# the the communication networks for individual interaction pairs are stored in slot 'net'
+# aggregate the communication networks over all interaction pairs, method can be 'weight', 'count' and so on
+net_aggregated_x <- net_aggregation(x@net,method = 'weight')
+```
+
+Part III: Visualization of neural-specific cell-cell communication networks
+for aggregated network
+
+```{r}
+par(mfrow=c(1,2))
+# Visualization, circle plot, for the aggregated network
+netVisual_circle_neuron(net_aggregated_x,group=group,vertex.label.cex = 1)
+# Visualization, chordDiagram, for the aggregated network; also using cellchat function netVisual_chord_cell_internal(net_aggregated_x, group = group,lab.cex=1)
+netVisual_chord_neuron(x,method = 'weight',group=group,lab.cex = 1)
+```
+
+
+```{r}
+
+x
+# Visualization, heatmap for the aggregated network
+heatmap_aggregated(x, method='weight',group=group)
+```
+
+for individual network
+
+
+```{r}
+par(mfrow=c(1,2))
+# Visualization for the single interaction pair, circle plot  
+netVisual_circle_neuron(x@net$Glu_Gria2,group=group,vertex.label.cex = 1)
+# Visualization for the single interaction pair, chord diagram 
+netVisual_chord_neuron(x,interaction_use='Glu_Gria2',group=group,lab.cex = 1)
+```
+
+
+```{r}
+# Visualization for the single interaction pair, heatmap 
+heatmap_single(x,interaction_name='Glu_Gria2',group=group)
+```
+
+
+```{r}
+# Visualization for the single interaction pair, heatmap with violin plots showing expression of genes realted to ligand and target
+lig_tar_heatmap(x,interaction_name='Glu_Gria2',width.vector=c(0.38,0.35,0.27))
+```
+
+
+Part IV: Analysis of communication
+barplot show the count of links or information flow for all interaction pairs
+
+```{r}
+g1 <- rankNet_Neuron(x,slot.name = "net",measure = c("weight"),mode='single',font.size = 5) 
+g2 <- rankNet_Neuron(x,slot.name = "net",measure = c("count"),mode='single',font.size = 5)
+g1+g2
+```
+
+
+outgoing/incoming pattern
+
+
+```{r}
+# selectK_Neuron(x,pattern = "outgoing")
+# selectK_Neuron(x,pattern = "incoming")
+x<- identifyCommunicationPatterns_Neuron(x, slot.name = "net", pattern = c("outgoing"), k=4,height = 18)
+x<- identifyCommunicationPatterns_Neuron(x, slot.name = "net", pattern = c("incoming"), k=4,height = 18)
+```
+
+
+```{r}
+netAnalysis_river_Neuron(x,slot.name = "net", pattern = c("outgoing"),font.size = 2.5,cutoff.1 = 0.5,cutoff.2=0.5)
+```
+
+
+```{r}
+netAnalysis_river_Neuron(x,slot.name = "net", pattern = c("incoming"),font.size = 2.5,cutoff.1 = 0.5,cutoff.2=0.5)
+```
+
+manifold learning and classification
+
+
+```{r}
+x <- computeNetSimilarity_Neuron(x,type='functional')
+x  <- CellChat::netEmbedding(x, slot.name = "net_analysis", type = "functional")
+#> Manifold learning of the signaling networks for a single dataset
+x <- CellChat::netClustering(x, type='functional',slot.name = "net_analysis",k=5)
+#> Classification learning of the signaling networks for a single dataset
+netVisual_embedding_Neuron(x, type = "functional", label.size = 5,pathway.remove.show = F)
+```
+
+
+```{r}
+netVisual_embeddingZoomIn_Neuron(x, type = "functional", nCol = 2,label.size = 3)
+
+```

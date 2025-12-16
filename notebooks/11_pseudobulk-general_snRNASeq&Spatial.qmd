@@ -1,0 +1,1535 @@
+---
+title: "WildR Brain Tissue DEG Analysis"
+editor: source
+author: "Joe Boktor"
+date: '2025-10-06'
+format: 
+  html:
+    font-family: helvetica neue
+    page-layout: full
+    toc: true
+    toc-location: left
+    toc-depth: 5
+    self-contained: true
+    code-fold: false
+    code-tools: true
+    fig-align: center
+    grid:
+      sidebar-width: 200px
+      body-width: 1100px
+      margin-width: 200px
+      gutter-width: 1.5em
+---
+
+# Background
+
+Here we analyze the snRNASeq data from the WildR Brain Tissue project.
+
+# Analysis Setup
+
+Environment setup.
+
+```{r}
+#| warning: false
+library(tidyverse)
+library(magrittr)
+library(glue)
+library(Seurat)
+library(grid)
+library(biomaRt)
+library(SingleR)
+library(batchtools)
+library(strex)
+library(fs)
+# stats 
+library(lme4)
+library(broom)
+# parallelization
+library(BiocParallel)
+library(future)
+library(furrr)
+library(foreach)
+library(doParallel)
+# plotting
+library(RColorBrewer)
+library(ggsci)
+library(Matrix)
+library(plotly)
+library(DT)
+library(gtsummary)
+library(aplot)
+library(patchwork)
+library(viridis)
+
+# Load libraries
+library(cowplot)
+library(Matrix.utils)
+library(edgeR)
+library(Matrix)
+library(reshape2)
+library(S4Vectors)
+library(SingleCellExperiment)
+library(pheatmap)
+library(apeglm)
+library(png)
+library(DESeq2)
+library(RColorBrewer)
+library(data.table)
+library(DEGreport)
+library(ggrepel)
+library(tictoc)
+# setting paths
+homedir <- "/central/groups/MazmanianLab/joeB"
+wkdir <- glue("{homedir}/WILDRxSPF_brains")
+source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
+sn_wkdir <- glue("{homedir}/snRNAseq_analysis/WILDRxSPF_brains")
+snrna_data_path <- glue("{sn_wkdir}/data/interim")
+snrna_deseq2_dir <- glue("{wkdir}/data/interim/DESeq2/snRNASeq")
+snrna_edgeR_dir <- glue("{wkdir}/data/interim/edgeR/snRNASeq")
+seqfish_edgeR_dir <- glue("{wkdir}/data/interim/edgeR/seqFISH")
+seqfish_deseq2_dir <- glue("{wkdir}/data/interim/DESeq2/seqFISH")
+
+
+# kgrad_wkdir <- "/resnick/groups/MazmanianLab/jboktor/snRNAseq"
+# kgrad_tmp <- glue("{kgrad_wkdir}/kgrad_tmp")
+# kgrad_data_path <- glue("{wkdir}/data/interim/DESeq2/subsampling/snRNASeq")
+# kgrad_count_path <- glue("{kgrad_data_path}/count_data")
+# kgrad_compiled <- glue("{kgrad_wkdir}/kgrad_compiled")
+# kgrad_compiled_lfcShrink <- glue("{kgrad_wkdir}/kgrad_compiled_lfcShrink")
+fig_dir <- glue("{wkdir}/figures/pseudobulk-subsampling/snRNASeq")
+
+source(glue("{wkdir}/notebooks/R_scripts/kgrad_pseudobulk.R"))
+
+# dir.create(kgrad_count_path, showWarnings = FALSE, recursive = TRUE)
+# dir.create(kgrad_compiled, showWarnings = FALSE, recursive = TRUE)
+# dir.create(kgrad_compiled_lfcShrink, showWarnings = FALSE, recursive = TRUE)
+# dir.create(fig_dir, showWarnings = FALSE, recursive = TRUE)
+
+# # 12gb  limit (1500*1024^2 = 1572864000) * 8
+# options(future.globals.maxSize= 12582912000)
+# future::plan("multisession", workers = 30)
+
+```
+
+Plotting functions
+```{r}
+plot_seurat_boxplot <- function(seurat_data, coi, genename) {
+    seurat_data %>% 
+        ggplot(aes(x = sample, y = gene_expression)) +
+        geom_point(aes(color = group), alpha = 0.8,
+            position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.25)) +
+        geom_boxplot(outlier.shape = NA, alpha = 0.5) +
+        labs(x = NULL, y = glue("{genename} log2(counts + 1)")) +
+        scale_color_viridis_d(option = "turbo") +
+        theme_bw() +
+        theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))
+}
+
+plot_pseudobulk_boxplot <- function(pseudobulk_plot_df, coi, genename) {
+    pseudobulk_plot_df %>% 
+        ggplot(aes(x = group, y = normalized_counts)) +
+        geom_point(aes(color = group), alpha = 0.8,
+            position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.25)) +
+        geom_boxplot(outlier.shape = NA, alpha = 0.5) +
+        labs(x = NULL, y = glue("{genename} DESeq2 normalized counts")) +
+        scale_color_viridis_d(option = "turbo") +
+        theme_bw() +
+        theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))
+}
+
+```
+
+
+
+Loading in data.
+
+```{r}
+tic()
+seurat_obj <- readRDS(glue(
+  "{snrna_data_path}/seurat/seurat_obj_clustered_celltyped_2025-05-12.rds")
+  )
+toc()
+
+seurat_obj
+seurat_obj$tissue <- str_after_last(seurat_obj$sample, "_")
+seurat_obj$class_name_region <- paste(seurat_obj$class_name, seurat_obj$tissue, sep = "_")
+seurat_obj@meta.data %>% glimpse()
+
+```
+
+## Prepping Pseudobulk Analysis
+
+Filtering low count celltype x tissue combinations. Selecting for celltypes with at least 200 cells combining all samples.
+
+
+```{r}
+# Checking cell labels
+seurat_obj@meta.data$tissue %>% table()
+seurat_obj@meta.data$class_name %>% table()
+
+# Get cell counts per label
+label_counts <- table(seurat_obj@meta.data$class_name_region) %>% sort()
+# Get labels that have at least 200 cells
+keep_labels <- names(label_counts[label_counts >= 200])
+# Filter the Seurat object
+seurat_obj_filt <- subset(seurat_obj, class_name_region %in% keep_labels)
+seurat_obj_filt
+
+ncol(seurat_obj)
+ncol(seurat_obj_filt)
+```
+
+This brings us down from 411,875 to 410,778 cells.
+
+
+Next we create a metadata dataframe for aggregation and DE analysis.
+
+```{r}
+# Set up metadata as desired for aggregation and DE analysis
+metadata <- seurat_obj_filt@meta.data %>% as.data.frame()
+metadata$cluster_id <- factor(metadata$class_name_region)
+metadata$group <- str_before_first(metadata$sample, "_")
+metadata %>% glimpse()
+
+essential_meta_cols <- c("sample_id" = "sample", "cluster_id", "group")
+meta_df_grps <- dplyr::select(metadata, all_of(essential_meta_cols)) %>% glimpse()
+core_pseudobulk_meta_df <- meta_df_grps %>% 
+  dplyr::select(-cluster_id) %>%
+  distinct() %>%
+  glimpse()
+rownames(core_pseudobulk_meta_df) <- NULL
+
+```
+
+
+EdgeR and DESeq2 differential expression analysis for each celltype
+
+```{r}
+coi_list <- seurat_obj_filt$class_name_region %>% unique()
+
+for (coi in coi_list) {
+    message(glue("Processing {coi}"))
+    edgeR_dir <- glue("{snrna_edgeR_dir}/AllCells/{coi}")
+    dir.create(edgeR_dir, showWarnings = FALSE, recursive = TRUE)
+    deseq2_res_dir <- glue("{snrna_deseq2_dir}/AllCells/{coi}")
+    dir.create(deseq2_res_dir, showWarnings = FALSE, recursive = TRUE)
+    
+    seur <- subset(seurat_obj_filt, subset = class_name_region == coi)
+    message(glue("Number of cells in seur: {ncol(seur)}"))
+
+    # ------------------------------
+    # Define pseudobulk grouping (by sample)
+    # ------------------------------
+    grouping <- seur@meta.data %>%
+        as.data.frame() %>%
+        dplyr::select(sample_id = sample) %>%
+        glimpse()
+    analysis_meta <- dplyr::distinct(grouping) %>%
+        dplyr::left_join(core_pseudobulk_meta_df, by = "sample_id") %>%
+        dplyr::mutate_if(is.character, as.factor) %>%
+        dplyr::distinct()
+
+    # ------------------------------
+    # Aggregate pseudobulk counts (sum across cells)
+    # ------------------------------
+    aggr_count_matrix <- aggregate.Matrix(
+        t(seur@assays$RNA@counts),  # cells × genes
+        groupings = grouping,
+        fun = "sum"
+        ) %>% t()  # genes × pseudobulk samples
+
+    # ------------------------------
+    # Filter genes by expression & variance | at least two samples with at least 10 counts
+    # ------------------------------
+    min_counts <- 10
+    min_samples <- 2
+    keep_genes <- rowSums(aggr_count_matrix >= min_counts) >= min_samples
+    aggr_count_matrix_filt <- aggr_count_matrix[keep_genes, ]
+
+    # Filter by variance (drop bottom 10%)
+    gene_vars <- apply(aggr_count_matrix_filt, 1, var)
+    var_threshold <- quantile(gene_vars, 0.1)
+    aggr_count_matrix_filt <- aggr_count_matrix_filt[gene_vars > var_threshold, ]
+
+    message(glue("Filtered from {nrow(aggr_count_matrix)} to {nrow(aggr_count_matrix_filt)} genes"))
+
+    # ------------------------------
+    # Create edgeR DGEList object
+    # ------------------------------
+    dge <- DGEList(counts = aggr_count_matrix_filt)
+    dge$samples$group <- analysis_meta$group
+    dge$samples$sample_id <- analysis_meta$sample_id
+
+    dge <- calcNormFactors(dge, method = "TMM")
+    design <- model.matrix(~ group, data = analysis_meta)
+    dge <- estimateDisp(dge, design, robust = TRUE)
+
+    # ------------------------------
+    # Fit GLM with QL (quasi-likelihood) and test
+    # ------------------------------
+    fit <- glmQLFit(dge, design, robust = TRUE)
+    qlf <- glmQLFTest(fit, coef = "groupWildR")
+
+    res <- edgeR::topTags(qlf, n = Inf)$table
+    res <- res %>% arrange(FDR) %>% glimpse()
+
+    saveRDS(res, glue("{edgeR_dir}/res_{Sys.Date()}.rds"))
+    saveRDS(dge, glue("{edgeR_dir}/dge_{Sys.Date()}.rds"))
+
+    # ------------------------------
+    # Create DESeq2 object
+    # ------------------------------
+    message(glue("Creating DESeq2 object for iteration {coi}"))
+    dds <- DESeq2::DESeqDataSetFromMatrix(aggr_count_matrix_filt,
+        colData = analysis_meta, design = ~ group)
+    dds <- DESeq2::DESeq(dds)
+    saveRDS(dds, glue("{deseq2_res_dir}/dds_{Sys.Date()}.rds"))
+
+    # Extract and inspect size factors
+    size_factors <- DESeq2::sizeFactors(dds)
+    analysis_meta$size_factor <- size_factors
+
+    # Generate results object
+    res <- DESeq2::results(dds,
+        contrast = c("group", "WildR", "SPF") # WildR is Numerator
+    )
+    res_lfcShrink <- DESeq2::lfcShrink(dds,
+        coef = "group_WildR_vs_SPF",
+        res = res,
+        type = "apeglm"
+    )
+    saveRDS(res, glue("{deseq2_res_dir}/res_{Sys.Date()}.rds"))
+    saveRDS(res_lfcShrink, glue("{deseq2_res_dir}/res_lfcShrink_{Sys.Date()}.rds"))
+    res %>% as.data.frame() %>% arrange(padj) %>% glimpse()
+}
+
+```
+
+
+## snRNASeq DEGs for only protein coding genes
+
+```{r}
+# Loading in gene metadata
+gene_metadata <- read.delim("/central/groups/MazmanianLab/joeB/WILDRxSPF_brains/data/input/geneInfo.tab", 
+    skip = 1, header = FALSE,
+    sep = "\t") %>% 
+    dplyr::rename(gene_id = V1, gene_name = V2, gene_type = V3) %>%
+    glimpse()
+protein_coding_gene_ids <- gene_metadata %>% 
+    filter(gene_type == "protein_coding") %>%
+    pull(gene_id)
+protein_coding_features <- seurat_obj_filt@assays$RNA@meta.features %>% 
+    as.data.frame() %>% 
+    filter(gene_id %in% protein_coding_gene_ids) %>%
+    mutate(gene = gsub("_GRCm39", "-GRCm39", gene)) %>%
+    pull(gene)
+
+sum(rownames(seurat_obj_filt) %in% protein_coding_features)
+tic()
+seurat_obj_filt_protcoding <- seurat_obj_filt %>% subset(features = protein_coding_features)
+toc()
+seurat_obj_filt_protcoding
+
+```
+
+
+EdgeR and DESeq2 differential expression analysis for each celltype
+
+```{r}
+coi_list <- seurat_obj_filt_protcoding$class_name_region %>% unique()
+
+for (coi in coi_list) {
+    message(glue("Processing {coi}"))
+    edgeR_dir <- glue("{snrna_edgeR_dir}/AllCells_protein_coding/{coi}")
+    dir.create(edgeR_dir, showWarnings = FALSE, recursive = TRUE)
+    deseq2_res_dir <- glue("{snrna_deseq2_dir}/AllCells_protein_coding/{coi}")
+    dir.create(deseq2_res_dir, showWarnings = FALSE, recursive = TRUE)
+    
+    seur <- subset(seurat_obj_filt_protcoding, subset = class_name_region == coi)
+    message(glue("Number of cells in seur: {ncol(seur)}"))
+
+    # ------------------------------
+    # Define pseudobulk grouping (by sample)
+    # ------------------------------
+    grouping <- seur@meta.data %>%
+        as.data.frame() %>%
+        dplyr::select(sample_id = sample) %>%
+        glimpse()
+    analysis_meta <- dplyr::distinct(grouping) %>%
+        dplyr::left_join(core_pseudobulk_meta_df, by = "sample_id") %>%
+        dplyr::mutate_if(is.character, as.factor) %>%
+        dplyr::distinct()
+
+    # ------------------------------
+    # Aggregate pseudobulk counts (sum across cells)
+    # ------------------------------
+    aggr_count_matrix <- aggregate.Matrix(
+        t(seur@assays$RNA@counts),  # cells × genes
+        groupings = grouping,
+        fun = "sum"
+        ) %>% t()  # genes × pseudobulk samples
+
+    # ------------------------------
+    # Filter genes by expression & variance | at least two samples with at least 10 counts
+    # ------------------------------
+    min_counts <- 10
+    min_samples <- 2
+    keep_genes <- rowSums(aggr_count_matrix >= min_counts) >= min_samples
+    aggr_count_matrix_filt <- aggr_count_matrix[keep_genes, ]
+
+    # Filter by variance (drop bottom 10%)
+    gene_vars <- apply(aggr_count_matrix_filt, 1, var)
+    var_threshold <- quantile(gene_vars, 0.1)
+    aggr_count_matrix_filt <- aggr_count_matrix_filt[gene_vars > var_threshold, ]
+
+    message(glue("Filtered from {nrow(aggr_count_matrix)} to {nrow(aggr_count_matrix_filt)} genes"))
+
+    # ------------------------------
+    # Create edgeR DGEList object
+    # ------------------------------
+    dge <- DGEList(counts = aggr_count_matrix_filt)
+    dge$samples$group <- analysis_meta$group
+    dge$samples$sample_id <- analysis_meta$sample_id
+
+    dge <- calcNormFactors(dge, method = "TMM")
+    design <- model.matrix(~ group, data = analysis_meta)
+    dge <- estimateDisp(dge, design, robust = TRUE)
+
+    # ------------------------------
+    # Fit GLM with QL (quasi-likelihood) and test
+    # ------------------------------
+    fit <- glmQLFit(dge, design, robust = TRUE)
+    qlf <- glmQLFTest(fit, coef = "groupWildR")
+
+    res <- edgeR::topTags(qlf, n = Inf)$table
+    res <- res %>% arrange(FDR) %>% glimpse()
+
+    saveRDS(res, glue("{edgeR_dir}/res_{Sys.Date()}.rds"))
+    saveRDS(dge, glue("{edgeR_dir}/dge_{Sys.Date()}.rds"))
+
+    # ------------------------------
+    # Create DESeq2 object
+    # ------------------------------
+    message(glue("Creating DESeq2 object for iteration {coi}"))
+    dds <- DESeq2::DESeqDataSetFromMatrix(aggr_count_matrix_filt,
+        colData = analysis_meta, design = ~ group)
+    dds <- DESeq2::DESeq(dds)
+    saveRDS(dds, glue("{deseq2_res_dir}/dds_{Sys.Date()}.rds"))
+
+    # Extract and inspect size factors
+    size_factors <- DESeq2::sizeFactors(dds)
+    analysis_meta$size_factor <- size_factors
+
+    # Generate results object
+    res <- DESeq2::results(dds,
+        contrast = c("group", "WildR", "SPF") # WildR is Numerator
+    )
+    res_lfcShrink <- DESeq2::lfcShrink(dds,
+        coef = "group_WildR_vs_SPF",
+        res = res,
+        type = "apeglm"
+    )
+    saveRDS(res, glue("{deseq2_res_dir}/res_{Sys.Date()}.rds"))
+    saveRDS(res_lfcShrink, glue("{deseq2_res_dir}/res_lfcShrink_{Sys.Date()}.rds"))
+    res %>% as.data.frame() %>% arrange(padj) %>% glimpse()
+}
+
+```
+
+
+Quickly checking in on results
+
+```{r}
+deseq2_res_paths_protcoding <- list.files(
+    glue("{snrna_deseq2_dir}/AllCells_protein_coding"),
+    recursive = TRUE, full.names = TRUE, pattern = "res_2025")
+edgeR_res_paths_protcoding <- list.files(
+    glue("{snrna_edgeR_dir}/AllCells_protein_coding"),
+    recursive = TRUE, full.names = TRUE, pattern = "res_2025")
+
+deseq2_res_pcoding <- deseq2_res_paths_protcoding %>% 
+    purrr::set_names(basename(dirname(.))) %>%
+    purrr::map(~ readRDS(.) %>% 
+        as.data.frame() %>% 
+        rownames_to_column("gene")) %>% 
+    bind_rows(.id = "celltype") %>% 
+    glimpse()
+edgeR_res_pcoding <- edgeR_res_paths_protcoding %>% 
+    purrr::set_names(basename(dirname(.))) %>%
+    purrr::map(~ readRDS(.) %>% 
+        as.data.frame() %>% 
+        rownames_to_column("gene")) %>% 
+    bind_rows(.id = "celltype") %>% 
+    glimpse()
+
+# how many DEGs per celltype (no FDR)
+total_genes_tested <- deseq2_res_pcoding %>% 
+    group_by(celltype) %>% 
+    tally(name = "total_genes_tested") %>% 
+    glimpse()
+nominal_pval_dseq2 <- deseq2_res_pcoding %>% 
+    filter(pvalue < 0.05) %>% 
+    group_by(celltype) %>% 
+    tally(name = "DESeq2_pvalue_hits") %>% 
+    glimpse()
+nominal_pval_edgeR <- edgeR_res_pcoding %>% 
+    filter(PValue < 0.05) %>% 
+    group_by(celltype) %>% 
+    tally(name = "EdgeR_pvalue_hits") %>% 
+    glimpse()
+
+summary_dt_table <- total_genes_tested %>% 
+    left_join(nominal_pval_dseq2, by = "celltype") %>% 
+    left_join(nominal_pval_edgeR, by = "celltype") %>% 
+    arrange(desc(DESeq2_pvalue_hits)) %>% 
+    mutate(DESeq2_frac_sig = round((DESeq2_pvalue_hits / total_genes_tested)*100, 2)) %>% 
+    mutate(EdgeR_frac_sig = round((EdgeR_pvalue_hits / total_genes_tested)*100, 2)) %>% 
+    glimpse()
+
+summary_dt_table %>% DT::datatable()
+
+class_top_hits_edgeR <- edgeR_res_pcoding %>% filter(FDR < 0.1) %>% 
+    mutate(gene = gsub("-GRCm39", "", gene)) %>% 
+    filter(abs(logFC) >= 0.2) %>% 
+    glimpse()
+class_top_hits_edgeR %>% DT::datatable()
+
+class_top_hits_deseq2 <- deseq2_res_pcoding %>% filter(padj < 0.1) %>% 
+    mutate(gene = gsub("-GRCm39", "", gene)) %>% 
+    filter(abs(log2FoldChange) >= 0.2) %>% 
+    glimpse()
+class_top_hits_deseq2 %>% DT::datatable()
+
+# Visualizing DESeq2 results BOXPLOTS
+class_boxplot_dir <- glue("{wkdir}/figures/pseudobulk_boxplots/DESeq2/class")
+dir.create(class_boxplot_dir, showWarnings = FALSE, recursive = TRUE)
+
+for (i in 1:nrow(class_top_hits_deseq2)) {
+    coi <- class_top_hits_deseq2$celltype[i]
+    genename <- class_top_hits_deseq2$gene[i]
+
+    final_img_path <- glue("{class_boxplot_dir}/{genename}_{coi}_combined.png")
+    if (file.exists(final_img_path)) next
+    message(glue("Processing {coi} for {genename}"))
+    
+    # Visualize pseudobulk data
+    dds_path <- glue("{snrna_deseq2_dir}/AllCells_protein_coding/{coi}/dds_2025-10-15.rds")
+    dds <- readRDS(dds_path)
+    pseudobulk_plot_df <- DESeq2::counts(dds, normalized = TRUE) %>% 
+        as.data.frame() %>% 
+        rownames_to_column("gene") %>% 
+        filter(gene == glue("{genename}-GRCm39")) %>% 
+        pivot_longer(cols = -gene, names_to = "sample", values_to = "normalized_counts") %>%
+        mutate(group = sample %>% str_before_first("_")) %>%
+        glimpse()
+
+    p_box_pseudobulk <- plot_pseudobulk_boxplot(pseudobulk_plot_df, coi, genename)
+
+    # seurat_obj_filt_protcoding@meta.data %>% glimpse()
+    single_cell_plot_df <- seurat_obj_filt_protcoding %>% 
+        subset(class_name_region == coi) %>% 
+        FetchData(vars = c(glue("{genename}-GRCm39"), "class_name", "group", "sample")) %>%
+        mutate(gene_expression = log2(.data[[glue("{genename}-GRCm39")]] + 1)) %>% 
+        glimpse()
+    # single_cell_plot_df %>% glimpse()
+    
+    p_box_single_cell <- plot_seurat_boxplot(single_cell_plot_df, coi, genename)
+
+    p_box_combined <- p_box_single_cell + p_box_pseudobulk + 
+        plot_annotation(title = glue("{genename} {coi}")) + 
+        plot_layout(ncol = 2, widths = c(2, 1))
+    
+    ggsave(glue("{class_boxplot_dir}/{genename}_{coi}_combined.png"), p_box_combined, width = 6, height = 4)
+}
+
+deseq2_res_pcoding %>% glimpse()
+deseq2_res_pcoding %>% filter(pvalue < 0.05) %>% View
+
+edgeR_res_pcoding %>% glimpse()
+edgeR_res_pcoding %>% filter(PValue < 0.05) %>% View
+
+deg_res <- deseq2_res_pcoding %>% 
+    left_join(edgeR_res_pcoding, by = c("celltype", "gene")) %>% glimpse()
+
+p_deg <- deg_res %>% 
+    ggplot(aes(x = pvalue, y = PValue)) +
+    geom_point() +
+    geom_abline(slope = 1, intercept = 0) +
+    facet_wrap(~ celltype) +
+    theme_minimal()
+
+ggsave(glue("deg_res.png"), p_deg, width = 10, height = 10)
+
+
+```
+
+
+Running DE analysis on Allen Brain Atlas SubClusters
+
+```{r}
+# Set up metadata as desired for aggregation and DE analysis
+metadata_subclass <- seurat_obj_filt_protcoding@meta.data %>% as.data.frame() %>% 
+    mutate(subclass_name_region = glue("{subclass_name}_{tissue}")) %>% 
+    glimpse()
+metadata_subclass$cluster_id <- factor(metadata$subclass_name_region)
+metadata_subclass$group <- str_before_first(metadata$sample, "_")
+metadata_subclass %>% glimpse()
+
+essential_meta_cols <- c("sample_id" = "sample", "cluster_id", "group")
+meta_df_grps_subclass <- 
+    dplyr::select(metadata_subclass, all_of(essential_meta_cols)) %>% glimpse()
+core_pseudobulk_meta_df_subclass <- meta_df_grps_subclass %>% 
+  dplyr::select(-cluster_id) %>%
+  distinct() %>%
+  glimpse()
+rownames(core_pseudobulk_meta_df_subclass) <- NULL
+```
+
+```{r}
+# adding subclass_name_region to seurat object
+
+seurat_obj_filt_protcoding@meta.data$subclass_name_region <- 
+    metadata_subclass$subclass_name_region
+coi_list <- table(seurat_obj_filt_protcoding$subclass_name_region)[table(seurat_obj_filt_protcoding$subclass_name_region) > 200] %>% names()
+
+for (coi in coi_list) {
+    message(glue("Processing {coi}"))
+    edgeR_dir <- glue("{snrna_edgeR_dir}/AllCells_protein_coding_subclass/{coi}")
+    dir.create(edgeR_dir, showWarnings = FALSE, recursive = TRUE)
+    deseq2_res_dir <- glue("{snrna_deseq2_dir}/AllCells_protein_coding_subclass/{coi}")
+    dir.create(deseq2_res_dir, showWarnings = FALSE, recursive = TRUE)
+    
+    seur <- subset(seurat_obj_filt_protcoding, subset = subclass_name_region == coi)
+    message(glue("Number of cells in seur: {ncol(seur)}"))
+
+    # ------------------------------
+    # Define pseudobulk grouping (by sample)
+    # ------------------------------
+    grouping <- seur@meta.data %>%
+        as.data.frame() %>%
+        dplyr::select(sample_id = sample) %>%
+        glimpse()
+    analysis_meta <- dplyr::distinct(grouping) %>%
+        dplyr::left_join(core_pseudobulk_meta_df_subclass, by = "sample_id") %>%
+        dplyr::mutate_if(is.character, as.factor) %>%
+        dplyr::distinct()
+
+    # ------------------------------
+    # Aggregate pseudobulk counts (sum across cells)
+    # ------------------------------
+    aggr_count_matrix <- aggregate.Matrix(
+        t(seur@assays$RNA@counts),  # cells × genes
+        groupings = grouping,
+        fun = "sum"
+        ) %>% t()  # genes × pseudobulk samples
+
+    # ------------------------------
+    # Filter genes by expression & variance | at least two samples with at least 10 counts
+    # ------------------------------
+    min_counts <- 10
+    min_samples <- 2
+    keep_genes <- rowSums(aggr_count_matrix >= min_counts) >= min_samples
+    aggr_count_matrix_filt <- aggr_count_matrix[keep_genes, ]
+
+    # Filter by variance (drop bottom 10%)
+    gene_vars <- apply(aggr_count_matrix_filt, 1, var)
+    var_threshold <- quantile(gene_vars, 0.1)
+    aggr_count_matrix_filt <- aggr_count_matrix_filt[gene_vars > var_threshold, ]
+
+    message(glue("Filtered from {nrow(aggr_count_matrix)} to {nrow(aggr_count_matrix_filt)} genes"))
+
+    # ------------------------------
+    # Create edgeR DGEList object
+    # ------------------------------
+    dge <- DGEList(counts = aggr_count_matrix_filt)
+    dge$samples$group <- analysis_meta$group
+    dge$samples$sample_id <- analysis_meta$sample_id
+
+    dge <- calcNormFactors(dge, method = "TMM")
+    design <- model.matrix(~ group, data = analysis_meta)
+    dge <- estimateDisp(dge, design, robust = TRUE)
+
+    # ------------------------------
+    # Fit GLM with QL (quasi-likelihood) and test
+    # ------------------------------
+    fit <- glmQLFit(dge, design, robust = TRUE)
+    qlf <- glmQLFTest(fit, coef = "groupWildR")
+
+    res <- edgeR::topTags(qlf, n = Inf)$table
+    res <- res %>% arrange(FDR) %>% glimpse()
+
+    saveRDS(res, glue("{edgeR_dir}/res_{Sys.Date()}.rds"))
+    saveRDS(dge, glue("{edgeR_dir}/dge_{Sys.Date()}.rds"))
+
+    # ------------------------------
+    # Create DESeq2 object
+    # ------------------------------
+    message(glue("Creating DESeq2 object for iteration {coi}"))
+    dds <- DESeq2::DESeqDataSetFromMatrix(aggr_count_matrix_filt,
+        colData = analysis_meta, design = ~ group)
+    dds <- DESeq2::DESeq(dds)
+    saveRDS(dds, glue("{deseq2_res_dir}/dds_{Sys.Date()}.rds"))
+
+    # Extract and inspect size factors
+    size_factors <- DESeq2::sizeFactors(dds)
+    analysis_meta$size_factor <- size_factors
+
+    # Generate results object
+    res <- DESeq2::results(dds,
+        contrast = c("group", "WildR", "SPF") # WildR is Numerator
+    )
+    res_lfcShrink <- DESeq2::lfcShrink(dds,
+        coef = "group_WildR_vs_SPF",
+        res = res,
+        type = "apeglm"
+    )
+    saveRDS(res, glue("{deseq2_res_dir}/res_{Sys.Date()}.rds"))
+    saveRDS(res_lfcShrink, glue("{deseq2_res_dir}/res_lfcShrink_{Sys.Date()}.rds"))
+    res %>% as.data.frame() %>% arrange(padj) %>% glimpse()
+}
+
+```
+
+summarize results
+
+```{r}
+deseq2_res_paths_protcoding <- list.files(
+    glue("{snrna_deseq2_dir}/AllCells_protein_coding_subclass"),
+    recursive = TRUE, full.names = TRUE, pattern = "res_2025")
+edgeR_res_paths_protcoding <- list.files(
+    glue("{snrna_edgeR_dir}/AllCells_protein_coding_subclass"),
+    recursive = TRUE, full.names = TRUE, pattern = "res_2025")
+
+deseq2_res_pcoding_subclass <- deseq2_res_paths_protcoding %>% 
+    purrr::set_names(basename(dirname(.))) %>%
+    purrr::map(~ readRDS(.) %>% 
+        as.data.frame() %>% 
+        rownames_to_column("gene")) %>% 
+    bind_rows(.id = "celltype") %>% 
+    glimpse()
+edgeR_res_pcoding_subclass <- edgeR_res_paths_protcoding %>% 
+    purrr::set_names(basename(dirname(.))) %>%
+    purrr::map(~ readRDS(.) %>% 
+        as.data.frame() %>% 
+        rownames_to_column("gene")) %>% 
+    bind_rows(.id = "celltype") %>% 
+    glimpse()
+
+# how many DEGs per celltype (no FDR)
+total_genes_tested_subclass <- deseq2_res_pcoding_subclass %>% 
+    group_by(celltype) %>% 
+    tally(name = "total_genes_tested") %>% 
+    glimpse()
+nominal_pval_dseq2_subclass <- deseq2_res_pcoding_subclass %>% 
+    filter(pvalue < 0.05) %>% 
+    group_by(celltype) %>% 
+    tally(name = "DESeq2_pvalue_hits") %>% 
+    glimpse()
+nominal_pval_edgeR_subclass <- edgeR_res_pcoding_subclass %>% 
+    filter(PValue < 0.05) %>% 
+    group_by(celltype) %>% 
+    tally(name = "EdgeR_pvalue_hits") %>% 
+    glimpse()
+
+summary_dt_table <- total_genes_tested_subclass %>% 
+    left_join(nominal_pval_dseq2_subclass, by = "celltype") %>% 
+    left_join(nominal_pval_edgeR_subclass, by = "celltype") %>% 
+    arrange(desc(DESeq2_pvalue_hits)) %>% 
+    mutate(DESeq2_frac_sig = round((DESeq2_pvalue_hits / total_genes_tested)*100, 2)) %>% 
+    mutate(EdgeR_frac_sig = round((EdgeR_pvalue_hits / total_genes_tested)*100, 2)) %>% 
+    glimpse()
+
+summary_dt_table %>% DT::datatable()
+
+deseq2_res_pcoding_subclass %>% filter(padj < 0.1) %>% glimpse()
+edgeR_res_pcoding_subclass %>% filter(FDR < 0.1) %>% glimpse()
+
+
+# Summary stable of EdgeR results ----
+# getting stats on number of cells per region
+metadata_subclass %>% glimpse()
+
+cell_count_stats <- metadata_subclass %>% 
+    group_by(subclass_name_region, sample) %>% 
+    dplyr::summarize(n = n()) %>% 
+    group_by(subclass_name_region) %>% 
+    dplyr::summarize(
+        mean_n = mean(n),
+        sd_n = sd(n),
+        min_n = min(n),
+        max_n = max(n)
+        ) %>% 
+    glimpse()
+
+subclass_top_hits_edgeR <- edgeR_res_pcoding_subclass %>% filter(FDR < 0.1) %>% 
+    left_join(cell_count_stats, by = c("celltype" = "subclass_name_region")) %>% 
+    mutate(gene = gsub("-GRCm39", "", gene)) %>% 
+    filter(abs(logFC) >= 0.2) %>% 
+    filter(celltype != "016 CA1-ProS Glut_AMY") %>% 
+    glimpse()
+subclass_top_hits_edgeR %>% DT::datatable()
+
+subclass_top_hits_deseq2 <- deseq2_res_pcoding_subclass %>% filter(padj < 0.1) %>% 
+    left_join(cell_count_stats, by = c("celltype" = "subclass_name_region")) %>% 
+    mutate(gene = gsub("-GRCm39", "", gene)) %>% 
+    filter(abs(log2FoldChange) >= 0.2) %>% 
+    filter(celltype != "016 CA1-ProS Glut_AMY") %>% 
+    glimpse()
+subclass_top_hits_deseq2 %>% DT::datatable()
+
+
+# Visualizing DESeq2 results
+seurat_obj_filt_protcoding@meta.data %>% glimpse()
+seurat_obj_filt_protcoding$group <- seurat_obj_filt_protcoding@meta.data$sample %>% str_before_first("_")
+
+subclass_boxplot_dir <- glue("{wkdir}/figures/pseudobulk_boxplots/DESeq2/subclass")
+dir.create(subclass_boxplot_dir, showWarnings = FALSE, recursive = TRUE)
+
+for (i in 1:nrow(subclass_top_hits_deseq2)) {
+    
+    coi <- subclass_top_hits_deseq2$celltype[i]
+    genename <- subclass_top_hits_deseq2$gene[i]
+    final_img_path <- glue("{subclass_boxplot_dir}/{genename}_{coi}_combined.png")
+    if (file.exists(final_img_path)) next
+    message(glue("Processing {coi} for {genename}"))
+    
+    # Visualize pseudobulk data
+    dds_path <- glue("{snrna_deseq2_dir}/AllCells_protein_coding_subclass/{coi}/dds_2025-10-17.rds")
+    dds <- readRDS(dds_path)
+    pseudobulk_plot_df <- DESeq2::counts(dds, normalized = TRUE) %>% 
+        as.data.frame() %>% 
+        rownames_to_column("gene") %>% 
+        filter(gene == glue("{genename}-GRCm39")) %>% 
+        pivot_longer(cols = -gene, names_to = "sample", values_to = "normalized_counts") %>%
+        mutate(group = sample %>% str_before_first("_")) %>%
+        glimpse()
+
+    p_box_pseudobulk <- plot_pseudobulk_boxplot(pseudobulk_plot_df, coi, genename)
+
+    single_cell_plot_df <- seurat_obj_filt_protcoding %>% 
+        subset(subclass_name_region == coi) %>% 
+        FetchData(vars = c(glue("{genename}-GRCm39"), "class_name", "group", "sample")) %>%
+        mutate(gene_expression = log2(.data[[glue("{genename}-GRCm39")]] + 1)) %>% 
+        glimpse()
+    # single_cell_plot_df %>% glimpse()
+    
+    p_box_single_cell <- plot_seurat_boxplot(single_cell_plot_df, coi, genename)
+
+    p_box_combined <- p_box_single_cell + p_box_pseudobulk + 
+        plot_annotation(title = glue("{genename} {coi}")) + 
+        plot_layout(ncol = 2, widths = c(2, 1))
+    
+    ggsave(glue("{subclass_boxplot_dir}/{genename}_{coi}_combined.png"), p_box_combined, width = 6, height = 4)
+    # ggsave(glue("{subclass_boxplot_dir}/{genename}_{coi}_pseudobulk.png"), p_box_pseudobulk, width = 4, height = 3.5)
+    # ggsave(glue("{subclass_boxplot_dir}/{genename}_{coi}.png"), p_box, width = 4, height = 3.5)
+}
+
+# Visualizing EdgeR results VOLCANO
+plot_data <- edgeR_res_pcoding_subclass %>% 
+    filter(celltype != "016 CA1-ProS Glut_AMY") %>% 
+    mutate(
+        gene_name_clean = gsub("-GRCm39", "", gene),
+        label_text = paste(gene_name_clean, celltype, sep = "__"),
+        # Calculate nudge_x value based on logFC sign
+        nudge_x_value = 1.2 * sign(logFC),
+        # Create a constant vector for nudge_y
+        nudge_y_value = 0.4
+    )
+nudge_x_vec <- plot_data$nudge_x_value
+nudge_y_vec <- plot_data$nudge_y_value
+
+p_subclass_edgeR_volcano <- plot_data %>% 
+    mutate(tissue = strex::str_after_last(celltype, "_")) %>% 
+    ggplot(aes(x = logFC, y = -log10(FDR))) +
+    facet_wrap(~ tissue, scales = "free") +
+    # Add ggrepl for annotation on significant points
+    ggrepel::geom_text_repel(
+        aes(
+            label = ifelse(-log10(FDR) > -log10(0.1) & abs(logFC) > 0.2, label_text, "")
+        ),
+        nudge_x = nudge_x_vec,  # Passes the vector of per-row nudge values
+        nudge_y = nudge_y_vec,  # Passes the vector of constant nudge values
+        # Arguments that are fixed (not tied to data) can remain outside aes()
+        size = 2,
+        max.overlaps = Inf,
+        force = 70,
+        force_pull = 0,
+        box.padding = 0.5,
+        point.padding = 0.5,
+        segment.color = "grey",
+        segment.size = 0.2,
+        segment.alpha = 0.75,
+        direction = "both",
+        # Add these parameters for curved segments:
+        segment.curvature = 0.3, # Controls how curved the lines are (0 = straight)
+        segment.ncp = 3, # Number of control points (higher = smoother curves)
+        segment.angle = 10 # Angle of the curve
+    ) +
+    geom_point(aes(color = celltype)) +
+    # Threshold lines
+    geom_hline(yintercept = -log10(0.1), linetype = "dashed") +
+    geom_vline(xintercept = c(-0.2, 0.2), linetype = "dashed") +    
+    labs(x = "log2(Fold Change)", y = "-log10(FDR)") +
+    theme_bw() +
+    scale_color_viridis_d(option = "turbo") +
+    theme(legend.position = "none")
+
+ggsave(glue("{wkdir}/figures/pseudobulk_boxplots/EdgeR/volcano_subclass_edgeR_{Sys.Date()}.png"), 
+    p_subclass_edgeR_volcano, width = 15, height = 6)
+
+
+# Visualizing DESeq2 results VOLCANO
+deseq2_res_pcoding_subclass %>%  glimpse()
+plot_data_deseq2 <- deseq2_res_pcoding_subclass %>%
+    filter(celltype != "016 CA1-ProS Glut_AMY") %>% 
+    mutate(
+        gene_name_clean = gsub("-GRCm39", "", gene),
+        label_text = paste(gene_name_clean, celltype, sep = "__"),
+        # Calculate nudge_x value based on logFC sign
+        nudge_x_value = 1.2 * sign(log2FoldChange),
+        # Create a constant vector for nudge_y
+        nudge_y_value = 0.4
+    )
+nudge_x_vec <- plot_data_deseq2$nudge_x_value
+nudge_y_vec <- plot_data_deseq2$nudge_y_value
+
+p_subclass_deseq2_volcano <- plot_data_deseq2 %>% 
+    mutate(tissue = strex::str_after_last(celltype, "_")) %>% 
+    ggplot(aes(x = log2FoldChange, y = -log10(padj))) +
+    facet_wrap(~ tissue, scales = "free") +
+    # Add ggrepl for annotation on significant points
+    ggrepel::geom_text_repel(
+        aes(
+            label = ifelse(-log10(padj) > -log10(0.1) & abs(log2FoldChange) > 0.2, label_text, "")
+        ),
+        nudge_x = nudge_x_vec,  # Passes the vector of per-row nudge values
+        nudge_y = nudge_y_vec,  # Passes the vector of constant nudge values
+        # Arguments that are fixed (not tied to data) can remain outside aes()
+        size = 2,
+        max.overlaps = Inf,
+        force = 70,
+        force_pull = 0,
+        box.padding = 0.5,
+        point.padding = 0.5,
+        segment.color = "grey",
+        segment.size = 0.2,
+        segment.alpha = 0.75,
+        direction = "both",
+        # Add these parameters for curved segments:
+        segment.curvature = 0.3, # Controls how curved the lines are (0 = straight)
+        segment.ncp = 3, # Number of control points (higher = smoother curves)
+        segment.angle = 10 # Angle of the curve
+    ) +
+    geom_point(aes(color = celltype)) +
+    # Threshold lines
+    geom_hline(yintercept = -log10(0.1), linetype = "dashed") +
+    geom_vline(xintercept = c(-0.2, 0.2), linetype = "dashed") +    
+    labs(x = "log2(Fold Change)", y = "-log10(FDR)") +
+    theme_bw() +
+    scale_color_viridis_d(option = "turbo") +
+    theme(legend.position = "none")
+
+ggsave(glue("{wkdir}/figures/pseudobulk_boxplots/DESeq2/volcano_subclass_deseq2_{Sys.Date()}.png"), 
+    p_subclass_deseq2_volcano, width = 15, height = 6)
+
+
+# Checking cell counts of subclass of interest
+metadata_subclass %>% glimpse()
+metadata_subclass %>% 
+    # filter(subclass_name_region == "016 CA1-ProS Glut_AMY") %>%
+    # filter(subclass_name_region == "143 MM-ant Foxb1 Glut_HYP") %>%
+    # filter(subclass_name_region == "117 LHA Barhl2 Glut_HYP") %>%
+    # filter(subclass_name_region == "080 CEA-AAA-BST Six3 Sp9 Gaba_HYP") %>%
+    # filter(subclass_name_region == "080 CEA-AAA-BST Six3 Sp9 Gaba_AMY") %>%
+    filter(subclass_name_region == "143 MM-ant Foxb1 Glut_HYP") %>%
+    group_by(sample) %>% 
+    tally()
+
+```
+
+## Running snRNASeq analysis on only seqFISH geneset
+
+```{r}
+seqFISH_genes <- readRDS(glue("{wkdir}/data/interim/seqFISH_neuromapper_geneset_list.rds"))
+seqFISH_genes
+
+snRNA_geneinfo <- seurat_obj_filt@assays$RNA@meta.features %>% as.data.frame() %>% glimpse()
+shared_seqFISH_snRNA_genes <- snRNA_geneinfo %>% 
+    filter(toupper(gene_name) %in% seqFISH_genes) %>% 
+    mutate(gene = gsub("_GRCm39", "-GRCm39", gene)) %>%
+    pull(gene)
+
+sum(rownames(seurat_obj_filt) %in% shared_seqFISH_snRNA_genes)
+tic()
+seurat_obj_filt_seqfish_genes <- seurat_obj_filt %>% subset(features = shared_seqFISH_snRNA_genes)
+toc()
+seurat_obj_filt_seqfish_genes
+
+```
+
+EdgeR and DESeq2 differential expression analysis for each celltype
+
+```{r}
+coi_list <- seurat_obj_filt_seqfish_genes$class_name_region %>% unique()
+
+for (coi in coi_list) {
+    message(glue("Processing {coi}"))
+    edgeR_dir <- glue("{snrna_edgeR_dir}/AllCells_seqfish_genes/{coi}")
+    dir.create(edgeR_dir, showWarnings = FALSE, recursive = TRUE)
+    deseq2_res_dir <- glue("{snrna_deseq2_dir}/AllCells_seqfish_genes/{coi}")
+    dir.create(deseq2_res_dir, showWarnings = FALSE, recursive = TRUE)
+    
+    seur <- subset(seurat_obj_filt_seqfish_genes, subset = class_name_region == coi)
+    message(glue("Number of cells in seur: {ncol(seur)}"))
+
+    # ------------------------------
+    # Define pseudobulk grouping (by sample)
+    # ------------------------------
+    grouping <- seur@meta.data %>%
+        as.data.frame() %>%
+        dplyr::select(sample_id = sample) %>%
+        glimpse()
+    analysis_meta <- dplyr::distinct(grouping) %>%
+        dplyr::left_join(core_pseudobulk_meta_df, by = "sample_id") %>%
+        dplyr::mutate_if(is.character, as.factor) %>%
+        dplyr::distinct()
+
+    # ------------------------------
+    # Aggregate pseudobulk counts (sum across cells)
+    # ------------------------------
+    aggr_count_matrix <- aggregate.Matrix(
+        t(seur@assays$RNA@counts),  # cells × genes
+        groupings = grouping,
+        fun = "sum"
+        ) %>% t()  # genes × pseudobulk samples
+
+    # ------------------------------
+    # Filter genes by expression & variance | at least two samples with at least 10 counts
+    # ------------------------------
+    min_counts <- 10
+    min_samples <- 2
+    keep_genes <- rowSums(aggr_count_matrix >= min_counts) >= min_samples
+    aggr_count_matrix_filt <- aggr_count_matrix[keep_genes, ]
+
+    # Filter by variance (drop bottom 10%)
+    gene_vars <- apply(aggr_count_matrix_filt, 1, var)
+    var_threshold <- quantile(gene_vars, 0.1)
+    aggr_count_matrix_filt <- aggr_count_matrix_filt[gene_vars > var_threshold, ]
+
+    message(glue("Filtered from {nrow(aggr_count_matrix)} to {nrow(aggr_count_matrix_filt)} genes"))
+
+    # ------------------------------
+    # Create edgeR DGEList object
+    # ------------------------------
+    dge <- DGEList(counts = aggr_count_matrix_filt)
+    dge$samples$group <- analysis_meta$group
+    dge$samples$sample_id <- analysis_meta$sample_id
+
+    dge <- calcNormFactors(dge, method = "TMM")
+    design <- model.matrix(~ group, data = analysis_meta)
+    dge <- estimateDisp(dge, design, robust = TRUE)
+
+    # ------------------------------
+    # Fit GLM with QL (quasi-likelihood) and test
+    # ------------------------------
+    fit <- glmQLFit(dge, design, robust = TRUE)
+    qlf <- glmQLFTest(fit, coef = "groupWildR")
+
+    res <- edgeR::topTags(qlf, n = Inf)$table
+    res <- res %>% arrange(FDR) %>% glimpse()
+
+    saveRDS(res, glue("{edgeR_dir}/res_{Sys.Date()}.rds"))
+    saveRDS(dge, glue("{edgeR_dir}/dge_{Sys.Date()}.rds"))
+
+    # ------------------------------
+    # Create DESeq2 object
+    # ------------------------------
+    message(glue("Creating DESeq2 object for iteration {coi}"))
+    dds <- DESeq2::DESeqDataSetFromMatrix(aggr_count_matrix_filt,
+        colData = analysis_meta, design = ~ group)
+    dds <- DESeq2::DESeq(dds)
+    saveRDS(dds, glue("{deseq2_res_dir}/dds_{Sys.Date()}.rds"))
+
+    # Extract and inspect size factors
+    size_factors <- DESeq2::sizeFactors(dds)
+    analysis_meta$size_factor <- size_factors
+
+    # Generate results object
+    res <- DESeq2::results(dds,
+        contrast = c("group", "WildR", "SPF") # WildR is Numerator
+    )
+    res_lfcShrink <- DESeq2::lfcShrink(dds,
+        coef = "group_WildR_vs_SPF",
+        res = res,
+        type = "apeglm"
+    )
+    saveRDS(res, glue("{deseq2_res_dir}/res_{Sys.Date()}.rds"))
+    saveRDS(res_lfcShrink, glue("{deseq2_res_dir}/res_lfcShrink_{Sys.Date()}.rds"))
+    res %>% as.data.frame() %>% arrange(padj) %>% glimpse()
+}
+
+```
+
+
+## Running Deseq2 and EdgeR on Gated seqFISH Spatial Data
+
+Loading in spatial data.
+
+```{r}
+abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
+seqfish_seurat <- readRDS(
+    glue(
+      "{wkdir}/data/interim/",
+      "merged_roi_seurat_filtered_staNMF-updated_2024-07-24.rds"
+    )
+)
+# # saving gene set list for step above
+# seqfish_seurat@assays$SCT %>% 
+#     rownames() %>% 
+#     saveRDS(glue("{wkdir}/data/interim/seqFISH_neuromapper_geneset_list.rds"))
+
+seqfish_meta_df_gated <- readRDS(
+  glue(
+    "{wkdir}/data/interim/",
+    "gated-seurat-metadata_2024-12-31.rds"
+    )
+  )
+# create a new column with cell types and gated regions
+seqfish_meta_df_gated %<>% 
+  mutate(final_gate = case_when(
+    final_gate != "" ~ glue(" {final_gate}"),
+    TRUE ~ final_gate
+  )) %>% 
+  mutate(gated_cell_labels = glue("{singleR_labels}{final_gate}")) %>% 
+  glimpse()
+# seqfish_meta_df_gated$gated_cell_labels %>% table()
+seqfish_meta_df_gated %>% glimpse()
+gated_cell_types <- seqfish_meta_df_gated %>% 
+    filter(final_gate != "") %>% 
+    pull(gated_cell_labels) %>% 
+    unique()
+
+# Updating seurat object with gated cell label metadata
+seqfish_seurat$final_gate <- seqfish_meta_df_gated$final_gate
+seqfish_seurat$gated_cell_labels <- seqfish_meta_df_gated$gated_cell_labels
+seqfish_seurat@meta.data %>% glimpse
+
+# Get cell counts per label
+gated_seqfish_label_counts <- table(seqfish_seurat@meta.data$gated_cell_labels) %>% sort()
+# Get labels that have at least 200 cells
+keep_labels <- names(gated_seqfish_label_counts[gated_seqfish_label_counts >= 200]) %>% 
+    # also filter for it being in any gated region (must be gated)
+    keep(. %in% gated_cell_types)
+
+# Filter the Seurat object
+seqfish_seurat_filt <- subset(seqfish_seurat, gated_cell_labels %in% keep_labels)
+seqfish_seurat_filt
+
+ncol(seqfish_seurat)
+ncol(seqfish_seurat_filt)
+```
+
+This brings us down from xxxx to xxx cells.
+
+
+Next we create a metadata dataframe for aggregation and DE analysis.
+
+```{r}
+# Set up metadata as desired for aggregation and DE analysis
+seqfish_metadata <- seqfish_seurat_filt@meta.data %>% 
+    as.data.frame() %>% 
+    mutate(group = case_when(
+        group == "wildr" ~ "WildR",
+        group == "spf" ~ "SPF",
+        TRUE ~ "ERROR"
+    )) %>% 
+    glimpse()
+
+seqfish_metadata$cluster_id <- factor(seqfish_metadata$gated_cell_labels)
+seqfish_metadata %>% glimpse()
+
+essential_meta_cols <- c("sample_id" = "slice_id", "cluster_id", "group")
+seqfish_meta_df_grps <- dplyr::select(seqfish_metadata, 
+    all_of(essential_meta_cols)) %>% 
+    glimpse()
+seqfish_core_pseudobulk_meta_df <- seqfish_meta_df_grps %>% 
+  dplyr::select(-cluster_id) %>%
+  distinct() %>%
+  glimpse()
+rownames(seqfish_core_pseudobulk_meta_df) <- NULL
+
+```
+
+
+
+EdgeR and DESeq2 differential expression analysis for each celltype
+
+```{r}
+seqfish_edgeR_dir <- glue("{wkdir}/data/interim/edgeR/seqFISH")
+seqfish_deseq2_dir <- glue("{wkdir}/data/interim/DESeq2/seqFISH")
+
+coi_list <- seqfish_seurat_filt$gated_cell_labels %>% unique()
+# coi <- "34 Immune HIPP"
+for (coi in coi_list) {
+    message(glue("Processing {coi}"))
+    edgeR_dir <- glue("{seqfish_edgeR_dir}/AllCells_Gated/{coi}")
+    dir.create(edgeR_dir, showWarnings = FALSE, recursive = TRUE)
+    deseq2_res_dir <- glue("{seqfish_deseq2_dir}/AllCells_Gated/{coi}")
+    dir.create(deseq2_res_dir, showWarnings = FALSE, recursive = TRUE)
+
+    seur <- subset(seqfish_seurat_filt, subset = gated_cell_labels == coi)
+    message(glue("Number of cells in seur: {ncol(seur)}"))
+
+    # ------------------------------
+    # Define pseudobulk grouping (by sample)
+    # ------------------------------
+    grouping <- seur@meta.data %>%
+        as.data.frame() %>%
+        dplyr::select(sample_id = slice_id) %>%
+        glimpse()
+    analysis_meta <- dplyr::distinct(grouping) %>%
+        dplyr::left_join(seqfish_core_pseudobulk_meta_df, by = "sample_id") %>%
+        dplyr::mutate_if(is.character, as.factor) %>%
+        dplyr::distinct()
+
+    # ------------------------------
+    # Aggregate pseudobulk counts (sum across cells)
+    # ------------------------------
+    aggr_count_matrix <- aggregate.Matrix(
+        t(seur@assays$SCT@counts),  # cells × genes
+        groupings = grouping,
+        fun = "sum"
+        ) %>% t()  # genes × pseudobulk samples
+
+    # ------------------------------
+    # Filter genes by expression & variance | at least two samples with at least 10 counts
+    # ------------------------------
+    min_counts <- 10
+    min_samples <- 2
+    keep_genes <- rowSums(aggr_count_matrix >= min_counts) >= min_samples
+    aggr_count_matrix_filt <- aggr_count_matrix[keep_genes, ]
+
+    # # Filter by variance (drop bottom 10%)
+    # gene_vars <- apply(aggr_count_matrix_filt, 1, var)
+    # var_threshold <- quantile(gene_vars, 0.1)
+    # aggr_count_matrix_filt <- aggr_count_matrix_filt[gene_vars > var_threshold, ]
+
+    message(glue("Filtered from {nrow(aggr_count_matrix)} to {nrow(aggr_count_matrix_filt)} genes"))
+
+    # ------------------------------
+    # Create edgeR DGEList object
+    # ------------------------------
+    dge <- DGEList(counts = aggr_count_matrix_filt)
+    dge$samples$group <- analysis_meta$group
+    dge$samples$sample_id <- analysis_meta$sample_id
+
+    dge <- calcNormFactors(dge, method = "TMM")
+    design <- model.matrix(~ group, data = analysis_meta)
+    dge <- estimateDisp(dge, design, robust = TRUE)
+
+    # ------------------------------
+    # Fit GLM with QL (quasi-likelihood) and test
+    # ------------------------------
+    fit <- glmQLFit(dge, design, robust = TRUE)
+    qlf <- glmQLFTest(fit, coef = "groupWildR")
+
+    res <- edgeR::topTags(qlf, n = Inf)$table
+    res <- res %>% arrange(FDR) %>% glimpse()
+
+    saveRDS(res, glue("{edgeR_dir}/res_{Sys.Date()}.rds"))
+    saveRDS(dge, glue("{edgeR_dir}/dge_{Sys.Date()}.rds"))
+
+    # ------------------------------
+    # Create DESeq2 object
+    # ------------------------------
+    message(glue("Creating DESeq2 object for iteration {coi}"))
+    dds <- DESeq2::DESeqDataSetFromMatrix(aggr_count_matrix_filt,
+        colData = analysis_meta, design = ~ group)
+    dds <- DESeq2::DESeq(dds)
+    saveRDS(dds, glue("{deseq2_res_dir}/dds_{Sys.Date()}.rds"))
+
+    # Extract and inspect size factors
+    size_factors <- DESeq2::sizeFactors(dds)
+    analysis_meta$size_factor <- size_factors
+
+    # Generate results object
+    res <- DESeq2::results(dds,
+        contrast = c("group", "WildR", "SPF") # WildR is Numerator
+    )
+    res_lfcShrink <- DESeq2::lfcShrink(dds,
+        coef = "group_WildR_vs_SPF",
+        res = res,
+        type = "apeglm"
+    )
+    saveRDS(res, glue("{deseq2_res_dir}/res_{Sys.Date()}.rds"))
+    saveRDS(res_lfcShrink, glue("{deseq2_res_dir}/res_lfcShrink_{Sys.Date()}.rds"))
+    res %>% as.data.frame() %>% arrange(padj) %>% glimpse()
+}
+
+```
+
+
+## Comparing spatial data with snRNASeq data (using only seqFISH gene set)
+
+```{r}
+seqFISH_deseq2_res_paths_protcoding <- list.files(
+    glue("{seqfish_deseq2_dir}/AllCells_Gated"),
+    recursive = TRUE, full.names = TRUE, pattern = "res_2025")
+seqFISH_edgeR_res_paths_protcoding <- list.files(
+    glue("{seqfish_edgeR_dir}/AllCells_Gated"),
+    recursive = TRUE, full.names = TRUE, pattern = "res_2025")
+
+seqFISH_deseq2_res_pcoding <- seqFISH_deseq2_res_paths_protcoding %>% 
+    purrr::set_names(basename(dirname(.))) %>%
+    purrr::map(~ readRDS(.) %>% 
+        as.data.frame() %>% 
+        rownames_to_column("gene")) %>% 
+    bind_rows(.id = "celltype") %>% 
+    glimpse()
+
+seqFISH_edgeR_res_pcoding <- seqFISH_edgeR_res_paths_protcoding %>% 
+    purrr::set_names(basename(dirname(.))) %>%
+    purrr::map(~ readRDS(.) %>% 
+        as.data.frame() %>% 
+        rownames_to_column("gene")) %>% 
+    bind_rows(.id = "celltype") %>% 
+    glimpse()
+
+# how many DEGs per celltype (no FDR)
+total_genes_tested <- seqFISH_deseq2_res_pcoding %>% 
+    group_by(celltype) %>% 
+    tally(name = "total_genes_tested") %>% 
+    glimpse()
+nominal_pval_dseq2 <- seqFISH_deseq2_res_pcoding %>% 
+    filter(pvalue < 0.05) %>% 
+    group_by(celltype) %>% 
+    tally(name = "DESeq2_pvalue_hits") %>% 
+    glimpse()
+nominal_pval_edgeR <- seqFISH_edgeR_res_pcoding %>% 
+    filter(PValue < 0.05) %>% 
+    group_by(celltype) %>% 
+    tally(name = "EdgeR_pvalue_hits") %>% 
+    glimpse()
+
+seqFISH_summary_dt_table <- total_genes_tested %>% 
+    left_join(nominal_pval_dseq2, by = "celltype") %>% 
+    left_join(nominal_pval_edgeR, by = "celltype") %>% 
+    arrange(desc(DESeq2_pvalue_hits)) %>% 
+    mutate(DESeq2_frac_sig = round((DESeq2_pvalue_hits / total_genes_tested)*100, 2)) %>% 
+    mutate(EdgeR_frac_sig = round((EdgeR_pvalue_hits / total_genes_tested)*100, 2)) %>% 
+    glimpse()
+
+seqFISH_summary_dt_table %>% DT::datatable()
+
+seqFISH_deseq2_res_pcoding %>% filter(padj < 0.1) %>% glimpse()
+seqFISH_edgeR_res_pcoding %>% filter(FDR < 0.1) %>% glimpse()
+
+seqFISH_deseq2_res_pcoding %>% filter(padj < 0.1) %>% View
+
+```
+
+
+Pulling in data from snRNASeq analysis to compare with spatial data. (using only seqFISH gene set)
+
+```{r}
+snrna_seqfish_geneset_deseq2_res_paths_protcoding <- list.files(
+    glue("{snrna_deseq2_dir}/AllCells_seqfish_genes"),
+    recursive = TRUE, full.names = TRUE, pattern = "res_2025")
+snrna_seqfish_geneset_edgeR_res_paths_protcoding <- list.files(
+    glue("{snrna_edgeR_dir}/AllCells_seqfish_genes"),
+    recursive = TRUE, full.names = TRUE, pattern = "res_2025")
+
+snrna_seqfish_geneset_deseq2_res_pcoding <- snrna_seqfish_geneset_deseq2_res_paths_protcoding %>% 
+    purrr::set_names(basename(dirname(.))) %>%
+    purrr::map(~ readRDS(.) %>% 
+        as.data.frame() %>% 
+        rownames_to_column("gene")) %>% 
+    bind_rows(.id = "celltype") %>% 
+    glimpse()
+snrna_seqfish_geneset_edgeR_res_pcoding <- snrna_seqfish_geneset_edgeR_res_paths_protcoding %>% 
+    purrr::set_names(basename(dirname(.))) %>%
+    purrr::map(~ readRDS(.) %>% 
+        as.data.frame() %>% 
+        rownames_to_column("gene")) %>% 
+    bind_rows(.id = "celltype") %>% 
+    glimpse()
+
+# how many DEGs per celltype (no FDR)
+total_genes_tested <- snrna_seqfish_geneset_deseq2_res_pcoding %>% 
+    group_by(celltype) %>% 
+    tally(name = "total_genes_tested") %>% 
+    glimpse()
+nominal_pval_dseq2 <- snrna_seqfish_geneset_deseq2_res_pcoding %>% 
+    filter(pvalue < 0.05) %>% 
+    group_by(celltype) %>% 
+    tally(name = "DESeq2_pvalue_hits") %>% 
+    glimpse()
+nominal_pval_edgeR <- snrna_seqfish_geneset_edgeR_res_pcoding %>% 
+    filter(PValue < 0.05) %>% 
+    group_by(celltype) %>% 
+    tally(name = "EdgeR_pvalue_hits") %>% 
+    glimpse()
+
+snrna_seqfish_geneset_summary_dt_table <- total_genes_tested %>% 
+    left_join(nominal_pval_dseq2, by = "celltype") %>% 
+    left_join(nominal_pval_edgeR, by = "celltype") %>% 
+    arrange(desc(DESeq2_pvalue_hits)) %>% 
+    mutate(DESeq2_frac_sig = round((DESeq2_pvalue_hits / total_genes_tested)*100, 2)) %>% 
+    mutate(EdgeR_frac_sig = round((EdgeR_pvalue_hits / total_genes_tested)*100, 2)) %>% 
+    glimpse()
+
+summary_dt_table %>% DT::datatable()
+
+
+```
+
+
+Comparing snRNASeq and Spatial Data
+
+```{r}
+snrna_seqfish_geneset_deseq2_res_pcoding_amghyp <- snrna_seqfish_geneset_deseq2_res_pcoding %>% 
+    mutate(region = strex::str_after_last(celltype, "_")) %>% 
+    mutate(brain_region = case_when(
+        region == "AMY" ~ "Amygdala",
+        region == "HYP" ~ "Hypothalamus",
+        TRUE ~ "Toss"
+    )) %>% 
+    mutate(celltype = strex::str_before_last(celltype, "_")) %>% 
+    dplyr::rename_at(vars(-celltype, -brain_region, -gene), ~ paste0("seqFISH_", .)) %>%
+    mutate(gene = gsub("-GRCm39", "", gene) %>% toupper()) %>% 
+    glimpse()
+
+seqFISH_deseq2_res_pcoding_amghyp <- seqFISH_deseq2_res_pcoding %>% 
+    mutate(region = strex::str_after_last(celltype, " ")) %>% 
+    mutate(brain_region = case_when(
+        grepl("AMG|Piriform", region) ~ "Amygdala",
+        region == "HYP" ~ "Hypothalamus",
+        TRUE ~ "Toss"
+    )) %>% 
+    filter(brain_region != "Toss") %>% 
+    mutate(celltype = strex::str_before_last(celltype, " ")) %>% 
+    dplyr::rename_at(vars(-celltype, -brain_region, -gene), ~ paste0("snRNASeq_", .)) %>% 
+    glimpse()
+
+merged_deseq_seqFISH_snRNASeq  <- full_join(
+    snrna_seqfish_geneset_deseq2_res_pcoding_amghyp,
+    seqFISH_deseq2_res_pcoding_amghyp) %>% 
+    glimpse()
+
+merged_deseq_seqFISH_snRNASeq %>% glimpse()
+
+p_deseq_seqFISH_snRNASeq_amg <- merged_deseq_seqFISH_snRNASeq %>% 
+    filter(snRNASeq_pvalue < 0.05 | seqFISH_pvalue < 0.05) %>% 
+    filter(brain_region == "Amygdala") %>% 
+    ggplot(aes(x = seqFISH_log2FoldChange, y = snRNASeq_log2FoldChange)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    # geom_abline(slope = 1, intercept = 0) +
+    facet_wrap(~ celltype, scales = "free") +
+    theme_bw()
+ggsave(glue("p_deseq_seqFISH_snRNASeq_amg.png"), 
+    p_deseq_seqFISH_snRNASeq_amg, width = 15, height = 10)
+
+p_deseq_seqFISH_snRNASeq_hyp <- merged_deseq_seqFISH_snRNASeq %>% 
+    filter(snRNASeq_pvalue < 0.05 | seqFISH_pvalue < 0.05) %>% 
+    filter(brain_region == "Hypothalamus") %>% 
+    ggplot(aes(x = seqFISH_log2FoldChange, y = snRNASeq_log2FoldChange)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    # geom_abline(slope = 1, intercept = 0) +
+    facet_wrap(~ celltype, scales = "free") +
+    theme_bw()
+ggsave(glue("p_deseq_seqFISH_snRNASeq_hyp.png"), 
+    p_deseq_seqFISH_snRNASeq_hyp, width = 15, height = 10)
+
+merged_deseq_seqFISH_snRNASeq %>% 
+    filter(snRNASeq_pvalue < 0.05) %>% 
+    filter(brain_region == "Hypothalamus")  %>% 
+    filter(celltype == "14 HY Glut") %>% 
+    View
+
+p_deseq_seqFISH_snRNASeq_hyp_14 <- merged_deseq_seqFISH_snRNASeq %>% 
+    filter(snRNASeq_pvalue < 0.05 | seqFISH_pvalue < 0.05) %>% 
+    filter(brain_region == "Hypothalamus") %>% 
+    filter(celltype == "14 HY Glut") %>% 
+    # Add a column for absolute seqFISH log2FC to identify top genes
+    mutate(abs_seqFISH_log2FC = abs(seqFISH_log2FoldChange)) %>%
+    # Create labels for top 10 genes with largest absolute seqFISH log2FC
+    mutate(label = ifelse(rank(-abs_seqFISH_log2FC) <= 20, gene, "")) %>% 
+    ggplot(aes(x = seqFISH_log2FoldChange, y = snRNASeq_log2FoldChange)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    # Add ggrepel labels for top 10 genes
+    geom_text_repel(aes(label = label), 
+                   max.overlaps = Inf,
+                   size = 3,
+                   box.padding = 0.5,
+                   point.padding = 0.3) +
+    # geom_abline(slope = 1, intercept = 0) +
+    facet_wrap(~ celltype, scales = "free") +
+    theme_bw()
+ggsave(glue("p_deseq_seqFISH_snRNASeq_hyp_14hyglut.png"), 
+    p_deseq_seqFISH_snRNASeq_hyp_14, width = 5, height = 5)
+
+
+p_deseq_seqFISH_snRNASeq_hyp_34 <- merged_deseq_seqFISH_snRNASeq %>% 
+    filter(snRNASeq_pvalue < 0.05 | seqFISH_pvalue < 0.05) %>% 
+    filter(brain_region == "Hypothalamus") %>% 
+    filter(celltype == "34 Immune") %>% 
+    # Add a column for absolute seqFISH log2FC to identify top genes
+    mutate(abs_seqFISH_log2FC = abs(seqFISH_log2FoldChange)) %>%
+    # Create labels for top 10 genes with largest absolute seqFISH log2FC
+    mutate(label = ifelse(rank(-abs_seqFISH_log2FC) <= 20, gene, "")) %>% 
+    ggplot(aes(x = seqFISH_log2FoldChange, y = snRNASeq_log2FoldChange)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    # Add ggrepel labels for top 10 genes
+    geom_text_repel(aes(label = label), 
+                   max.overlaps = Inf,
+                   size = 3,
+                   box.padding = 0.5,
+                   point.padding = 0.3) +
+    # geom_abline(slope = 1, intercept = 0) +
+    facet_wrap(~ celltype, scales = "free") +
+    theme_bw()
+ggsave(glue("p_deseq_seqFISH_snRNASeq_hyp_34immune.png"), 
+    p_deseq_seqFISH_snRNASeq_hyp_34, width = 5, height = 5)
+
+p_deseq_seqFISH_snRNASeq_hyp_31 <- merged_deseq_seqFISH_snRNASeq %>% 
+    filter(snRNASeq_pvalue < 0.05 | seqFISH_pvalue < 0.05) %>% 
+    filter(brain_region == "Hypothalamus") %>% 
+    filter(celltype == "31 OPC-Oligo") %>% 
+    # Add a column for absolute seqFISH log2FC to identify top genes
+    mutate(abs_seqFISH_log2FC = abs(seqFISH_log2FoldChange)) %>%
+    # Create labels for top 10 genes with largest absolute seqFISH log2FC
+    mutate(label = ifelse(rank(-abs_seqFISH_log2FC) <= 20, gene, "")) %>% 
+    ggplot(aes(x = seqFISH_log2FoldChange, y = snRNASeq_log2FoldChange)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    # Add ggrepel labels for top 10 genes
+    geom_text_repel(aes(label = label), 
+                   max.overlaps = Inf,
+                   size = 3,
+                   box.padding = 0.5,
+                   point.padding = 0.3) +
+    # geom_abline(slope = 1, intercept = 0) +
+    facet_wrap(~ celltype, scales = "free") +
+    theme_bw()
+ggsave(glue("p_deseq_seqFISH_snRNASeq_hyp_31opcol.png"), 
+    p_deseq_seqFISH_snRNASeq_hyp_31, width = 5, height = 5)
+
+
+
+
+```
+
+
+
+Within snRNASeq data, comparing EdgeR and DESeq2 results
+
+- What celltypes have the most DEGs? 
+
+
+
+
+

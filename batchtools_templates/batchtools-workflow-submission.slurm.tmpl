@@ -1,0 +1,33 @@
+#!/bin/bash
+
+<%
+# relative paths are not handled well by Slurm
+log.file = fs::path_expand(log.file)
+-%>
+
+#SBATCH --job-name=<%= resources$name %>
+#SBATCH --output=<%= log.file %>
+#SBATCH --error=<%= log.file %>
+#SBATCH --time=7-00:00:00
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=<%= resources$ncpus %>
+#SBATCH --mem-per-cpu=<%= resources$memory %>
+#SBATCH --mail-user=jboktor@caltech.edu
+
+<%= if (!is.null(resources$partition)) sprintf(paste0("#SBATCH --partition='", resources$partition, "'")) %>
+<%= if (array.jobs) sprintf("#SBATCH --array=1-%i", nrow(jobs)) else "" %>
+
+## Initialize work environment
+source /home/${USER}/.bashrc
+source activate pdmbsR
+
+# Export value of DEBUGME environemnt var to slave
+export DEBUGME=<%= Sys.getenv("DEBUGME") %>
+
+## Use /scratch on the node, TMPDIR is mounted as tmpfs
+export TMPDIR=/central/scratch/jbok/R/${SLURM_JOBID}
+mkdir -p ${TMPDIR}
+
+## Run R:
+## we merge R output with stdout from SLURM, which gets then logged via --output option
+Rscript -e 'batchtools::doJobCollection("<%= uri %>")'

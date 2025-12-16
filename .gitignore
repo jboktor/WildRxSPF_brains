@@ -1,0 +1,9 @@
+.cluster_runs
+.cursorignore
+.vscode
+.quarto
+.lintr
+.Renviron
+figures
+data
+notebooks/misc_*

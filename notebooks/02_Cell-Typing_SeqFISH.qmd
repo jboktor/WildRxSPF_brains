@@ -1,0 +1,948 @@
+---
+title: "WildR Brain Tissue Spatial Transcriptomics Analysis"
+editor: source
+author: "Joe Boktor"
+date: '2024-04-13'
+format: 
+  html:
+    font-family: helvetica neue
+    page-layout: full
+    toc: true
+    toc-location: left
+    toc-depth: 5
+    self-contained: true
+    code-fold: false
+    code-tools: true
+    fig-align: center
+    grid:
+      sidebar-width: 200px
+      body-width: 1100px
+      margin-width: 200px
+      gutter-width: 1.5em
+---
+
+# Background
+
+Here we analyze
+
+# Analysis Setup
+
+Environment setup.
+
+```{r}
+#| warning: false
+
+library(tidyverse)
+library(magrittr)
+library(glue)
+library(Seurat)
+library(grid)
+library(biomaRt)
+library(SingleR)
+library(batchtools)
+# stats 
+library(lme4)
+library(broom)
+# parallelization
+library(BiocParallel)
+library(future)
+library(furrr)
+# plotting
+library(RColorBrewer)
+library(ggsci)
+library(Matrix)
+library(plotly)
+library(DT)
+library(gtsummary)
+library(aplot)
+library(patchwork)
+library(viridis)
+library(ggrepel)
+
+# setting paths
+homedir <- "/central/groups/mthomson/jboktor"
+wkdir <- glue("{homedir}/spatial_genomics/jess_2024-01-23")
+source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
+
+# 12gb  limit (1500*1024^2 = 1572864000) * 8
+# options(future.globals.maxSize= 12582912000)
+# future::plan("multisession", workers = 24)
+
+```
+
+
+# Reference Mapping with SingleR
+
+## Assembling Seurat Object from Allen Brain Cell Atlas Data
+
+Loading in [ABCA 1-4 data](https://alleninstitute.github.io/abc_atlas_access/notebooks/getting_started.html)
+
+```{r, eval=FALSE}
+use_condaenv(condaenv = 'spatialomics', required = TRUE)
+abca_dir <- glue("{homedir}/spatial_genomics/abc_atlas_data")
+h5ad_dir <- glue("{abca_dir}/expression_matrices")
+
+h5ad_paths <- list.files(
+  h5ad_dir, 
+  recursive = TRUE,
+  full.names = TRUE,
+  pattern = "-raw.h5ad$"
+)
+
+abca_meta_paths <- list.files(
+  abca_dir, 
+  recursive = TRUE,
+  full.names = TRUE,
+  pattern = "cell_metadata_with_cluster_annotation.csv$"
+) %>%
+  discard(grepl("MERFISH", .))
+
+
+# loading in metadata
+ref_meta <- abca_meta_paths %>% 
+  purrr::map(
+    ~ read.csv(.x, colClasses = "character") %>%
+      mutate_at(
+        vars(x, y, z, subclass_confidence_score, cluster_confidence_score),
+          as.numeric)
+      ) %>%
+      bind_rows() %>%
+    glimpse()
+  
+# Save color palette for cell types as an R object
+cluster_class_df <- ref_meta %>% select(class, cluster_color) %>% distinct()
+class_df <- ref_meta %>% select(class, class_color) %>% distinct()
+subclass_df <- ref_meta %>% select(subclass, subclass_color) %>% distinct()
+supertype_df <- ref_meta %>% select(supertype, supertype_color) %>% distinct()
+
+abca_color_pal <- list(
+  "cluster_colors" = setNames(
+    cluster_class_df$cluster_color,
+    cluster_class_df$class
+  ),
+  "class_colors" = setNames(
+    class_df$class_color,
+    class_df$class
+  ),
+  "subclass_colors" = setNames(
+    subclass_df$subclass_color,
+    subclass_df$subclass
+  ),
+  "supertype_colors" = setNames(
+    supertype_df$supertype_color,
+    supertype_df$supertype
+  )
+)
+saveRDS(abca_color_pal, glue("{wkdir}/data/interim/abca_color_pal.rds"))
+
+```
+
+Looping through donors and formatting data for seurat
+
+```{r, eval = FALSE}
+brain_names <- paste0("Zhuang-ABCA-", 1:4)
+ref_seurat_list <- list()
+
+for (i in 1:length(h5ad_paths)) {
+  message(glue("\n\nProcessing: {h5ad_paths[i]}"))
+  
+  raw_h5 <- anndata::read_h5ad(filename = h5ad_paths[i])
+  ref_meta <- read.csv(abca_meta_paths[i], colClasses = "character"
+  ) %>%
+  mutate_at(
+    vars(x, y, z, subclass_confidence_score, cluster_confidence_score),
+    as.numeric)
+  
+  ref_meta_joined <- raw_h5$obs %>%
+    rownames_to_column(var = "cell_label") %>%
+    right_join(ref_meta, by = "cell_label") %>%
+    glimpse()
+
+  ref_seurat_list[[i]] <- CreateSeuratObject(
+    counts = raw_h5$X[ref_meta_joined$cell_label, ] %>%
+      as.matrix() %>% t(),
+    meta.data = ref_meta_joined
+  )
+
+}
+ref_seur <- scCustomize::Merge_Seurat_List(
+  ref_seurat_list
+)
+
+saveRDS(
+  ref_seur,
+  glue(
+    "{wkdir}/data/input/references/ABCA/",
+    "Zhuang-ABCA-all-raw_seurat.rds"
+  )
+)
+
+```
+
+Plotting brain slices across array of z-coordinates to visualize available bregma range. Subset data to a common bregma range for downstream analysis.
+
+```{r, eval = FALSE}
+# Plotting Z-xaxis
+ref_seur@meta.data %>% glimpse
+class_col_pal <- c(unique(ref_seur@meta.data$class_color))
+names(class_col_pal) <- unique(ref_seur@meta.data$class)
+
+# Plotting reference data by z coordinate 
+for (donor in unique(ref_seur@meta.data$donor_label)) {
+  if (donor == "Zhuang-ABCA-1" | donor ==  "Zhuang-ABCA-2") next
+  
+  ref_meta_df <- ref_seur@meta.data %>%
+    filter(donor_label == donor)
+
+  for (depth in sort(unique(ref_meta_df$z)) ) {
+    message("plotting .. ", depth)
+
+    p <- ref_seur@meta.data %>%
+      filter(z == depth) %>%
+      ggplot(aes(x = x, y = -y, color = class)) +
+      geom_point(size = 0.4) +
+      theme_bw() +
+      coord_fixed() +
+      labs(title = glue("Depth: {depth}"), color = "Cell Type") +
+      guides(colour = guide_legend(override.aes = list(size=3))) +
+      scale_color_manual(values = class_col_pal)
+
+      ggsave(
+        glue("{wkdir}/figures/ABCA/{donor}/{donor}_{depth}.png"),
+        p,
+        width = 9, height = 7
+      )
+  }
+}
+
+```
+
+
+Trimming seurat object to contain just coronal slices (Z1&2) within a specific bregma range
+
+```{r, eval = FALSE}
+ref_seur@meta.data %>% glimpse
+
+ref_seur_trim <- subset(ref_seur, 
+  donor_label %in% c("Zhuang-ABCA-1", "Zhuang-ABCA-2") &
+  z > 6 & z < 8.5
+)
+ref_seur_trim
+ref_seur_trim@meta.data %>% glimpse
+
+ref_seur_trim <- JoinLayers(ref_seur_trim, overwrite = TRUE)
+
+saveRDS(
+  ref_seur_trim,
+  glue("{wkdir}/data/interim/ABCA_1&2_z-6-to-8.5_seurat.rds")
+)
+
+```
+
+
+
+Visualzing gene detection and abundance dist gene detection and abundance distributions within reference set.
+
+```{r, eval = FALSE}
+
+ref_meta_df <- ref_seur_trim@meta.data %>%
+  as.data.frame() %>%
+  arrange(z) %>%
+  mutate(z = factor(round(z, 2))) %>%
+  glimpse()
+
+p_nFeat <- ref_meta_df %>%
+  ggplot(aes(nFeature_RNA, color = z)) +
+  geom_density() +
+  theme_bw() +
+  scale_color_viridis_d(option = "magma") +
+  theme(legend.position = "none")
+p_nCount <- ref_meta_df %>%
+  ggplot(aes(nCount_RNA, color = z)) +
+  geom_density() +
+  scale_color_viridis_d(option = "magma") +
+  theme_bw()
+
+p <- p_nFeat | p_nCount
+
+ggsave(
+  glue("{wkdir}/figures/ABCA/nFeature_nCount_densities.png"),
+  p,
+  width = 11, height = 6
+)
+
+```
+
+![Total gene count and RNA count density distributions by slice (colored by bregma).](../figures/ABCA/nFeature_nCount_densities.png)
+
+### SingleR alignment of data into ABCA reference
+Prepping data for SingleR alignment
+
+R function for running SingleR on a subset of cells.
+```{r, eval = FALSE}
+# Slurm batch parallelize SingleR labeleing
+# function to run SingleR on a subset of cells
+run_SingleR <- function(
+    test_matrix, ref_matrix, celltype_labels,
+    output_file, threads) {
+  dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
+
+  pred <- SingleR::SingleR(
+    test = test_matrix,
+    ref = ref_matrix,
+    labels = celltype_labels,
+    prune = TRUE,
+    num.threads = threads
+  )
+  saveRDS(pred, output_file)
+}
+
+```
+
+
+Load in trimmed reference and local data. Convert gene names and select intersection of genes between the two datasets.
+
+```{r, eval = FALSE}
+
+merged_rois <- readRDS(
+  glue("{wkdir}/data/interim/merged_roi_seurat_2024-07-15.rds")
+)
+ref_seur_trim <- readRDS(
+  glue("{wkdir}/data/interim/ABCA_1&2_z-6-to-8.5_seurat.rds")
+)
+
+# Connect to the Ensembl BioMart database
+ensembl <- useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+eids <- rownames(ref_seur_trim)
+
+# Query BioMart to retrieve the gene symbols for input Ensembl IDs
+symbols_query <- getBM(
+  attributes = c("ensembl_gene_id", "external_gene_name"),
+  filters = "ensembl_gene_id",
+  values = eids,
+  mart = ensembl
+) %>%
+  mutate(gene_symbols = toupper(external_gene_name))
+
+symbols_query %>% glimpse
+
+# Checking for duplicate gene symbols | should be 0
+symbols_query %>% janitor::get_dupes(external_gene_name)
+
+# getting gene names for datasets
+gids_ref <- toupper(symbols_query$external_gene_name)
+gene_symbols <- rownames(merged_rois)
+
+gene_mapping <- setNames(
+  symbols_query$gene_symbols,
+  symbols_query$ensembl_gene_id
+)
+
+# Replace the rownames in the Seurat object with Ensembl IDs
+mapped_genes <- intersect(gids_ref, gene_symbols)
+
+mapped_eids <- symbols_query %>%
+  filter(gene_symbols %in% mapped_genes) %>%
+  pull(ensembl_gene_id)
+
+mapped_eids_logical <- rownames(ref_seur_trim) %in% mapped_eids
+mapped_eids_ordered <- rownames(ref_seur_trim)[mapped_eids_logical]
+rownames(ref_seur_trim)[mapped_eids_logical] <-
+  unname(gene_mapping[mapped_eids_ordered])
+
+# Check that the rownames have been replaced
+rownames(ref_seur_trim)
+
+```
+
+
+Visualizing cell type distribution of MERFISH data
+
+```{r, eval = FALSE}
+ref_seur_trim <- readRDS(
+  glue("{wkdir}/data/interim/ABCA_1&2_z-6-to-8.5_seurat.rds")
+)
+ref_seur_trim$slice_id <- ref_seur_trim$brain_section_label.x
+
+for (celltype in unique(ref_seur_trim@meta.data$class)){
+  
+  message(glue("Plotting: {celltype}"))
+  
+  refmeta_df <- ref_seur_trim@meta.data
+  bkg <- refmeta_df %>% 
+    filter(class != celltype)
+  tp <- refmeta_df %>% 
+    filter(class == celltype)
+
+  p_celltype <- bkg %>% 
+    ggplot(aes(x, y)) +
+    geom_point(data = bkg, size = 0.3, alpha = 0.5, color = "lightgrey") +
+    geom_point(data = tp, aes(x = x, y= y), 
+      color = "red", size = 0.3) +
+    coord_fixed() +
+    scale_y_reverse() +
+    facet_wrap(~slice_id, ncol = 9) +
+    theme_bw()
+
+  ggsave(
+    glue("{wkdir}/figures/ABCA/celltypes/{celltype}_{Sys.Date()}.png"),
+    p_celltype,
+    width = 30, height = 20
+    )
+}
+
+
+# Running UMAP / PCA on the MERFISH data
+ref_seur_trim %<>%
+  UpdateSeuratObject() %>%
+  SCTransform()
+
+# Run umap and generate clusters
+ref_seur_trim %<>%
+  RunPCA() %>%
+  FindNeighbors(dims = 1:30) %>%
+  FindClusters() %>% 
+  RunUMAP(dims = 1:20)
+
+ref_seur_trim@meta.data %>% glimpse
+
+saveRDS(
+    ref_seur_trim,
+    glue("{wkdir}/data/interim/ABCA_1&2_z-6-to-8.5_seurat_umap-pca.rds")
+)
+
+```
+
+
+Prepping a dataframe of job params. Here we use SCTransform data (but not scaled data or raw counts) from our seqFISH profiles and pair them with labels from 1,042,446 cells from two donor mouse brains from the ABCA dataset. These brain slices have been trimmed to a specific bregma range and genes have been filtered to intersect with our seqFISH Neuromapper kit.
+
+```{r, eval = FALSE}
+# for reference matrix needs to be Rows: genes, columns : cells
+# ref_counts <- GetAssayData(ref_seur_trim, layer = 'counts')
+ref_counts <- GetAssayData(ref_seur_trim, 
+  assay = "RNA", 
+  slot = "counts"
+)
+test_counts <- GetAssayData(merged_rois, 
+  assay = "SCT", 
+  slot = "data"
+  )
+
+cell_meta_df <- merged_rois@meta.data %>%
+  as.data.frame() %>%
+  mutate(slice_id = glue("{run}_{roi}")) %>%
+  dplyr::select(slice_id) %>%
+  glimpse()
+
+batch_data_df <- list()
+for (slice in unique(cell_meta_df$slice_id)){
+  print(slice)
+
+  slice_cell_ids <- cell_meta_df %>%
+    filter(slice_id == slice) %>%
+    glimpse()
+
+  batch_data_df[[slice]] <-
+    as.matrix(test_counts[mapped_genes, rownames(slice_cell_ids)])
+}
+
+ref_celltypes_list <- purrr::map(1:length(names(batch_data_df)), ~ {
+  unname(ref_seur_trim$class)
+})
+ref_matrix_list <- purrr::map(1:length(names(batch_data_df)), ~ {
+  as.matrix(log1p(ref_counts[mapped_genes, ]))
+})
+
+batchtools_params <- tibble(
+  slice_ids = names(batch_data_df),
+  test_matrix = unname(batch_data_df)
+) %>%
+  mutate(
+    ref_matrix = ref_matrix_list,
+    celltype_labels = ref_celltypes_list,
+    threads = 64,
+    output_file = glue(
+      "{wkdir}/data/interim/alignments/",
+      "slurm_runs/{Sys.Date()}/{slice_ids}_SingleR_pred.rds"
+    )
+  ) %>%
+    dplyr::select(-slice_ids) %>% 
+  glimpse()
+
+batchtools_params$output_file[1] %>% 
+  dirname() %>%
+  dir.create(showWarnings = FALSE, recursive = TRUE)
+
+```
+
+Batch executing jobs through slurm.
+
+```{r, eval = FALSE}
+# configure registry ----
+cluster_run <- glue("{get_time()}_SingleR_workflows")
+message("\n\nRUNNING:  ", cluster_run, "\n")
+breg <- makeRegistry(
+  file.dir = glue(
+    "{wkdir}/.cluster_runs/",
+    cluster_run
+  ),
+  seed = 42
+)
+breg$cluster.functions <- batchtools::makeClusterFunctionsSlurm(
+  template = glue("{wkdir}/batchtools_templates/batchtools.slurm.tmpl"),
+  scheduler.latency = 0.1,
+  fs.latency = 1
+)
+# Submit Jobs ----
+jobs <- batchMap(
+  fun = run_SingleR,
+  args = batchtools_params,
+  reg = breg
+)
+# jobs[, chunk := chunk(job.id, chunk.size = 1)]
+# print(jobs[, .N, by = chunk])
+
+submitJobs(jobs,
+    resources = list(
+        walltime = 600, # mins (10hrs)
+        memory = 50000, # MB (50 GB)
+        ncpus = 64,
+        max.concurrent.jobs = 9999
+    )
+)
+
+```
+
+```{r, eval = FALSE}
+# merged_rois <- readRDS(
+#   glue("{wkdir}/data/interim/merged_roi_seurat_2024-07-15.rds")
+# )
+
+# ref_seur_trim <- readRDS(
+#   glue("{wkdir}/data/interim/ABCA2_z-6-to-8.5_seurat.rds")
+# )
+
+# # Connect to the Ensembl BioMart database
+# ensembl <- useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+# eids <- rownames(ref_seur_trim)
+
+# # Query BioMart to retrieve the gene symbols for input Ensembl IDs
+# symbols_query <- getBM(
+#   attributes = c("ensembl_gene_id", "external_gene_name"),
+#   filters = "ensembl_gene_id",
+#   values = eids,
+#   mart = ensembl
+# ) %>%
+#   mutate(gene_symbols = toupper(external_gene_name))
+
+# symbols_query %>% glimpse
+
+# # Checking for duplicate gene symbols | should be 0
+# symbols_query %>% janitor::get_dupes(external_gene_name)
+
+# # getting gene names for datasets
+# gids_ref <- toupper(symbols_query$external_gene_name)
+# gene_symbols <- rownames(merged_rois)
+
+# gene_mapping <- setNames(
+#   symbols_query$gene_symbols,
+#   symbols_query$ensembl_gene_id
+# )
+
+# # Replace the rownames in the Seurat object with Ensembl IDs
+# mapped_genes <- intersect(gids_ref, gene_symbols)
+
+# mapped_eids <- symbols_query %>%
+#   filter(gene_symbols %in% mapped_genes) %>%
+#   pull(ensembl_gene_id)
+
+# mapped_eids_logical <- rownames(ref_seur_trim) %in% mapped_eids
+# mapped_eids_ordered <- rownames(ref_seur_trim)[mapped_eids_logical]
+# rownames(ref_seur_trim)[mapped_eids_logical] <-
+#   unname(gene_mapping[mapped_eids_ordered])
+
+# # Check that the rownames have been replaced
+# rownames(ref_seur_trim)
+
+# # for reference matrix needs to be Rows: genes, columns : cells
+# ref_counts <- GetAssayData(ref_seur_trim, layer = 'counts')
+# test_counts <- GetAssayData(merged_rois, layer = 'counts')
+
+# pred <- SingleR::SingleR(
+#   test = as.matrix(test_counts[mapped_genes, ]),
+#   ref = as.matrix(log1p(ref_counts[mapped_genes, ])),
+#   labels = unname(ref_seur_trim$class),
+#   prune = TRUE,
+#   num.threads = 24
+# )
+
+# saveRDS(pred,
+#   glue(
+#     "{wkdir}/data/interim/alignments/",
+#     "SingleR_predictions_{Sys.Date()}.rds"
+#   )
+# )
+
+```
+
+Aggregating SingleR predictions across slurm runs.
+
+```{r, eval = FALSE}
+
+pred_paths <- list.files(
+  glue("{wkdir}/data/interim/alignments/slurm_runs/2024-07-19"),
+  full.names = TRUE
+)
+
+preds <- purrr::map(pred_paths, readRDS)
+preds %>% glimpse()
+
+# merge 
+preds_combined <- do.call(rbind, preds)
+preds_combined %>% glimpse()
+
+saveRDS(
+  preds_combined,
+  glue(
+    "{wkdir}/data/interim/alignments/",
+    "2024-07-15_ABCA-1&2_SingleR_predictions_combined.rds"
+  )
+)
+
+```
+
+Integrating SingleR labels into Seurat object
+
+```{r, eval = FALSE}
+preds_combined <- readRDS(
+  glue(
+    "{wkdir}/data/interim/alignments/",
+    "2024-07-15_ABCA-1&2_SingleR_predictions_combined.rds"
+  )
+)
+merged_rois <- readRDS(
+  glue("{wkdir}/data/interim/merged_roi_seurat_2024-07-15.rds")
+)
+
+# adding singleR labels into seurat object
+merged_rois$singleR_labels <-
+  preds_combined$labels[
+    match(rownames(merged_rois@meta.data), rownames(preds_combined))
+  ]
+# merged_rois$singleR_labels_refined <-
+#   preds_combined$pruned.labels[
+#     match(rownames(merged_rois@meta.data), rownames(preds_combined))
+#   ]
+# adding slice id
+merged_rois$slice_id <- 
+  glue("{toupper(merged_rois$group)} {merged_rois$run} {merged_rois$roi}")
+
+meta_df <- merged_rois@meta.data %>% glimpse()
+
+# saveRDS(merged_rois,
+#   glue("{wkdir}/data/interim/{Sys.Date()}_merged_roi_seurat_singleR-annot.rds")
+# )
+
+```
+
+
+Visualizing SingleR Quality Scores across cell types
+
+```{r, eval = FALSE}
+p_singler_heatmap <- plotScoreHeatmap(preds_combined)
+
+ggsave(
+  glue("{wkdir}/figures/SingleR/SingleR_score_heatmap_{Sys.Date()}.png"),
+  p_singler_heatmap,
+  width = 18, height = 10
+)
+
+```
+
+
+![SingleR mapping scores for each cell across every label. Bright colors for a single annotation indicate unique mapping while higher scores for multiple cell labels indicate ambiguity.](../figures/SingleR/SingleR_score_heatmap_2024-07-20.png){#fig-singleR-scores}
+
+
+Visualizing unsupervized cluster associations with cell ids
+
+```{r, eval = FALSE}
+preds_df <- data.frame(
+  cell_id = preds_combined@rownames,
+  labels = preds_combined$labels
+)
+
+cluster_df <- data.frame(
+  cell_id = names(merged_rois$seurat_clusters),
+  cluster_id = merged_rois$seurat_clusters
+) %>%
+  left_join(preds_df, by = "cell_id") %>%
+    glimpse()
+
+tab <- table(
+  Assigned = cluster_df$labels,
+  Clusters = cluster_df$cluster_id
+)
+p_cluster_annot_heatmap <-
+  pheatmap::pheatmap(log10(tab + 10),
+    color = colorRampPalette(c("white", "blue"))(10)
+  )
+
+ggsave(
+  glue("{wkdir}/figures/SingleR/",
+  "SingleR_seurat-cluster-annotation-heatmap_{Sys.Date()}.png"
+  ),
+  p_cluster_annot_heatmap,
+  width = 9, height = 7
+)
+
+```
+
+![Heatmap showing cell membership of unsupervised clusters to SingleR cell type annotations. Color indicates Log10 counts of cells per grouping.](../figures/SingleR/SingleR_seurat-cluster-annotation-heatmap_2024-07-19.png){#fig-unsuper-clust-vs-singleR}
+
+
+![UMAP showing unsupervised cluster detection annotated with SingleR cell types](../figures/umap_singler_celltypes_2024-07-20.png){#fig-umap-singleR}
+
+
+
+Plotting gene expression across cell types
+
+```{r, eval = FALSE}
+p <- DoHeatmap(
+  merged_rois,
+  features = VariableFeatures(merged_rois)[1:250],
+  cells = 1:10000, size = 4,
+  group.by = "singleR_labels",
+  angle = 90
+) +
+  NoLegend()
+
+ggsave(
+  glue("{wkdir}/figures/celltype-heatmap_{Sys.Date()}.png"),
+  p,
+  width = 40, height = 30
+)
+
+```
+
+![Cell type marker heatmap](../figures/celltype-heatmap_2024-07-17.png){#fig-celltype-marker-heatmap}
+
+
+Plotting cell abundance across bregma regions compared with reference 
+
+```{r, eval = FALSE}
+# Interpolate rough bregma regions from z axis coordinates of reference slicew
+ref_seur_trim <- readRDS(
+  glue("{wkdir}/data/interim/ABCA_1&2_z-6-to-8.5_seurat.rds")
+)
+ref_meta <- ref_seur_trim@meta.data %>% glimpse()
+
+ref_meta %<>%
+  arrange(z) %>%
+  mutate(bregma_est = dplyr::case_when(
+    z == 6.38614821702683 ~ -0.9,
+    z == 6.82516653548007 ~ -1.6,
+    z == 7.48114515657795 ~ -2.4,
+    z == 8.40135810251962 ~ -3.1,
+    TRUE ~ NA
+  )) %>%
+  mutate(bregma_manual = if_else(is.na(bregma_est), FALSE, TRUE)) %>%
+  glimpse()
+
+# Fitting a linear model to the known points
+known_points <- ref_meta %>% 
+  filter(!is.na(bregma_est))
+
+lm_model <- lm(bregma_est ~ z, data = known_points)
+
+# Interploating missing values
+ref_meta <- ref_meta %>%
+  mutate(bregma_est = ifelse(
+    is.na(bregma_est), predict(lm_model, newdata = .), bregma_est
+  )) %>%
+  glimpse()
+
+# Visualizing interpolation
+ref_meta %>%
+  select(z, bregma_est, bregma_manual) %>%
+  distinct() %>%
+  ggplot(aes(x = z, y = bregma_est)) +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_point(aes(color = bregma_manual), size = 3, alpha = 0.5) +
+  labs(y = "Estimated Bregma", x = "Measured Z-axis") +
+  theme_bw() +
+  theme(legend.position = "top")
+
+ggsave(
+  glue("{wkdir}/figures/ABCA/estimated_bregma_interpolation_{Sys.Date()}.png"),
+  width = 5, height = 5
+)
+
+```
+
+
+```{r, eval = FALSE}
+# Generate bins for Bregma, group by bins, calculate relab of cell types + SE
+ref_meta %>% glimpse()
+meta_df %>% glimpse()
+
+ref_meta_cell_counts <- ref_meta %>%
+  filter(bregma_est < -1 & bregma_est > -3) %>%
+  group_by(bregma_est, class) %>%
+  reframe(n = n()) %>%
+  group_by(bregma_est) %>%
+  mutate(
+    cell_type_relab_ref = (n / sum(n)) * 100
+  ) %>%
+  glimpse()
+
+ref_cell_type_freq_stats <- ref_meta %>%
+  filter(bregma_est < -1 & bregma_est > -3) %>%
+  mutate(bregma_bin = case_when(
+    bregma_est <= -1 & bregma_est > -1.5 ~ "Bregma [-1 to -1.5]",
+    bregma_est <= -1.5 & bregma_est > -2 ~ "Bregma [-1.5 to -2]",
+    bregma_est <= -2 & bregma_est > -2.5 ~ "Bregma [-2 to -2.5]",
+    bregma_est <= -2.5 & bregma_est > -3 ~ "Bregma [-2.5 to -3]",
+    TRUE ~ "OTHER"
+  )) %>% 
+  group_by(brain_section_label.x, class, bregma_bin) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  group_by(class, bregma_bin) %>%
+  summarise(
+    n_mean_ref = mean(n),
+    n_variance_ref = var(n),
+    n_iqr_ref = IQR(n),
+    .groups = 'drop'
+  ) %>%
+  mutate_if(is.numeric, ~ replace_na(., 0)) %>%
+  mutate(
+    cell_type_relab_ref = (n_mean_ref / sum(n_mean_ref)) * 100,
+    variance_relab_ref = (n_variance_ref / (sum(n_mean_ref)^2)) * 100,
+    iqr_relab_ref = (n_iqr_ref / sum(n_mean_ref)) * 100
+  ) %>%
+  glimpse()
+
+
+singleR_relab_counts <- meta_df %>%
+  mutate(bregma_bin = case_when(
+    bregma <= -1 & bregma > -1.5 ~ "Bregma [-1 to -1.5]",
+    bregma <= -1.5 & bregma > -2 ~ "Bregma [-1.5 to -2]",
+    bregma <= -2 & bregma > -2.5 ~ "Bregma [-2 to -2.5]",
+    bregma <= -2.5 & bregma > -3 ~ "Bregma [-2.5 to -3]",
+    TRUE ~ "OTHER"
+  )) %>%
+  group_by(slice_id, singleR_labels, bregma_bin) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  group_by(singleR_labels, bregma_bin) %>%
+  summarise(
+    n_mean = mean(n),
+    n_variance = var(n),
+    n_iqr = IQR(n),
+    .groups = 'drop'
+  ) %>%
+  mutate_if(is.numeric, ~ replace_na(., 0)) %>%
+  mutate(
+    cell_type_relab = (n_mean / sum(n_mean)) * 100,
+    variance_relab = (n_variance / (sum(n_mean)^2)) * 100,
+    iqr_relab = (n_iqr / sum(n_mean)) * 100
+  ) %>%
+  glimpse()
+
+joined_relab_stats <- singleR_relab_counts %>%
+  left_join(ref_cell_type_freq_stats,
+    by = c("singleR_labels" = "class", "bregma_bin")
+  ) %>%
+  mutate(
+    xmin = cell_type_relab - iqr_relab, 
+    xmax = cell_type_relab + iqr_relab,
+    ymin = cell_type_relab_ref - iqr_relab_ref, 
+    ymax = cell_type_relab_ref + iqr_relab_ref,
+    ) %>%
+    mutate_if(is.numeric, ~ replace_na(., 0)) %>%
+  glimpse()
+
+saveRDS(
+  joined_relab_stats, 
+  glue("{wkdir}/data/interim/reference_seqFISH_summary_stats.rds")
+)
+
+p_ref_to_seqfish_cellabund <- joined_relab_stats %>%
+  ggplot(aes(x = cell_type_relab, y = cell_type_relab_ref)) +
+  geom_point(alpha = 0.6, size = 3) +
+  geom_abline(slope = 1, intercept = 0, color = "blue", linetype = "dashed") +
+  geom_text_repel(aes(label = singleR_labels),
+    segment.size  = 0.2,
+    segment.curvature = -0.1,
+    segment.angle = 20,
+    segment.color = "red") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), alpha = 0.3) + 
+  geom_errorbarh(aes(xmin = xmin, xmax = xmax), alpha = 0.3) +
+  coord_fixed() +
+  lims(x = c(0, NA), y = c(0, NA)) +
+  labs(x = "Relative Abundance (%) in SeqFISH data", 
+  y = "Relative Abundance (%) in ABCA") +
+  facet_wrap(~bregma_bin) +
+  theme_bw()
+
+ggsave(
+  glue("{wkdir}/figures/ABCA/ref-x-seqfish-cell-abund-corr.png"), 
+  p_ref_to_seqfish_cellabund,
+  width = 17, height = 8
+)
+
+p_ref_to_seqfish_cellabund_log <- joined_relab_stats %>%
+  ggplot(aes(x = cell_type_relab, y = cell_type_relab_ref)) +
+  geom_point(alpha = 0.6, size = 3) +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_abline(slope = 1, intercept = 0, color = "blue", linetype = "dashed") +
+  geom_text_repel(aes(label = singleR_labels),
+    segment.size  = 0.2,
+    segment.curvature = -0.1,
+    segment.angle = 20,
+    segment.color = "red") +
+  coord_fixed() +
+  labs(x = "Relative Abundance (%) in SeqFISH data", 
+  y = "Relative Abundance (%) in ABCA") +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), alpha = 0.3) + 
+  geom_errorbarh(aes(xmin = xmin, xmax = xmax), alpha = 0.3) +
+  facet_wrap(~bregma_bin) +
+  theme_bw()
+
+ggsave(
+  glue("{wkdir}/figures/ABCA/ref-x-seqfish-cell-abund-corr-logscale.png"), 
+  p_ref_to_seqfish_cellabund_log,
+  width = 17, height = 8
+)
+
+```
+
+
+```{r}
+joined_relab_stats <- readRDS(
+  glue("{wkdir}/data/interim/reference_seqFISH_summary_stats.rds")
+)
+joined_relab_stats %>% 
+dplyr::select(
+  singleR_labels, bregma_bin, 
+  n_mean, n_mean_ref, 
+  cell_type_relab, cell_type_relab_ref) %>%
+  mutate_if(is.numeric, ~ round(., digits = 2), na.rm = TRUE) %>%
+  DT::datatable()
+
+```
+
+![Relative cell abundance in Allen Brain Cell Atlas dataset (including two donors) and seqFISH data post SingleR cell typing. Verticle and horizontal error bars represent the Interquartile Range (IQR) of cell abundances across multiple slices within a bregma range - normalized by total cell counts](../figures/ABCA/ref-x-seqfish-cell-abund-corr.png){#fig-abca-seqfish-corr}
+
+
+
+![Log scale of plot above.](../figures/ABCA/ref-x-seqfish-cell-abund-corr-logscale.png){#fig-abca-seqfish-corr-log}
+
+
+## Conclusions
+1. asdf
+2. sadfg
+
+
+```{r}
+sessionInfo()
+```

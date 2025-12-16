@@ -1,0 +1,730 @@
+---
+title: "NEUROeSTIMator Analysis"
+editor: source
+author: "Joe Boktor"
+date: '2025-04-30'
+format: 
+  html:
+    font-family: helvetica neue
+    page-layout: full
+    toc: true
+    toc-location: left
+    toc-depth: 5
+    self-contained: true
+    code-fold: false
+    code-tools: true
+    fig-align: center
+---
+
+# Background
+
+NEUROeSTIMator is deep learning (auto-encoder) based method for estimating expression of key genes (mainly immediate early genes) given a cells transcriptomic profile.The model uses a single unit bottleneck to derive interpretable neuronal activity scores.
+
+# Analysis Setup
+This notebooks uses separate environments to run specific sections.
+
+Cell uses `neuroestimator` mamba environment
+```{r}
+# Setup using instructions from here:
+# https://research-git.uiowa.edu/michaelson-lab-public/neuroestimator#installation
+# remotes::install_git("https://research-git.uiowa.edu/michaelson-lab-public/neuroestimator")
+library(neuroestimator)
+library(glue)
+library(magrittr)
+
+Sys.setenv(RETICULATE_MINICONDA_PATH="/central/groups/MazmanianLab/joeB/software/miniconda3")
+reticulate::use_condaenv("neuroestimator2", required = TRUE)
+
+homedir <- "/central/groups/MazmanianLab/joeB"
+wkdir <- glue("{homedir}/WILDRxSPF_brains")
+
+```
+
+
+## Prepping Spatial Transcriptomics data for NEUROeSTIMator
+Cells use the `spatialomics` mamba environment
+
+```{r}
+merged_rois <- readRDS(
+    glue(
+      "{wkdir}/data/interim/",
+      "merged_roi_seurat_filtered_staNMF-updated_2024-07-24.rds"
+    )
+)
+
+# Save as a sparse matrix
+sparse_counts <- merged_rois@assays$Spatial@counts
+saveRDS(sparse_counts, 
+  glue(
+    "/central/groups/MazmanianLab/joeB/snRNAseq_analysis/WILDRxSPF_brains/data/interim/spatial_data/",
+    "dgCMatrix_merged_roi_seurat_filtered_2024-07-24.rds"
+  )
+)
+
+```
+
+## Prepping snRNAseq data for NEUROeSTIMator
+Cells use the `spatialomics` mamba environment
+
+
+```{r}
+tictoc::tic()
+seurat_obj <- schard::h5ad2seurat(glue("{anndata_path}/wildrxspf_data.h5ad"))
+seurat_obj
+tictoc::toc()
+
+sparse_counts <- seurat_obj@assays$RNA@counts
+rownames(sparse_counts) <- rownames(sparse_counts) %>% str_replace_all("-GRCm39", "")
+saveRDS(sparse_counts, 
+  glue(
+    "/central/groups/MazmanianLab/joeB/snRNAseq_analysis/WILDRxSPF_brains/data/interim/spatial_data/",
+    "dgCMatrix_single-nuclei_2025-04-28.rds"
+  )
+)
+
+```
+
+
+## Running NEUROeSTIMator - Spatial Transcriptomics Data
+Cells use the `neuroestimator` mamba environment
+
+```{r}
+sparse_counts <- readRDS(
+  glue(
+    "/central/groups/MazmanianLab/joeB/snRNAseq_analysis/WILDRxSPF_brains/data/interim/spatial_data/",
+    "dgCMatrix_merged_roi_seurat_filtered_2024-07-24.rds"
+  )
+)
+
+counts_input <- sparse_counts %>% as.matrix()
+rownames(counts_input) <- tools::toTitleCase(tolower(rownames(counts_input)))
+rownames(counts_input) %>% head()
+
+results_spatial <- neuroestimator(counts_input, species = "mmusculus")
+head(results_spatial)
+results_spatial %>% glimpse()
+
+saveRDS(results_spatial,
+  glue(
+    "/central/groups/MazmanianLab/joeB/snRNAseq_analysis/WILDRxSPF_brains/data/interim/neuroestimator/",
+    "neuroestimator_results_spatial_{Sys.Date()}.rds"
+  )
+)
+
+```
+
+
+# snRNAseq data 
+
+
+Since this data is much larger, we will need to chunk it and run using parallel processing with slurm.
+
+Cells use the `spatialomics` mamba environment
+```{r}
+library(tidyverse)
+library(glue)
+library(batchtools)
+# library(neuroestimator)
+
+homedir <- "/central/groups/MazmanianLab/joeB"
+wkdir <- glue("{homedir}/WILDRxSPF_brains")
+source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
+
+run_chunked_neuroestimator <- function(chunk_idx) {
+    # load required packages
+    require(glue)
+    require(neuroestimator)
+    require(magrittr)
+    require(reticulate)
+    
+    Sys.setenv(RETICULATE_MINICONDA_PATH="/central/groups/MazmanianLab/joeB/software/miniconda3")
+    reticulate::use_condaenv("neuroestimator2", required = TRUE)
+
+    # load sparse counts
+    sparse_counts <- readRDS(
+        glue(
+            "/central/groups/MazmanianLab/joeB/snRNAseq_analysis/WILDRxSPF_brains/",
+            "data/interim/spatial_data/dgCMatrix_singlenuclei_filtered_2025-04-28.rds"
+        )
+    )
+    
+    sparse_counts[1:10, 1:10]
+    # chunk the sparse counts
+    # chunk_idx <- 3
+    chunk_func <- function(x, n) split(x, cut(seq_along(x), n, labels = FALSE))
+    sparse_counts_chunks <- chunk_func(1:ncol(sparse_counts), 50)
+    
+    # Process the chunk
+    message(glue("\n\nProcessing chunk {chunk_idx} of {length(sparse_counts_chunks)}"))
+    counts_input <- sparse_counts[, sparse_counts_chunks[[chunk_idx]]] %>% as.matrix()
+    results_spatial <- neuroestimator(counts_input, species = "mmusculus")
+    print(head(results_spatial))
+    
+    message(glue("\n\nSaving results for chunk {chunk_idx}"))
+    saveRDS(
+        results_spatial,
+        glue(
+            "/central/groups/MazmanianLab/joeB/",
+            "snRNAseq_analysis/WILDRxSPF_brains/data/interim/neuroestimator/snRNASeq_chunks/",
+            "neuroestimator_results_snRNASeq_{chunk_idx}_{Sys.Date()}.rds"
+        )
+    )
+}
+
+
+# sparse_counts[1:10, 1:10]
+
+# configure registry ----
+cluster_run <- glue("{get_time()}_NEUROeSTIMator")
+message("\n\nRUNNING:  ", cluster_run, "\n")
+breg <- makeRegistry(
+  file.dir = glue("{wkdir}/.cluster_runs/", cluster_run),
+  seed = 42
+)
+breg$cluster.functions <- batchtools::makeClusterFunctionsSlurm(
+  template = glue("{wkdir}/batchtools_templates/",
+    "batchtools.slurm_mamba-neuroestimator.tmpl"),
+  scheduler.latency = 0.1,
+  fs.latency = 1
+)
+# Submit Jobs ----
+jobs <- batchMap(
+  fun = run_chunked_neuroestimator,
+  args = data.frame(chunk_idx = 1:50),
+  reg = breg
+)
+
+# jobs[, chunk := chunk(job.id, chunk.size = 1)]
+# print(jobs[, .N, by = chunk])
+submitJobs(jobs,
+  resources = list(
+    walltime = 120,
+    memory = 30000,
+    ncpus = 2,
+    max.concurrent.jobs = 9999
+  )
+)
+
+```
+
+
+## Integrating and Interpreting NEUROeSTIMator results
+The remaining results use the `spatialomics` mamba environment.
+
+```{r}
+library(tidyverse)
+library(glue)
+library(magrittr)
+library(strex)
+library(scico)
+library(ggsci)
+
+homedir <- "/central/groups/MazmanianLab/joeB"
+wkdir <- glue("{homedir}/WILDRxSPF_brains")
+figdir <- glue("{wkdir}/figures/neuroestimator")
+snRNAseq_dir <- glue("{homedir}/snRNAseq_analysis/WILDRxSPF_brains")
+neuro_dir <- glue("{snRNAseq_dir}/data/interim/neuroestimator")
+
+```
+
+
+
+Loading NEUROeSTIMator results - seqFISH data
+
+```{r}
+results_spatial <- readRDS(
+    glue("{neuro_dir}/neuroestimator_results_spatial_2025-04-28.rds")
+) %>%
+    rownames_to_column(var = "cell_id") %>%
+    glimpse()
+
+meta_df_gated <- readRDS(
+    glue(
+        "{wkdir}/data/interim/",
+        "gated-seurat-metadata_2024-12-31.rds"
+    )
+)
+
+# create a new column with cell types and gated regions
+meta_df_gated %<>%
+    mutate(final_gate = case_when(
+        final_gate != "" ~ glue(" {final_gate}"),
+        TRUE ~ final_gate
+    )) %>%
+    mutate(gated_cell_labels = glue("{singleR_labels}{final_gate}")) %>%
+    left_join(results_spatial) %>%
+    glimpse()
+
+saveRDS(
+  meta_df_gated,
+  glue(
+    "{wkdir}/data/interim/neuroestimator/",
+    "seqFISH_meta_{Sys.Date()}.rds"
+  )
+)
+
+# meta_df_gated$gated_cell_labels %>% table()
+# meta_df_gated %>% glimpse()
+# meta_df_gated %>% rownames() %>% head()
+
+```
+
+Visualizing NEUROeSTIMator results spatially
+
+```{r}
+meta_df_gated <- readRDS(
+  glue(
+    "{wkdir}/data/interim/neuroestimator/",
+    "seqFISH_meta_2025-05-01.rds"
+  )
+) %>% 
+  glimpse()
+
+# ggplot(aes(x = center_x, y = center_y, color = predicted_activity)) +
+#     geom_point() +
+#     scale_color_gradient(low = "blue", high = "red") +
+#     theme_minimal()
+
+p_predicted_activity_spatial <- meta_df_gated %>%
+    arrange(predicted_activity) %>%
+    ggplot(aes(x = center_x, y = center_y)) +
+    geom_point(aes(color = predicted_activity), size = 0.1, alpha = 0.9) +
+    facet_wrap(~slice_id, ncol = 4) +
+    coord_fixed() +
+    scale_y_reverse() +
+    labs(color = "Predicted Activity", title = glue("Plotting Predicted Activity")) +
+    scale_color_viridis_c(option = "viridis") +
+    theme_bw()
+
+ggsave(
+  glue("{figdir}/predicted_activity_spatial_{Sys.Date()}.png"),
+  p_predicted_activity_spatial,
+  width = 20, height = 20
+)
+
+
+plot_spatial_summary <- function(data, variable_name = "predicted_activity", 
+                                bins = 50, fun = mean, ncol = 4, 
+                                palette = 'batlowK', fill_label = "Predicted Activity\nMean") {
+  data %>%
+    arrange(!!sym(variable_name)) %>%
+    ggplot(aes(x = center_x, y = center_y, z = !!sym(variable_name))) +
+    stat_summary_hex(bins = bins, fun = fun) +
+    facet_wrap(~slice_id, ncol = ncol) +
+    coord_fixed() +
+    scale_y_reverse() +
+    labs(fill = fill_label, x = NULL, y = NULL) +
+    scale_fill_scico(palette = palette) +
+    theme_void() +
+    theme(axis.text = element_blank(),
+          axis.ticks = element_blank(),
+          plot.background = element_rect(fill = "white")
+          )
+}
+
+p_predicted_activity_spatial_summary <- plot_spatial_summary(meta_df_gated)
+# p_predicted_activity_spatial_summary <- meta_df_gated %>%
+#     arrange(predicted_activity) %>%
+#     ggplot(aes(x = center_x, y = center_y, z = predicted_activity)) +
+#     stat_summary_hex(bins = 50, fun = mean) +
+#     facet_wrap(~slice_id, ncol = 4) +
+#     coord_fixed() +
+#     scale_y_reverse() +
+#     labs(fill = "Predicted Activity\nMean", x = NULL, y = NULL) +
+#     scale_fill_scico(palette = 'batlowK') +
+#     theme_void() +
+#     theme(axis.text = element_blank(),
+#           axis.ticks = element_blank(),
+#           plot.background = element_rect(fill = "white")
+#           )
+
+ggsave(
+  glue("{figdir}/predicted_activity_spatial_summary_{Sys.Date()}.png"),
+  p_predicted_activity_spatial_summary,
+  width = 10, height = 10
+)
+
+# Plotting specific cell types
+p_predicted_activity_spatial_03br_hipp <- plot_spatial_summary(
+  meta_df_gated %>% filter(gated_cell_labels == "03 OB-CR Glut  HIPP"))
+
+ggsave(
+  glue("{figdir}/predicted_activity_spatial_03br_hipp_{Sys.Date()}.png"),
+  p_predicted_activity_spatial_03br_hipp,
+  width = 10, height = 10
+)
+
+```
+
+
+![Binned NEUROeSTIMator results](../figures/neuroestimator/predicted_activity_spatial_summary_2025-05-01.png)
+
+Running statistical analysis on NEUROeSTIMator results
+
+```{r}
+meta_df_gated %>% glimpse()
+# Filtering to only include cell labels with more than 200 cells
+gated_cell_labels_counts <- meta_df_gated %>% 
+  filter(final_gate != "") %>% 
+  pull(gated_cell_labels) %>%
+  table() %>%
+  keep(~ . > 200)
+names(gated_cell_labels_counts) %>% length()
+
+model_results <- list()
+for (gated_cell_label in names(gated_cell_labels_counts)) {
+    print(gated_cell_label)
+    sub_df <- meta_df_gated %>%
+        filter(gated_cell_labels == gated_cell_label)
+    # sub_df %>% glimpse()
+    model_results[[gated_cell_label]] <- nlme::lme(predicted_activity ~ group + bregma,
+        random = ~ 1 | run/slice_id,
+        data = sub_df
+    )
+}
+
+neuro_lmm_res <- model_results %>% 
+    purrr::map(~ broom.mixed::tidy(.)) %>% 
+    bind_rows(.id = "gated_cell_labels") %>% 
+    left_join(meta_df_gated %>% select(gated_cell_labels, final_gate) %>% distinct()) %>%
+    glimpse()
+
+neuro_lmm_res %>% 
+  filter(term == "groupwildr") %>% 
+  arrange(p.value) %>% 
+  View()
+
+neuro_lmm_res %>% 
+  filter(gated_cell_labels == "03 OB-CR Glut  HIPP") %>% 
+  filter(term == "groupwildr") %>% 
+  glimpse()
+
+# meta_df_gated %>% glimpse()
+# names(model_results)
+plot_neuro_lmm_results <- function(data, cell_label) {
+    p <- data %>% 
+        filter(gated_cell_labels == cell_label) %>% 
+        ggplot(aes(x = predicted_activity, y = slice_id)) +
+        geom_point(aes(color = group), 
+                  alpha = 0.8, 
+                  size = 0.75, 
+                  position = position_jitter(height = 0.2, width = 0)) +
+        geom_boxplot(outlier.shape = NA, alpha = 0.3) +
+        facet_grid(row = vars(run), scales = "free_y", space = "free_y") +
+        scale_color_d3() +
+        guides(color = guide_legend(override.aes = list(size = 3))) +
+        labs(x = "Predicted Activity",
+             y = "Slice ID") +
+        theme_bw()
+    return(p)
+}
+
+p_neuro_lmm_res_03 <- plot_neuro_lmm_results(meta_df_gated, "03 OB-CR Glut  HIPP")
+p_neuro_lmm_res_31 <- plot_neuro_lmm_results(meta_df_gated, "31 OPC-Oligo  HYP")
+
+ggsave(
+  glue("{figdir}/neuro_lmm_res_03 OB-CR Glut  HIPP_{Sys.Date()}.png"),
+  p_neuro_lmm_res_03,
+  width = 7, height = 5
+)
+ggsave(
+  glue("{figdir}/neuro_lmm_res_31 OPC-Oligo  HYP_{Sys.Date()}.png"),
+  p_neuro_lmm_res_31,
+  width = 7, height = 5
+)
+# p_neuro_lmm_res_03 <- meta_df_gated %>% 
+#   filter(gated_cell_labels == "03 OB-CR Glut  HIPP") %>% 
+#   ggplot(aes(x = predicted_activity, y = slice_id)) +
+#   geom_point(aes(color = group), alpha = 0.8, size = 0.75, position = position_jitter(height = 0.2, width = 0)) +
+#   geom_boxplot(outlier.shape = NA, alpha = 0.3) +
+#   facet_grid(row = vars(run), scales = "free_y", space = "free_y") +
+#   scale_color_d3() +
+#   guides(color = guide_legend(override.aes = list(size = 3))) +
+#   theme_bw()
+
+
+
+#------------------------------------------------------------------------------
+# LMM for all cell types regardless of location
+cell_types <- meta_df_gated %>% 
+  pull(singleR_labels) %>%
+  table() %>%
+  keep(~ . > 200)
+names(cell_types) %>% length()
+
+model_results_cell_types <- list()
+for (cell_type in names(cell_types)) {
+    print(cell_type)
+    sub_df <- meta_df_gated %>%
+        filter(singleR_labels == cell_type)
+    # sub_df %>% glimpse()
+    model_results_cell_types[[cell_type]] <- nlme::lme(predicted_activity ~ group + run + bregma,
+        random = ~ 1 | slice_id,
+        data = sub_df
+    )
+}
+
+neuro_lmm_res_cell_types <- model_results_cell_types %>% 
+    purrr::map(~ broom.mixed::tidy(.)) %>% 
+    bind_rows(.id = "singleR_labels") %>% 
+    glimpse()
+
+neuro_lmm_res_cell_types %>% 
+  filter(term == "groupwildr") %>% 
+  arrange(p.value) %>% 
+  View()
+# Nothing passes significance this way
+
+#------------------------------------------------------------------------------
+# LMM for each gated region regardless of cell type
+gated_regions <- meta_df_gated %>% 
+  filter(final_gate != "") %>%
+  pull(final_gate) %>%
+  table()
+names(gated_regions) %>% length()
+
+model_results_gated_regions <- list()
+for (gated_region in names(gated_regions)) {
+    print(gated_region)
+    sub_df <- meta_df_gated %>%
+        filter(final_gate == gated_region)
+    # sub_df %>% glimpse()
+    model_results_gated_regions[[gated_region]] <- nlme::lme(predicted_activity ~ group + run + bregma,
+        random = ~ 1 | slice_id,
+        data = sub_df
+    )
+}
+
+neuro_lmm_res_gated_regions <- model_results_gated_regions %>% 
+    purrr::map(~ broom.mixed::tidy(.)) %>% 
+    bind_rows(.id = "final_gate") %>% 
+    glimpse()
+
+neuro_lmm_res_gated_regions %>% 
+  filter(term == "groupwildr") %>% 
+  arrange(p.value) %>% 
+  View()
+# also nothing passes significance this way
+
+```
+
+Results overview - we see two significant results:
+1. 03 OB-CR Glut HIPP (Hippocampus) Increased in wildr: (estimate) 0.0286, (p-value) 0.0268
+2. 31 OPC-Oligo HYP (Hypothalamus) Decreased in wildr: (estimate) -0.0468, (p-value) -0.0088
+
+![NEUROeSTIMator results](../figures/neuroestimator/neuro_lmm_res_03%20OB-CR%20Glut%20%20HIPP_2025-05-01.png)
+![NEUROeSTIMator results](../figures/neuroestimator/neuro_lmm_res_31%20OPC-Oligo%20HYP_2025-05-01.png)
+
+Loading NEUROeSTIMator results - snRNAseq data
+
+```{r}
+chunked_snRNASeq_results <- list.files(
+  glue(
+    glue("{homedir}/snRNAseq_analysis/WILDRxSPF_brains/data/interim/neuroestimator/"),
+    "snRNASeq_chunks/"
+  ),
+  full.names = TRUE
+)
+
+snRNASeq_results <- chunked_snRNASeq_results %>% 
+  purrr::map(readRDS) %>% 
+  bind_rows() %>% 
+  rownames_to_column(var = "bc_wells") %>%
+  glimpse()
+snRNASeq_results %>% head()
+snRNASeq_results$predicted_activity %>% summary()
+snRNASeq_results$predicted_activity %>% hist()
+```
+
+Loading in snRNAseq metadata
+```{r}
+snRNAseq_meta <- readRDS(glue(
+  "{snRNAseq_dir}/data/interim/seurat/seurat_obj_clustered_2025-04-22.rds")
+  )@meta.data
+
+snRNAseq_meta_neuroest <- snRNAseq_meta %>%
+  left_join(snRNASeq_results) %>%
+  glimpse()
+
+saveRDS(
+  snRNAseq_meta_neuroest,
+  glue(
+    "{wkdir}/data/interim/neuroestimator/",
+    "snRNAseq_meta_{Sys.Date()}.rds"
+  )
+)
+
+```
+
+
+```{r}
+snRNAseq_meta_neuroest <- readRDS(
+  glue(
+    "{wkdir}/data/interim/neuroestimator/",
+    "snRNAseq_meta_2025-05-01.rds"
+  )
+) %>% glimpse()
+
+# adding cell type annotations
+cell_type_map <- read_csv(glue("{snRNAseq_dir}/data/interim/MapMyCells_trial/output.csv"),
+  skip = 4) %>% 
+  glimpse()
+
+snRNAseq_meta <- snRNAseq_meta_neuroest %>% 
+  rownames_to_column("rowname") %>%
+  left_join(cell_type_map, by = c("bc_wells" = "cell_id")) %>%
+  column_to_rownames("rowname") %>%
+  mutate(group = str_before_first(sample, "_")) %>%
+  mutate(region = str_after_last(sample, "_")) %>%
+  glimpse()
+
+snRNAseq_meta %>% glimpse()
+
+library(ggpubr)
+library(rstatix)
+
+# Run statistical tests
+stat_results <- snRNAseq_meta %>%
+  group_by(region, class_name) %>%
+  mutate(cell_count = n()) %>%
+  arrange(cell_count) %>%
+  filter(cell_count >= 10) %>%
+  rstatix::wilcox_test(predicted_activity ~ group) %>%
+  rstatix::add_significance() %>%
+  # Filter for significant results and enough samples
+  filter(n1 >= 10, n2 >= 10) %>%
+  # Add y-position for annotations
+  group_by(region) %>%
+  mutate(y.position = max(snRNAseq_meta$predicted_activity[snRNAseq_meta$region == first(region)]))
+
+stat_results <- snRNAseq_meta %>%
+  group_by(region, class_name) %>%
+  mutate(cell_count = n()) %>%
+  filter(cell_count >= 10) %>%
+  rstatix::wilcox_test(predicted_activity ~ group) %>%
+  rstatix::adjust_pvalue(method = "BH") %>%
+  rstatix::add_significance() %>%
+  # Add y-position for annotations
+  group_by(region) %>%
+  mutate(
+    y.position = max(snRNAseq_meta$predicted_activity[snRNAseq_meta$region == first(region)]),
+    y.position = y.position + 0.1 * (row_number() - 1)
+  ) %>% 
+  glimpse()
+
+stat_results %>% View
+
+
+
+# # Create plot without stats first
+# p_sn_neuroest_cell_type <- snRNAseq_meta %>%
+#   group_by(region, class_name) %>%
+#   mutate(cell_count = n()) %>%
+#   filter(cell_count >= 10) %>%
+#   ggplot(aes(x = fct_reorder(class_name, predicted_activity), y = predicted_activity)) +
+#   geom_boxplot(aes(fill = group)) +
+#   theme_bw() +
+#   labs(
+#     x = "Cell Type", 
+#     y = "Predicted Activity",
+#     subtitle = "Wilcoxon test with BH correction\n* p<0.05, ** p<0.01, *** p<0.001"
+#   ) +
+#   facet_grid(rows = vars(region), scales = "free_y", space = "free_y") +
+#   scale_fill_d3() +
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 0.5))
+
+# # Add statistical annotations
+# p_sn_neuroest_cell_type <- p_sn_neuroest_cell_type +
+#   geom_signif(
+#     data = stat_results %>% filter(p.adj <= 0.05),
+#     aes(annotations = p.adj.signif),
+#     y_position = "y.position",
+#     xmin = "class_name", xmax = "class_name",
+#     manual = TRUE
+#   )
+
+ggsave(
+  glue("{figdir}/snRNAseq_cell_type_neuroest_with_stats_{Sys.Date()}.png"),
+  p_sn_neuroest_cell_type,
+  width = 15, height = 12
+)
+
+# Print significant results
+sig_res <- stat_results %>%
+  filter(p.adj <= 0.05) %>%
+  arrange(p.adj) %>%
+  # select(region, class_name, statistic, n1, n2, p, p.adj, p.adj.signif) %>%
+  print(n = Inf)
+
+snRNAseq_meta %>% glimpse()
+
+for (i in 1:nrow(sig_res)) {
+  print(sig_res$class_name[i])
+  print(sig_res$region[i])
+  
+  sub_df <- snRNAseq_meta %>% 
+    filter(class_name == sig_res$class_name[i]) %>% 
+    filter(region == sig_res$region[i]) 
+
+  p <- sub_df %>% 
+    ggplot(aes(x = group, y = predicted_activity)) +
+    geom_point(alpha = 0.4, size = 0.5, aes(color = group),
+              position = position_jitter(height = 0, width = 0.3)) +
+    # geom_boxplot(outlier.shape = NA, alpha = 0.5) +
+    geom_violin(alpha = 0.5, quantile_lines = TRUE, width = 0.6,
+      draw_quantiles = c(0.25, 0.5, 0.75)) +
+    theme_bw() +
+    labs(y = "NEUROeSTIMator Predicted Activity", x = NULL, 
+    title = glue("{sig_res$class_name[i]} in {sig_res$region[i]}")) +
+    scale_color_d3() +
+    ggpubr::stat_pvalue_manual(
+      data = sig_res[i, ],
+      label = "p.adj.signif",
+      y.position = max(sub_df$predicted_activity),
+      step.increase = 0.1
+    ) +
+    theme(legend.position = "none")
+  # print(p)
+  
+  ggsave(
+    glue("{figdir}/snRNAseq_cell_type_neuroest/",
+    "{sig_res$class_name[i]}_{sig_res$region[i]}_{Sys.Date()}.png"),
+    p,
+    width = 3, height = 4
+  )
+}
+
+
+# p_sn_neuroest_cell_type <- snRNAseq_meta %>% 
+#   ggplot(aes(x = fct_reorder(class_name, predicted_activity), y = predicted_activity)) +
+#   geom_boxplot(aes(fill = group)) +
+#   stat_pvalue_manual(
+#     data = stat_results,
+#     label = "p.signif",
+#     y.position = "y.position",
+#     step.increase = 0.1
+#   ) +
+#   theme_bw() +
+#   labs(x = "Cell Type", y = "Predicted Activity") +
+#   facet_grid(rows = vars(region), scales = "free_y", space = "free_y") +
+#   scale_fill_d3() +
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 0.5))
+
+# ggsave(
+#   glue("{figdir}/snRNAseq_cell_type_neuroest_{Sys.Date()}.png"),
+#   p_sn_neuroest_cell_type,
+#   width = 10, height = 10
+# )
+
+```
+
+  region class_name       statistic             p        p.adj p.adj.signif
+  <chr>  <chr>                <dbl>         <dbl>        <dbl> <chr>       
+1 AMY    13 CNU-HYa Glut  52620534. 0.00000000159 0.0000000747 ****        
+2 HYP    16 HY MM Glut     1485657  0.0000018     0.0000423    ****        
+3 HYP    30 Astro-Epen    49557616. 0.000228      0.00357      **          
+4 HYP    31 OPC-Oligo    219761760. 0.000932      0.0110       *           
+5 AMY    07 CTX-MGE GABA  16536512. 0.00204       0.0192       *           
+6 AMY    04 DG-IMN Glut     588180. 0.00321       0.0251       *           
+7 HYP    14 HY Glut      299756038  0.00493       0.0331       *           
+> 

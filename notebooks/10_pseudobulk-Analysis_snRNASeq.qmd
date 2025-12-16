@@ -1,0 +1,783 @@
+---
+title: "WildR Brain Tissue snRNASeq Pseudobulk Analysis"
+editor: source
+author: "Joe Boktor"
+date: '2025-05-12'
+format: 
+  html:
+    font-family: helvetica neue
+    page-layout: full
+    toc: true
+    toc-location: left
+    toc-depth: 5
+    self-contained: true
+    code-fold: false
+    code-tools: true
+    fig-align: center
+    grid:
+      sidebar-width: 200px
+      body-width: 1100px
+      margin-width: 200px
+      gutter-width: 1.5em
+---
+
+# Background
+
+Here we analyze the snRNASeq data from the WildR Brain Tissue project.
+
+# Analysis Setup
+
+Environment setup.
+
+```{r}
+#| warning: false
+library(tidyverse)
+library(magrittr)
+library(glue)
+library(Seurat)
+library(grid)
+library(biomaRt)
+library(SingleR)
+library(batchtools)
+library(strex)
+library(fs)
+# stats 
+library(lme4)
+library(broom)
+# parallelization
+library(BiocParallel)
+library(future)
+library(furrr)
+library(foreach)
+library(doParallel)
+# plotting
+library(RColorBrewer)
+library(ggsci)
+library(Matrix)
+library(plotly)
+library(DT)
+library(gtsummary)
+library(aplot)
+library(patchwork)
+library(viridis)
+
+# Load libraries
+library(cowplot)
+library(Matrix.utils)
+library(edgeR)
+library(Matrix)
+library(reshape2)
+library(S4Vectors)
+library(SingleCellExperiment)
+library(pheatmap)
+library(apeglm)
+library(png)
+library(DESeq2)
+library(RColorBrewer)
+library(data.table)
+library(DEGreport)
+library(ggrepel)
+
+# setting paths
+homedir <- "/central/groups/MazmanianLab/joeB"
+wkdir <- glue("{homedir}/WILDRxSPF_brains")
+source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
+sn_wkdir <- glue("{homedir}/snRNAseq_analysis/WILDRxSPF_brains")
+snrna_data_path <- glue("{sn_wkdir}/data/interim/")
+kgrad_wkdir <- "/resnick/groups/MazmanianLab/jboktor/snRNAseq"
+kgrad_tmp <- glue("{kgrad_wkdir}/kgrad_tmp")
+kgrad_data_path <- glue("{wkdir}/data/interim/DESeq2/subsampling/snRNASeq")
+kgrad_count_path <- glue("{kgrad_data_path}/count_data")
+kgrad_compiled <- glue("{kgrad_wkdir}/kgrad_compiled")
+kgrad_compiled_lfcShrink <- glue("{kgrad_wkdir}/kgrad_compiled_lfcShrink")
+fig_dir <- glue("{wkdir}/figures/pseudobulk-subsampling/snRNASeq")
+
+source(glue("{wkdir}/notebooks/R_scripts/kgrad_pseudobulk.R"))
+
+# dir.create(kgrad_count_path, showWarnings = FALSE, recursive = TRUE)
+# dir.create(kgrad_compiled, showWarnings = FALSE, recursive = TRUE)
+# dir.create(kgrad_compiled_lfcShrink, showWarnings = FALSE, recursive = TRUE)
+# dir.create(fig_dir, showWarnings = FALSE, recursive = TRUE)
+
+# # 12gb  limit (1500*1024^2 = 1572864000) * 8
+# options(future.globals.maxSize= 12582912000)
+# future::plan("multisession", workers = 30)
+
+```
+
+Loading in data.
+
+```{r}
+seurat_obj <- readRDS(glue(
+  "{snrna_data_path}/seurat/seurat_obj_clustered_celltyped_2025-05-12.rds")
+  )
+seurat_obj
+seurat_obj$tissue <- str_after_last(seurat_obj$sample, "_")
+seurat_obj$class_name_region <- paste(seurat_obj$class_name, seurat_obj$tissue, sep = "_")
+seurat_obj@meta.data %>% glimpse()
+
+```
+
+
+## Prepping Pseudobulk Analysis
+
+Filtering low count celltype x tissue combinations. Selecting for celltypes with at least 200 cells combining all samples.
+
+
+```{r}
+# Checking cell labels
+seurat_obj@meta.data$tissue %>% table()
+seurat_obj@meta.data$class_name %>% table()
+
+# Get cell counts per label
+label_counts <- table(seurat_obj@meta.data$class_name_region) %>% sort()
+# Get labels that have at least 200 cells
+keep_labels <- names(label_counts[label_counts >= 200])
+# Filter the Seurat object
+seurat_obj_filt <- subset(seurat_obj, class_name_region %in% keep_labels)
+seurat_obj_filt
+```
+
+This brings us down from 411,875 to 410,778 cells.
+
+
+Next we create a metadata dataframe for aggregation and DE analysis.
+
+```{r}
+# Set up metadata as desired for aggregation and DE analysis
+metadata <- seurat_obj_filt@meta.data
+metadata$cluster_id <- factor(metadata$class_name_region)
+metadata$group <- str_before_first(metadata$sample, "_")
+metadata %>% glimpse()
+
+essential_meta_cols <- c("sample_id" = "sample", "cluster_id", "group")
+meta_df_grps <- dplyr::select(metadata, all_of(essential_meta_cols)) %>% glimpse()
+core_deseq_meta_df <- meta_df_grps %>% 
+  dplyr::select(-cluster_id) %>%
+  distinct() %>%
+  glimpse()
+
+```
+
+Inspecting cell type counts across samples and generating a list of 15 evenly dispersed values between the min and max cell type counts per slice 
+
+
+```{r}
+# Printing min/ max cell counts across slices
+celltype_summary <- celltype_min  <- celltype_max <- list()
+cois <- unique(metadata$cluster_id)
+
+for (celltype in cois) {
+  message("\n", celltype)
+  cellstats <- metadata %>%
+    filter(cluster_id == celltype) %>%
+    group_by(sample) %>%
+    summarize(n = n()) %>%
+    pull(n) %>%
+    summary()
+
+  cellstats %>% print()
+  celltype_min[[celltype]] <- cellstats[[1]]
+  celltype_max[[celltype]] <- cellstats[[6]]
+  celltype_summary[[celltype]] <- cellstats
+}
+
+sample_n_list <- list()
+for (ct in cois){
+  if ( is.na(celltype_summary[[ct]][[1]]) ) next
+  if ( celltype_summary[[ct]][[3]] < 50 ) next
+  min_val <- 3
+  max_val <- celltype_summary[[ct]][[3]] # first quartile
+  sample_n_list[[ct]] <- seq(min_val, max_val, length.out = 15) %>% 
+    round() %>%
+    unique() %>%
+    print()
+}
+
+# check that all cell types have 15 values
+sample_n_list %>% purrr::map(length) %>% unlist() %>% table()
+```
+
+Saving quantile counts per celltype and essential metadata for parallelized DESeq2 execution.
+
+```{r}
+saveRDS(
+  sample_n_list,
+  glue(
+    "{kgrad_data_path}/sample_n_list_{Sys.Date()}.rds"
+  )
+)
+saveRDS(
+  core_deseq_meta_df,
+  glue(
+    "{kgrad_data_path}/core_deseq_meta_df_{Sys.Date()}.rds"
+  )
+)
+
+
+```
+
+
+
+Chunking counts matrix into cell types x tissue groups
+
+```{r}
+# Note that some extra files are saved here that are filtered in names(sample_n_list)
+for (ct in cois) {
+  message("\n", ct)
+  tmp_seur <- subset(seurat_obj_filt, class_name_region == ct)
+  
+  counts_ct <- tmp_seur@assays$RNA@counts
+  rownames(counts_ct) <- rownames(counts_ct) %>% gsub("-GRCm39", "", .)
+  counts_ct %>% dim()
+  # Filtering lowly expressed genes - need at least 5 counts per gene summed across all cells
+  counts_ct <- counts_ct[rowSums(counts_ct) > 5, ]
+  counts_ct %>% dim()
+  
+  # collecting metadata for samples in counts matrix
+  tmp_meta <- meta_df_grps[colnames(counts_ct), ]
+
+  count_df <- t(counts_ct) %>% 
+    as.data.frame() %>%
+    bind_cols(tmp_meta)
+  dim(count_df)
+  
+  saveRDS(
+    count_df,
+    glue(
+      "{kgrad_count_path}/counts_{ct}.rds"
+    )
+  )
+}
+
+
+```
+
+
+# Slurm batchtools execution of K-GRAD Pseudobulk Analysis
+
+```{r}
+#' list of K values for each cell type 
+#' named list (cell types as names) with some minimum number of cells (ie, 30), up to the median number of cells 
+sample_n_list <- readRDS(
+  glue(
+    "{kgrad_data_path}/sample_n_list_2025-05-13.rds"
+  )
+)
+
+batchtools_params <- data.frame("clust" = names(sample_n_list)) %>%
+  mutate(nthreads = 8, wkdir = wkdir, 
+    sample_n_list_path = glue("{kgrad_data_path}/sample_n_list_2025-05-13.rds"), 
+    core_meta_path = glue("{kgrad_data_path}/core_deseq_meta_df_2025-05-13.rds"), 
+    clust_clean = clust %>% gsub(" ", "_", .),
+    deseq2_clust_dir = glue("{kgrad_tmp}/{clust_clean}")) %>% 
+    mutate(count_df_path = glue("{kgrad_count_path}/counts_{clust}.rds")) %>% 
+    # From down below - hacky way to filter out clusters that have already been processed
+    filter(clust  %nin% names(structured_res_paths[clust_complete])) %>% 
+    # mutate(complete = file.exists(glue("{kgrad_compiled}/{clust_clean}_res_2025-05-13.rds"))) %>% 
+    # filter(!complete) %>% 
+    select(-c(clust_clean)) %>% 
+  glimpse()
+
+batchtools_params$count_df_path %>% file.exists()
+batchtools_params$sample_n_list_path %>% file.exists()
+batchtools_params$core_meta_path %>% file.exists()
+
+length(batchtools_params$clust)
+length(sample_n_list)
+batchtools_params$clust %>% purrr::map( ~ sample_n_list[[as.character(.)]])
+
+# configure registry ----
+cluster_run <- glue("{get_time()}_DESeq2_sensitivity_analysis_snRNASeq")
+message("\n\nRUNNING:  ", cluster_run, "\n")
+breg <- makeRegistry(
+  file.dir = glue("{wkdir}/.cluster_runs/", cluster_run),
+  seed = 42
+)
+breg$cluster.functions <- batchtools::makeClusterFunctionsSlurm(
+  template = glue("{wkdir}/batchtools_templates/batchtools.slurm_mamba-spatialomics.tmpl"),
+  scheduler.latency = 0.1,
+  fs.latency = 1
+)
+
+# Submit Jobs ----
+jobs <- batchMap(
+  fun = kgrad_pseudobulk,
+  args = batchtools_params,
+  reg = breg
+)
+# jobs[, chunk := chunk(job.id, chunk.size = 1)]
+# print(jobs[, .N, by = chunk])
+
+submitJobs(jobs,
+    resources = list(
+        walltime = 1600, # about (26 hrs)
+        memory = "300G",
+        ncpus = 16,
+        max.concurrent.jobs = 9999
+    )
+)
+
+```
+
+
+
+Here below is an example of a single node loop. For troubleshooting purposes.
+
+```{r}
+# Set up parallel backend
+doParallel::registerDoParallel(cores = 8)
+clust <- "34 Immune_HYP"
+count_df_path <- glue("{kgrad_count_path}/counts_{clust}.rds")
+sample_n_list_path <- glue("{kgrad_data_path}/sample_n_list_2025-05-13.rds")
+
+# /central/groups/MazmanianLab/joeB/WILDRxSPF_brains/data/interim/DESeq2/subsampling/snRNASeq/count_data/counts_34 Immune_HYP.rds
+
+# Outer loop for cell types
+for (clust in cois) {
+    deseq2_clust_dir <- glue(
+        "/resnick/groups/MazmanianLab/jboktor/",
+        "snRNAseq/kgrad_tmp/{clust}"
+    )
+    dir.create(deseq2_clust_dir, showWarnings = FALSE, recursive = TRUE)
+    
+    count_df <- readRDS(count_df_path)
+    sample_n_list <- readRDS(sample_n_list_path)
+
+    # Middle loop for subsampling numbers
+    for (subsamp_n in sample_n_list[[clust]] ) {
+        # Check if all iterations for this cluster and subsample size already exist
+        all_iterations_exist <- all(sapply(1:50, function(niter) {
+            deseq2_dir <- glue(
+                "{deseq2_clust_dir}/n_{subsamp_n}/iter_{niter}"
+            )
+            dir.exists(deseq2_dir)
+        }))
+
+        if (all_iterations_exist) {
+            message(
+                "All iterations already exist for cluster ",
+                clust, " and subsample size ", subsamp_n
+            )
+            next
+        }
+
+        # Parallel execution of iterations
+        results <- foreach::foreach(niter = 1:50, .packages = c("glue", "DESeq2", "dplyr", "Matrix.utils")) %dopar% {
+            deseq2_dir <- glue("{deseq2_clust_dir}/n_{subsamp_n}/iter_{niter}")
+            if (dir.exists(deseq2_dir)) {
+                return(NULL)
+            }
+
+            dir.create(deseq2_dir, showWarnings = FALSE, recursive = TRUE)
+
+            # Subsampling cell type
+            subsamp_data <- subsample_celltype(
+                df = count_df,
+                cell_id = clust,
+                subsamp_n = subsamp_n,
+                seed = 42 + niter # Use different seed for each iteration
+            )
+
+            aggr_counts_subsamp <- Matrix.utils::aggregate.Matrix(
+                subsamp_data$subsamp_counts,
+                groupings = subsamp_data$subsamp_meta,
+                fun = "sum"
+            ) %>% t()
+
+            deseq_meta <- dplyr::distinct(subsamp_data$subsamp_meta) %>%
+                dplyr::left_join(core_deseq_meta_df, by = c("sample_id")) %>%
+                dplyr::mutate_if(is.character, as.factor) %>%
+                dplyr::distinct()
+
+            # Create DESeq2 object
+            dds <- DESeq2::DESeqDataSetFromMatrix(aggr_counts_subsamp,
+                colData = deseq_meta,
+                design = ~ group
+            )
+
+            # RUNNING DESEQ2
+            tryCatch(
+                {
+                    dds <- DESeq2::DESeq(dds)
+                    saveRDS(dds, glue("{deseq2_dir}/dds_{Sys.Date()}.rds"))
+
+                    # Generate results object
+                    res <- DESeq2::results(dds,
+                        contrast = c("group", "WildR", "SPF")
+                    )
+                    summary(res)
+                    res %>% as.data.frame() %>% glimpse()
+                    saveRDS(res, glue("{deseq2_dir}/res_{Sys.Date()}.rds"))
+                    
+                    res <- DESeq2::lfcShrink(dds,
+                        coef = "group_WildR_vs_SPF",
+                        res = res,
+                        type = "apeglm"
+                    )
+                    summary(res)
+                    res %>% as.data.frame() %>% glimpse()
+
+                    saveRDS(res, glue("{deseq2_dir}/res_lfcShrink_{Sys.Date()}.rds"))
+
+                    return(TRUE) # Indicate successful completion
+                },
+                error = function(e) {
+                    message(
+                        "Error occurred in iteration ", niter,
+                        " for cluster ", clust,
+                        " and subsample ", subsamp_n,
+                        ": ", e$message
+                    )
+                    return(FALSE) # Indicate unsuccessful completion
+                }
+            )
+        }
+    }
+}
+
+# Stop the parallel backend
+stopImplicitCluster()
+
+
+```
+
+
+# Compiling results
+
+```{r}
+# path to individual iterations of DESeq2 results
+res_paths <- fs::dir_ls(
+  kgrad_tmp,
+  regexp = "res_",
+  recurse = TRUE,
+  type = "file"
+)
+
+baseline_res_paths <- res_paths %>% discard(~ grepl("res_lfcShrink", .))
+lfcShrink_res_paths <- res_paths %>% keep(~ grepl("res_lfcShrink", .))
+
+structured_res_paths <- baseline_res_paths %>%
+  set_names(
+    map_chr(., function(path) {
+      path %>%
+        strex::str_after_first("kgrad_tmp/") %>%
+        strex::str_before_first("/")
+    })
+  ) %>%
+  split(names(.)) %>%
+  purrr::map(unname)
+
+structured_res_paths_lfcShrink <- lfcShrink_res_paths %>%
+  set_names(
+    map_chr(., function(path) {
+      path %>%
+        strex::str_after_first("kgrad_tmp/") %>%
+        strex::str_before_first("/")
+    })
+  ) %>%
+  split(names(.)) %>%
+  purrr::map(unname)
+
+# Output of structured_res_paths should be a named list of paths for each cluster tested
+future::plan("multisession", workers = 14)
+
+clust_complete <- structured_res_paths %>% purrr::map(length) > 500
+structured_res_paths[clust_complete] %>% names()
+
+names(structured_res_paths[clust_complete]) %>% 
+  discard(~ file.exists(glue("{kgrad_compiled}/{.}_res_2025-05-13.rds"))) %>% 
+  furrr::future_walk(
+    ~ process_celltype_results(.x, structured_res_paths, kgrad_compiled, "2025-05-13")
+  )
+
+clust_complete <- structured_res_paths_lfcShrink %>% purrr::map(length) > 500
+names(structured_res_paths_lfcShrink[clust_complete]) %>% 
+  discard(~ file.exists(glue("{kgrad_compiled_lfcShrink}/{.}_res_2025-05-13.rds"))) %>% 
+  furrr::future_walk(
+    ~ process_celltype_results(.x, structured_res_paths_lfcShrink, kgrad_compiled_lfcShrink, "2025-05-13")
+  )
+
+```
+
+
+# Visualizing results
+
+```{r}
+names(structured_res_paths[clust_complete])
+compiled_res_paths <- list.files(kgrad_compiled, full.names = TRUE)
+
+clust <- names(structured_res_paths[clust_complete])[15]
+res <- compiled_res_paths[15] %>% readRDS() %>% glimpse()
+
+names(compiled_res_paths)
+
+```
+
+```{r}
+# summary_stats %>% glimpse()
+names(structured_res_paths[clust_complete])
+
+for (clust in names(structured_res_paths[clust_complete])) {
+  figout  <- glue(
+      "{fig_dir}/summary_plots/",
+      "{clust}_subsamp_size_summary_2025-05-13.png"
+    )
+  if (file.exists(figout)) next
+
+  # clust <- "16_HY_MM_Glut_HYP"
+  message("Processing: ", clust)
+  res <- compiled_res_paths %>% keep(~ grepl(clust, .)) %>% readRDS()
+  # res %>% glimpse
+
+  message("Summarizing: ", clust)
+  summary_stats <- res %>%
+    group_by(gene_symbol, subsamp_n) %>%
+    summarize(
+      median_pvalue = median(pvalue, na.rm = TRUE),
+      mean_pvalue = mean(pvalue, na.rm = TRUE),
+      sd_pvalue = sd(pvalue, na.rm = TRUE),
+      median_adj_pvalue = median(padj, na.rm = TRUE),
+      mean_adj_pvalue = mean(padj, na.rm = TRUE),
+      sd_adj_pvalue = sd(padj, na.rm = TRUE),
+      median_log2fc = median(log2FoldChange, na.rm = TRUE),
+      mean_log2fc = mean(log2FoldChange, na.rm = TRUE),
+      sd_log2fc = sd(log2FoldChange, na.rm = TRUE),
+      .groups = 'drop'
+    ) %>%
+    group_by(gene_symbol) %>%
+    mutate(HIT = any(median_pvalue <= 0.05 & abs(median_log2fc) >= 0.5)) %>%
+    ungroup() %>% 
+    mutate(
+      neg_log_pval = -log10(median_pvalue),
+      neg_log_adj_pval = -log10(median_adj_pvalue)
+    ) #%>% glimpse()
+
+  message("Plotting: ", clust)
+  plots <- list(
+    p_median_pvalue = plot_metrics(summary_stats, 
+      "neg_log_pval",
+      "-log10(Median P-Value)",
+      paste(clust, "\nMedian P-Value vs Subsample Size"),
+      yint = -log10(0.05)
+    ),
+    p_median_adj_pvalue = plot_metrics(summary_stats,
+      "neg_log_adj_pval",
+      "-log10(Median Adjusted P-Value)",
+      paste(clust, "\nMedian Adjusted P-Value vs Subsample Size"),
+      yint = -log10(0.1)
+    ),
+    p_median_log2fc = plot_metrics(summary_stats,
+      "median_log2fc",
+      "Median log2FC",
+      paste(clust, "\nMedian log2FC vs Subsample Size"),
+      yint = c(0.5, -0.5)
+    )
+  )
+
+  # Stack the plots vertically using aplot
+  stacked_plot <- aplot::plot_list(
+    plots$p_median_pvalue,
+    plots$p_median_adj_pvalue,
+    plots$p_median_log2fc,
+    ncol = 1,
+    heights = c(1, 1, 1)
+  )
+
+  # Save the stacked plot
+  ggsave(
+    filename = figout,
+    plot = stacked_plot,
+    width = 10,
+    height = 12,
+    dpi = 300
+  )
+}
+
+```
+
+
+```{r}
+
+
+res %>% 
+  filter(subsamp_n == 196) %>% 
+  filter(padj <= 0.05) %>% 
+  filter(!grepl("^ENSMUSG", gene_symbol)) %>% 
+  filter(!grepl("^Rn18s", gene_symbol)) %>% 
+  filter(!grepl("^Mir", gene_symbol)) %>% 
+  filter(!grepl("^Gm", gene_symbol)) %>% 
+  View
+
+
+```
+
+
+After briefily visualizing the significance distributions, let's make some targeted selections on which K values (subsample sizes) to use for downstream analysis.
+
+
+```{r}
+
+res_paths_df <- data.frame(
+  path = baseline_res_paths) %>% 
+  mutate(
+    celltype_region = strex::str_after_first(path, "kgrad_tmp/") %>% 
+      strex::str_before_first("/"),
+    iter_n = str_before_first(path, "/res_") %>% str_after_last("iter_") %>% as.numeric(),
+    subsamp_n = str_after_first(path, "/n_") %>% str_before_first("/") %>% as.numeric(),
+    celltype = str_before_last(celltype_region, "_"),
+    region = str_after_last(celltype_region, "_")
+  ) %>% 
+  glimpse()
+
+
+# generate a list of just the middle 50% of subsamp_ns
+res_paths_df_Kiqr <- tibble()
+for (celltypeR in unique(res_paths_df$celltype_region)) {
+  message("Processing: ", celltypeR)
+  
+  subsamples <- res_paths_df %>% 
+    filter(celltype_region == celltypeR) %>% 
+    pull(subsamp_n) %>% 
+    unique() %>% 
+    sort() %>% 
+    print()
+
+  q <- quantile(subsamples, c(0.25, 0.75))
+  subsamples_in_iqr <- subsamples[subsamples >= q[1] & subsamples <= q[2]] %>% print()
+  res_paths_df_Kiqr %<>% bind_rows(
+    res_paths_df %>% 
+      filter(celltype_region == celltypeR) %>% 
+      filter(subsamp_n %in% subsamples_in_iqr)
+  )
+}
+res_paths_df_Kiqr %>% glimpse()
+
+
+# creating a structured list of paths for each cluster tested
+structured_res_paths <- res_paths_df_Kiqr$path %>%
+  set_names(
+    map_chr(., function(path) {
+      path %>%
+        strex::str_after_first("kgrad_tmp/") %>%
+        strex::str_before_first("/")
+    })
+  ) %>%
+  split(names(.)) %>%
+  purrr::map(unname)
+
+# Output of structured_res_paths should be a named list of paths for each cluster tested
+future::plan("multisession", workers = 14)
+
+clust_complete <- structured_res_paths %>% purrr::map(length) > 50
+structured_res_paths[clust_complete] %>% names()
+
+names(structured_res_paths[clust_complete]) %>% 
+  discard(~ file.exists(glue("{kgrad_compiled}/{.}_res__kIQR_2025-05-15.rds"))) %>% 
+  furrr::future_walk(
+    ~ process_celltype_results(.x, structured_res_paths, kgrad_compiled, "_kIQR_2025-05-15")
+  )
+
+```
+
+Assembling just the k-IQR results
+
+```{r}
+compiled_res_paths <- fs::dir_ls(
+  kgrad_compiled,
+  regexp = "_kIQR_2025-05-15.rds",
+  recurse = TRUE,
+  type = "file"
+)
+
+overview_stats_df <- tibble()
+for (i in 1:length(compiled_res_paths)) {
+  message("LOADING : ", i)
+  res <- compiled_res_paths[i] %>% readRDS() %>% glimpse()
+  clust <- unique(res$celltype)
+  message("Processing: ", clust)
+  
+  summary_stats <- res %>%
+    group_by(gene_symbol) %>%
+    summarize(
+      median_pvalue = median(pvalue, na.rm = TRUE),
+      mean_pvalue = mean(pvalue, na.rm = TRUE),
+      sd_pvalue = sd(pvalue, na.rm = TRUE),
+      median_adj_pvalue = median(padj, na.rm = TRUE),
+      mean_adj_pvalue = mean(padj, na.rm = TRUE),
+      sd_adj_pvalue = sd(padj, na.rm = TRUE),
+      median_log2fc = median(log2FoldChange, na.rm = TRUE),
+      mean_log2fc = mean(log2FoldChange, na.rm = TRUE),
+      sd_log2fc = sd(log2FoldChange, na.rm = TRUE),
+      .groups = 'drop'
+    ) %>%
+    group_by(gene_symbol) %>%
+    mutate(HIT = mean_pvalue <= 0.05 & abs(mean_log2fc) >= 0.5) %>%
+    mutate(HIT_direction = case_when(
+      HIT & mean_log2fc > 0 ~ "WildR Up",
+      HIT & mean_log2fc < 0 ~ "WildR Down",
+      TRUE ~ "ns"
+    )) %>%
+    ungroup() %>% 
+    mutate(celltype_region = clust) %>%
+    mutate(
+      neg_log_pval = -log10(median_pvalue),
+      neg_log_adj_pval = -log10(median_adj_pvalue)
+    )
+
+  p_volc <- summary_stats %>% 
+    ggplot(aes(x = mean_log2fc, y = -log10(mean_pvalue), color = HIT_direction)) +
+    geom_point(data = summary_stats %>% filter(!HIT), 
+      aes(x = mean_log2fc, y = -log10(mean_pvalue))) +
+    geom_point(data = summary_stats %>% filter(HIT), 
+      aes(x = mean_log2fc, y = -log10(mean_pvalue))) +
+    # Add gene labels for top genes
+    ggrepel::geom_text_repel(
+      data = summary_stats %>% filter(HIT),
+      aes(
+        x = mean_log2fc,
+        y = -log10(mean_pvalue),
+        label = gene_symbol
+      ),
+      size = 3,
+      max.overlaps = Inf,
+      force = 10,
+      force_pull = 0,
+      nudge_x = ifelse(summary_stats$mean_log2fc > 0, 0.25, -0.25),
+      nudge_y = 1,
+      box.padding = 0.8,
+      point.padding = 0.5,
+      segment.color = "grey",
+      segment.size = 0.2,
+      segment.alpha = 0.75,
+      direction = "both",
+      segment.curvature = 0.3,
+      segment.ncp = 3,
+      segment.angle = 10
+    ) +
+    geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+    geom_vline(xintercept = 0.5, linetype = "dashed") +
+    geom_vline(xintercept = -0.5, linetype = "dashed") +
+    theme_bw() +
+    scale_color_manual(values = c("WildR Up" = "#EF433D", "WildR Down" = "#06A0DD", "ns" = "gray80")) +
+    theme(legend.position = "none") +
+    labs(x = "Mean log2FC", y = "-log10(Mean P-Value)", title = glue("Pseudobulk Analysis {clust}"))
+
+  ggsave(
+    filename = glue("{fig_dir}/volcano_plots/{clust}_volcano_plot_2025-05-15.png"),
+    plot = p_volc,
+    width = 6,
+    height = 6,
+    dpi = 300
+  )
+  overview_stats_df %<>% bind_rows(summary_stats)
+}
+
+```
+
+
+
+Moving forward lets use th 
+```{r}
+
+```

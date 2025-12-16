@@ -46,7 +46,6 @@ meta_df_gated %<>%
   glimpse()
 
 meta_df_gated$gated_cell_labels %>% table()
-
 merged_rois$final_gate <- meta_df_gated$final_gate
 merged_rois$gated_cell_labels <- meta_df_gated$gated_cell_labels
 merged_rois@meta.data %>% glimpse
@@ -54,161 +53,6 @@ merged_rois@meta.data %>% glimpse
 #______________________________________
 
 meta_df <- merged_rois@meta.data %>% as.data.table() %>% glimpse
-
-# Analysis to determine if there is enrichment in cell types within gated regions
-nested_cell_abund <- meta_df %>% 
-  filter(final_gate != "") %>%
-  group_by(slice_id, group, run, bregma, final_gate, singleR_labels) %>% 
-  summarize(n = n(), .groups = "drop") %>%
-  group_by(slice_id, final_gate) %>%
-  mutate(rel_abundance = n / sum(n)) %>%
-  ungroup() %>%
-  group_by(final_gate, singleR_labels) %>% 
-  nest()
-
-gated_cell_type_prev_models_df <- nested_cell_abund %>% 
-  mutate(count_model = purrr::map(data, possibly(function(df) lm(n ~ group + run + bregma, data = df), NULL))) %>% 
-  mutate(rel_abund_model = purrr::map(data, possibly(function(df) lm(rel_abundance ~ group + run + bregma, data = df), NULL))) %>% 
-  print(n = Inf)
-
-
-# Extract model results for count models
-count_model_results <- gated_cell_type_prev_models_df %>%
-  filter(count_model != "NULL") %>%
-  mutate(count_tidy = purrr::map(count_model, possibly(broom::tidy, NULL))) %>%
-  select(final_gate, singleR_labels, count_tidy) %>%
-  unnest(count_tidy) %>%
-  mutate(model_type = "Cell Counts") %>% 
-  glimpse()
-
-# Extract model results for relative abundance models  
-rel_abund_model_results <- gated_cell_type_prev_models_df %>%
-  mutate(rel_abund_tidy = purrr::map(rel_abund_model, possibly(broom::tidy, NULL))) %>%
-  select(final_gate, singleR_labels, rel_abund_tidy) %>%
-  unnest(rel_abund_tidy) %>%
-  mutate(model_type = "Relative Abundance") %>% 
-  glimpse()
-
-rel_abund_model_results %>% 
-  filter(term == "groupwildr") %>% 
-  View()
-
-count_model_results %>% 
-  filter(term == "groupwildr") %>% 
-  View()
-
-bothmods <- bind_rows(count_model_results, rel_abund_model_results)
-
-# Combine results and create visualization
-bothmods %>%
-  mutate(colname = glue("{final_gate}_{singleR_labels}")) %>%
-  mutate(signif = p.value <= 0.05) %>%
-  # filter(term == "groupwildr") %>%
-  ggplot(aes(
-    x = estimate,
-    y = fct_reorder(colname, estimate)
-  )) +
-  geom_bar(stat = "identity", width = 0.5, aes(fill = signif)) +
-  geom_errorbar(aes(xmin = estimate - std.error, xmax = estimate + std.error),
-                position = position_dodge(width = 0.8), width = 0.2) +
-  theme_bw() +
-  scale_fill_manual(values = c("TRUE" = "red", "FALSE" = "grey")) +
-  labs(
-    x = "Beta Coefficient WildR / SPF",
-    y = NULL,
-    fill = "Significant"
-  ) +
-  facet_grid(model_type ~ term, space = "free", scales = "free") +
-  theme(legend.position = "top")
-
-
-p_count_mod <- bothmods %>%
-  mutate(colname = glue("{final_gate}_{singleR_labels}")) %>%
-  mutate(signif = p.value <= 0.05) %>%
-  filter(term == "groupwildr") %>%
-  filter(model_type == "Cell Counts") %>%
-  ggplot(aes(
-    x = estimate,
-    y = fct_reorder(colname, estimate)
-  )) +
-  geom_bar(stat = "identity", width = 0.5, aes(fill = signif)) +
-  theme_bw() +
-  scale_fill_manual(values = c("TRUE" = "red", "FALSE" = "grey")) +
-  labs(
-    x = "Beta Coefficient WildR / SPF",
-    y = NULL,
-    fill = "Significant"
-  ) +
-  facet_grid(model_type ~ term, space = "free", scales = "free") +
-  theme(legend.position = "top",
-        axis.text.y = element_text(size = 6)) +
-  scale_y_discrete(breaks = function(x) {
-    # Only show labels for significant results
-    sig_labels <- bothmods %>%
-      filter(term == "groupwildr",
-             model_type == "Cell Counts",
-             p.value <= 0.05) %>%
-      mutate(colname = glue("{final_gate}_{singleR_labels}")) %>%
-      pull(colname)
-    x[x %in% sig_labels]
-  })
-
-ggsave(
-  glue("{wkdir}/figures/Celltype_prop_LM/",
-    "celltype_counts_lm_results-counts-GATED_{Sys.Date()}.png"),
-  p_count_mod,
-  width = 4, height = 6
-)
-
-p_relab_mod <- bothmods %>%
-  mutate(colname = glue("{final_gate}_{singleR_labels}")) %>%
-  mutate(signif = p.value <= 0.05) %>%
-  filter(term == "groupwildr") %>%
-  filter(model_type == "Relative Abundance") %>%
-  ggplot(aes(
-    x = estimate,
-    y = fct_reorder(colname, estimate)
-  )) +
-  geom_bar(stat = "identity", width = 0.5, aes(fill = signif)) +
-  # geom_errorbar(aes(xmin = estimate - std.error, xmax = estimate + std.error),
-  #               position = position_dodge(width = 0.8), width = 0.2) +
-  theme_bw() +
-  scale_fill_manual(values = c("TRUE" = "red", "FALSE" = "grey")) +
-  labs(
-    x = "Beta Coefficient WildR / SPF",
-    y = NULL,
-    fill = "Significant"
-  ) +
-  facet_grid(model_type ~ term, space = "free", scales = "free") +
-  theme(legend.position = "top",
-        axis.text.y = element_text(size = 6)) +
-  scale_y_discrete(breaks = function(x) {
-    # Only show labels for significant results
-    sig_labels <- bothmods %>%
-      filter(term == "groupwildr",
-             model_type == "Relative Abundance",
-             p.value <= 0.05) %>%
-      mutate(colname = glue("{final_gate}_{singleR_labels}")) %>%
-      pull(colname)
-    x[x %in% sig_labels]
-  })
-
-ggsave(
-  glue("{wkdir}/figures/Celltype_prop_LM/",
-    "celltype_counts_lm_results-relab_GATED_{Sys.Date()}.png"),
-  p_relab_mod,
-  width = 4, height = 4
-)
-
-
-
-
-# mtcars_nested <- mtcars_nested %>% 
-#   mutate(model = purrr::map(data, function(df) lm(mpg ~ wt, data = df)))
-# mtcars_nested
-
-#______________________________________
-
 
 merged_rois_filt <- subset(merged_rois, slice_id %nin% c(
     "WILDR run1 roi3", "SPF run2 roi3",
@@ -222,7 +66,7 @@ merged_rois_filt@meta.data$singleR_labels %>% table()
 
 # Get cell counts per label
 label_counts <- table(merged_rois_filt$gated_cell_labels)
-# Get labels that have at least 500 cells
+# Get labels that have at least 200 cells
 keep_labels <- names(label_counts[label_counts >= 200])
 # Filter the Seurat object
 merged_rois_filt <- subset(merged_rois_filt, gated_cell_labels %in% keep_labels)
@@ -238,10 +82,8 @@ saveRDS(merged_rois_filt, glue(
 
 
 # 763,451 to 759,645
-
 counts <- merged_rois_filt@assays$SCT@counts %>% glimpse()
 metadata <- merged_rois_filt@meta.data %>% glimpse()
-
 # Set up metadata as desired for aggregation and DE analysis
 metadata$cluster_id <- factor(merged_rois_filt@meta.data$gated_cell_labels)
 
@@ -305,39 +147,7 @@ for (celltype in unique(metadata$cluster_id)) {
 #    1409    1681    2020    2136    2340    3621 
 
 
-subsample_celltype <- function(df, cell_id, subsamp_n, seed) {
-  require(magrittr)
-  require(dplyr)
-  set.seed(seed)
-  res <- list()
-
-  # Counting cells per slice for the specified cell type
-  slice_counts <- df %>%
-    dplyr::filter(cluster_id == cell_id) %>%
-    dplyr::group_by(sample_id) %>%
-    dplyr::summarize(n = n())
-
-  # Filtering for slices with at least the specified number of cells
-  valid_slices <- slice_counts %>%
-    dplyr::filter(n >= subsamp_n) %>%
-    dplyr::pull(sample_id)
-  
-  subsamp_df <- df %>%
-    dplyr::filter(cluster_id == cell_id, sample_id %in% valid_slices) %>%
-    dplyr::group_by(sample_id) %>%
-    dplyr::sample_n(size = subsamp_n, replace = FALSE) %>%
-    dplyr::ungroup(sample_id)
-
-  res[["subsamp_counts"]] <- subsamp_df %>%
-    dplyr::select(-c(sample_id, cluster_id, group, run, roi, bregma))
-  res[["subsamp_meta"]] <- subsamp_df %>%
-    dplyr::select(c(sample_id))
-  return(res)
-}
-
-
-
-#' generate a list of 10 evenly dispersed values between the 
+#' generate a list of 15 evenly dispersed values between the 
 #' min and max cell type counts per slice 
 
 sample_n_list <- list()
@@ -500,100 +310,6 @@ stopImplicitCluster()
 # Slurm batchtools loop  ---
 #______________________________________________________________________________
 
-run_deseq2_sensitivity_analysis <- function(wkdir, clust, nthreads) {
-  
-  require(glue)
-  source(glue("{wkdir}/notebooks/R_scripts/pseudobulk-subsampling_funcs.R"))
-  registerDoParallel(cores = nthreads)
-
-  #' Following variables are loaded from saved files
-  # sample_n_list
-  # count_df
-  # core_deseq_meta_df
-
-  deseq2_clust_dir <- glue(
-    "{wkdir}/data/interim/DESeq2/subsampling/",
-    "gated_12-samples_group-run/{clust}"
-  )
-
-  # Middle loop for subsampling numbers
-  for (subsamp_n in sample_n_list[[clust]]) {
-    # Check if all iterations for this cluster and subsample size already exist
-    all_iterations_exist <- all(sapply(1:50, function(niter) {
-      deseq2_dir <- glue("{deseq2_clust_dir}/n_{subsamp_n}/iter_{niter}")
-      dir.exists(deseq2_dir)
-    }))
-
-    if (all_iterations_exist) {
-      message("All iterations already exist for cluster ",
-        clust, " and subsample size ", subsamp_n
-      )
-      next
-    }
-
-    # Parallel execution of iterations
-    results <- foreach::foreach(niter = 1:50, .packages = c("glue", "DESeq2", "dplyr", "Matrix.utils")) %dopar% {
-      deseq2_dir <- glue("{deseq2_clust_dir}/n_{subsamp_n}/iter_{niter}")
-      if (dir.exists(deseq2_dir)) {
-        return(NULL)
-      }
-
-      dir.create(deseq2_dir, showWarnings = FALSE, recursive = TRUE)
-
-      # Subsampling cell type
-      subsamp_data <- subsample_celltype(
-        df = count_df,
-        cell_id = clust,
-        subsamp_n = subsamp_n,
-        seed = 42 + niter  # Use different seed for each iteration
-      )
-
-      aggr_counts_subsamp <- Matrix.utils::aggregate.Matrix(
-        subsamp_data$subsamp_counts,
-        groupings = subsamp_data$subsamp_meta,
-        fun = "sum"
-      ) %>% t()
-
-      deseq_meta <- dplyr::distinct(subsamp_data$subsamp_meta) %>% 
-        dplyr::left_join(core_deseq_meta_df, by = c("sample_id")) %>% 
-        dplyr::mutate_if(is.character, as.factor) %>%
-        dplyr::distinct()
-
-      # Create DESeq2 object        
-      dds <- DESeq2::DESeqDataSetFromMatrix(aggr_counts_subsamp, 
-                                    colData = deseq_meta, 
-                                    design = ~ group + run)
-
-      # RUNNING DESEQ2
-      tryCatch({
-        dds <- DESeq2::DESeq(dds)
-        saveRDS(dds, glue("{deseq2_dir}/dds_{Sys.Date()}.rds"))
-
-        # Generate results object
-        res <- DESeq2::results(dds, 
-                        name = "group_wildr_vs_spf",
-                        alpha = 0.05,
-                        contrast = c("group", "wildr", "spf"))
-        res <- DESeq2::lfcShrink(dds, 
-                          coef = "group_wildr_vs_spf",
-                          res=res,
-                          type = "apeglm")
-
-        saveRDS(res, glue("{deseq2_dir}/res_{Sys.Date()}.rds"))
-
-        return(TRUE)  # Indicate successful completion
-      }, error = function(e) {
-        message("Error occurred in iteration ", niter,
-                " for cluster ", clust,
-                " and subsample ", subsamp_n,
-                ": ", e$message)
-        return(FALSE)  # Indicate unsuccessful completion
-      })
-    }
-  }
-}
-
-
 sample_n_list_gated <- names(sample_n_list) %>% 
   str_detect(paste(gated_suffixes, collapse = "|")) %>% 
   sample_n_list[.]
@@ -673,12 +389,13 @@ dir.create(complied_dir, showWarnings = FALSE, recursive = TRUE)
 #' Function to aggregated interations of DESeq2 subsamples
 process_celltype_results <- function(gated_celltype,
                                    structured_res_paths,
-                                   complied_dir) {
+                                   complied_dir,
+                                   analysis_date = Sys.Date()) {
   require(glue)
   require(magrittr)
 
   # Check if the file already exists
-  output_file <- glue("{complied_dir}/{gated_celltype}_res_{Sys.Date()}.rds")
+  output_file <- glue("{complied_dir}/{gated_celltype}_res_{analysis_date}.rds")
   if (file.exists(output_file)) {
     message(glue("File already exists for {gated_celltype}. Skipping..."))
     return(NULL)
@@ -701,7 +418,7 @@ process_celltype_results <- function(gated_celltype,
     dplyr::mutate(subsamp_n = as.numeric(gsub("n_", "", subsamp_n))) %>%
     dplyr::mutate(subsamp_n = as.numeric(round(subsamp_n)))
 
-  saveRDS(res_df, glue("{complied_dir}/{gated_celltype}_res_{Sys.Date()}.rds"))
+  saveRDS(res_df, glue("{complied_dir}/{gated_celltype}_res_{analysis_date}.rds"))
 }
 
 future::plan("multisession", workers = 28)
