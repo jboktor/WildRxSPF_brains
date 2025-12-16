@@ -9,3 +9,4 @@ data
 notebooks/misc_*
 notebooks/*.html
 notebooks/shell_scripts/slurm_download_aws_singlenuclei.sh
+.env
