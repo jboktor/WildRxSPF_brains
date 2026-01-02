@@ -1,0 +1,296 @@
+---
+title: "Augur Single Nuclei Analysis"
+editor: source
+author: "Joe Boktor"
+date: '2025-12-27'
+format: 
+  html:
+    self-contained: true
+    code-fold: true
+    code-tools: true
+    fig-align: right
+    fig-height: 8
+    fig-width: 14 
+---
+
+
+```{r}
+library(Seurat)
+library(Matrix)
+library(irlba)
+library(scico)
+library(tidyverse)
+library(patchwork)
+library(glue)
+library(presto)
+library(hdf5r)
+library(tidyseurat)
+library(Augur)
+library(batchtools)
+
+library(tictoc)
+library(future)
+library(strex)
+library(cowplot)
+library(aplot)
+library(SingleCellExperiment)
+library(BiocParallel)
+library(ggside)
+
+theme_set(theme_bw())
+
+home_dir <- "/resnick/groups/MazmanianLab/jboktor"
+rnk_dir <- "/resnick/groups/mthomson/jboktor"
+split_pipe_dir <- glue("{rnk_dir}/split-pipe_workflow")
+wkdir <- glue("{home_dir}/WILDRxSPF_brains")
+anndata_path <- glue("{wkdir}/data/input/parse_bio_anndata")
+data_path <- glue("{wkdir}/data/interim")
+fig_path <- glue("{wkdir}/figures")
+abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
+
+source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
+
+# Set memory limit for future
+options(future.globals.maxSize = 200000 * 1024^2)  # Set to ~200GB
+# Use more memory-efficient serialization
+options(future.serialization.progressr = FALSE)
+options(future.serialization.progressr.enable = FALSE)
+
+# future::plan(multisession, workers = 3)
+# future::plan(sequential)
+
+```
+
+
+Loading Seurat object
+
+
+```{r}
+seurat_obj <- readRDS( 
+    glue("{data_path}/seurat/snRNASeq/",
+    "seurat_obj_onlyparsefilters_celltyped_2025-12-27.rds")
+    )
+seurat_obj
+# Subset the seurat object to only keep cells that pass the QC filters
+seurat_obj <- seurat_obj %>% subset(subset = keep_cell)
+seurat_obj@meta.data %>% glimpse()
+
+```
+
+
+
+
+EdgeR and DESeq2 differential expression analysis for class, subclass, and supertype. Only protein coding genes.
+
+```{r}
+source(glue("{wkdir}/notebooks/R_scripts/pseudobulk-edgeR-DESeq2.R"))
+
+# # # Example run
+# run_pseudobulk_de(
+#     cell_type_column = "supertype_label", 
+#     group_column = "microbiome", 
+#     tissue = "AMY", 
+#     celltype = "CS20230722_SUPT_0039"
+#     )
+
+```
+
+
+```{r}
+metadata_df <- seurat_obj@meta.data %>% glimpse()
+celltype_droplist <- readRDS(
+  glue("{data_path}/seurat/snRNASeq/celltype_droplist_2025-12-30.rds")
+  )
+
+class_batchdata <- 
+    dplyr::select(metadata_df, celltype = class_label, tissue) %>% 
+    distinct() %>%
+    mutate(cell_type_column = "class_label")
+subclass_batchdata <- 
+    dplyr::select(metadata_df, celltype = subclass_label, tissue) %>% 
+    distinct() %>%
+    mutate(cell_type_column = "subclass_label")
+supertype_batchdata <- 
+    dplyr::select(metadata_df, celltype = supertype_label, tissue) %>% 
+    distinct() %>%
+    mutate(cell_type_column = "supertype_label")
+
+batchparams_df <- 
+    bind_rows(class_batchdata, subclass_batchdata, supertype_batchdata) %>% 
+    left_join(celltype_droplist) %>%
+    filter(is.na(dropme)) %>% 
+    mutate(group_column = "microbiome") %>% 
+    dplyr::select(cell_type_column, celltype, tissue, group_column) %>% 
+    glimpse()
+
+```
+
+
+```{r}
+# configure registry ----
+cluster_run <- glue("{get_time()}_PseudoBulk_snRNASeq")
+message("\n\nRUNNING:  ", cluster_run, "\n")
+breg <- makeRegistry(
+  file.dir = glue("{wkdir}/.cluster_runs/", cluster_run),
+  seed = 42
+)
+breg$cluster.functions <- batchtools::makeClusterFunctionsSlurm(
+  template = glue("{wkdir}/batchtools_templates/",
+    "batchtools.slurm_mamba-spatialomics.tmpl"),
+  scheduler.latency = 0.1,
+  fs.latency = 1
+)
+# Submit Jobs ----
+jobs <- batchMap(
+  fun = run_pseudobulk_de,
+  args = batchparams_df,
+  reg = breg
+)
+
+# jobs[, chunk := chunk(job.id, chunk.size = 1)]
+# print(jobs[, .N, by = chunk])
+submitJobs(jobs,
+  resources = list(
+    walltime = 240, # mins (4 hrs)
+    memory = "200GB",
+    ncpus = 4,
+    max.concurrent.jobs = 9999
+  )
+)
+```
+
+
+## Visualizing results
+
+
+```{r}
+edger_dir <- glue("{data_path}/edgeR/snRNASeq")
+deseq2_dir <- glue("{data_path}/DESeq2/snRNASeq")
+
+deseq2_res_paths <- list.files(deseq2_dir, recursive = TRUE, full.names = TRUE, pattern = "res_2025") %>% 
+    keep(~ grepl("_label/", .))
+edgeR_res_paths <- list.files(edger_dir, recursive = TRUE, full.names = TRUE, pattern = "res_lrt_2025") %>% 
+    keep(~ grepl("_label/", .))
+
+deseq2_res <- deseq2_res_paths %>% 
+    purrr::set_names(basename(dirname(.))) %>%
+    purrr::map(~ readRDS(.) %>% 
+        as.data.frame() %>% 
+        filter(pvalue < 0.05) %>%  # filter for nominal significance
+        rownames_to_column("gene")) %>% 
+    bind_rows(.id = "celltype") %>% 
+    glimpse()
+
+edgeR_res <- edgeR_res_paths %>% 
+    purrr::set_names(basename(dirname(.))) %>%
+    purrr::map(~ readRDS(.) %>% 
+        as.data.frame() %>% 
+        filter(PValue < 0.05) %>%  # filter for nominal significance
+        rownames_to_column("gene")) %>% 
+    bind_rows(.id = "celltype") %>% 
+    glimpse()
+
+
+saveRDS(deseq2_res, glue("{data_path}/DESeq2/snRNASeq/deseq2_signif_hits_res_{Sys.Date()}.rds"))
+saveRDS(edgeR_res, glue("{data_path}/edgeR/snRNASeq/edgeR_signif_hits_lrt_res_{Sys.Date()}.rds"))
+
+# # how many DEGs per celltype (no FDR)
+# total_genes_tested <- deseq2_res_pcoding %>% 
+#     group_by(celltype) %>% 
+#     tally(name = "total_genes_tested") %>% 
+#     glimpse()
+# nominal_pval_dseq2 <- deseq2_res_pcoding %>% 
+#     filter(pvalue < 0.05) %>% 
+#     group_by(celltype) %>% 
+#     tally(name = "DESeq2_pvalue_hits") %>% 
+#     glimpse()
+# nominal_pval_edgeR <- edgeR_res_pcoding %>% 
+#     filter(PValue < 0.05) %>% 
+#     group_by(celltype) %>% 
+#     tally(name = "EdgeR_pvalue_hits") %>% 
+# #     glimpse()
+
+# summary_dt_table <- total_genes_tested %>% 
+#     left_join(nominal_pval_dseq2, by = "celltype") %>% 
+#     left_join(nominal_pval_edgeR, by = "celltype") %>% 
+#     arrange(desc(DESeq2_pvalue_hits)) %>% 
+#     mutate(DESeq2_frac_sig = round((DESeq2_pvalue_hits / total_genes_tested)*100, 2)) %>% 
+#     mutate(EdgeR_frac_sig = round((EdgeR_pvalue_hits / total_genes_tested)*100, 2)) %>% 
+#     glimpse()
+
+# summary_dt_table %>% DT::datatable()
+
+class_top_hits_edgeR <- edgeR_res %>% filter(FDR < 0.1) %>% 
+    mutate(gene = gsub("-GRCm39", "", gene)) %>% 
+    filter(abs(logFC) >= 0.2) %>% 
+    glimpse()
+class_top_hits_edgeR %>% DT::datatable()
+
+class_top_hits_deseq2 <- deseq2_res %>% filter(padj < 0.1) %>% 
+    mutate(gene = gsub("-GRCm39", "", gene)) %>% 
+    filter(abs(log2FoldChange) >= 0.2) %>% 
+    glimpse()
+class_top_hits_deseq2 %>% DT::datatable()
+
+# Visualizing DESeq2 results BOXPLOTS
+class_boxplot_dir <- glue("{wkdir}/figures/pseudobulk_boxplots/DESeq2/class")
+dir.create(class_boxplot_dir, showWarnings = FALSE, recursive = TRUE)
+
+for (i in 1:nrow(class_top_hits_deseq2)) {
+    coi <- class_top_hits_deseq2$celltype[i]
+    genename <- class_top_hits_deseq2$gene[i]
+
+    final_img_path <- glue("{class_boxplot_dir}/{genename}_{coi}_combined.png")
+    if (file.exists(final_img_path)) next
+    message(glue("Processing {coi} for {genename}"))
+    
+    # Visualize pseudobulk data
+    dds_path <- glue("{snrna_deseq2_dir}/AllCells_protein_coding/{coi}/dds_2025-10-15.rds")
+    dds <- readRDS(dds_path)
+    pseudobulk_plot_df <- DESeq2::counts(dds, normalized = TRUE) %>% 
+        as.data.frame() %>% 
+        rownames_to_column("gene") %>% 
+        filter(gene == glue("{genename}-GRCm39")) %>% 
+        pivot_longer(cols = -gene, names_to = "sample", values_to = "normalized_counts") %>%
+        mutate(group = sample %>% str_before_first("_")) %>%
+        glimpse()
+
+    p_box_pseudobulk <- plot_pseudobulk_boxplot(pseudobulk_plot_df, coi, genename)
+
+    # seurat_obj_filt_protcoding@meta.data %>% glimpse()
+    single_cell_plot_df <- seurat_obj_filt_protcoding %>% 
+        subset(class_name_region == coi) %>% 
+        FetchData(vars = c(glue("{genename}-GRCm39"), "class_name", "group", "sample")) %>%
+        mutate(gene_expression = log2(.data[[glue("{genename}-GRCm39")]] + 1)) %>% 
+        glimpse()
+    # single_cell_plot_df %>% glimpse()
+    
+    p_box_single_cell <- plot_seurat_boxplot(single_cell_plot_df, coi, genename)
+
+    p_box_combined <- p_box_single_cell + p_box_pseudobulk + 
+        plot_annotation(title = glue("{genename} {coi}")) + 
+        plot_layout(ncol = 2, widths = c(2, 1))
+    
+    ggsave(glue("{class_boxplot_dir}/{genename}_{coi}_combined.png"), p_box_combined, width = 6, height = 4)
+}
+
+deseq2_res_pcoding %>% glimpse()
+deseq2_res_pcoding %>% filter(pvalue < 0.05) %>% View
+
+edgeR_res_pcoding %>% glimpse()
+edgeR_res_pcoding %>% filter(PValue < 0.05) %>% View
+
+deg_res <- deseq2_res_pcoding %>% 
+    left_join(edgeR_res_pcoding, by = c("celltype", "gene")) %>% glimpse()
+
+p_deg <- deg_res %>% 
+    ggplot(aes(x = pvalue, y = PValue)) +
+    geom_point() +
+    geom_abline(slope = 1, intercept = 0) +
+    facet_wrap(~ celltype) +
+    theme_minimal()
+
+ggsave(glue("deg_res.png"), p_deg, width = 10, height = 10)
+
+
+```

@@ -36,7 +36,7 @@ source activate neuroestimator2
 
 ## Use /scratch on the node, TMPDIR is mounted as tmpfs
 export DEBUGME=<%= Sys.getenv("DEBUGME") %>
-export TMPDIR=/central/scratch/jbok/R/${SLURM_JOBID}
+export TMPDIR=/resnick/scratch/jboktor/R/${SLURM_JOBID}
 mkdir -p ${TMPDIR}
 
 ## Run R:

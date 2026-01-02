@@ -25,7 +25,7 @@ source activate pdmbsR
 export DEBUGME=<%= Sys.getenv("DEBUGME") %>
 
 ## Use /scratch on the node, TMPDIR is mounted as tmpfs
-export TMPDIR=/central/scratch/jbok/R/${SLURM_JOBID}
+export TMPDIR=/resnick/scratch/jboktor/R/${SLURM_JOBID}
 mkdir -p ${TMPDIR}
 
 ## Run R:

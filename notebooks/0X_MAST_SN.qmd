@@ -1,0 +1,373 @@
+---
+title: "Augur Single Nuclei Analysis"
+editor: source
+author: "Joe Boktor"
+date: '2025-12-27'
+format: 
+  html:
+    self-contained: true
+    code-fold: true
+    code-tools: true
+    fig-align: right
+    fig-height: 8
+    fig-width: 14 
+---
+
+Loading libraries
+
+```{r}
+library(Seurat)
+library(Matrix)
+library(irlba)
+library(scico)
+library(tidyverse)
+library(patchwork)
+library(glue)
+library(presto)
+library(hdf5r)
+library(tidyseurat)
+library(Augur)
+library(batchtools)
+
+library(tictoc)
+library(future)
+library(strex)
+library(cowplot)
+library(aplot)
+library(SingleCellExperiment)
+library(BiocParallel)
+library(ggside)
+
+theme_set(theme_bw())
+
+home_dir <- "/resnick/groups/MazmanianLab/jboktor"
+rnk_dir <- "/resnick/groups/mthomson/jboktor"
+split_pipe_dir <- glue("{rnk_dir}/split-pipe_workflow")
+wkdir <- glue("{home_dir}/WILDRxSPF_brains")
+anndata_path <- glue("{wkdir}/data/input/parse_bio_anndata")
+data_path <- glue("{wkdir}/data/interim")
+fig_path <- glue("{wkdir}/figures")
+abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
+
+source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
+
+# Set memory limit for future
+options(future.globals.maxSize = 200000 * 1024^2)  # Set to ~200GB
+# Use more memory-efficient serialization
+options(future.serialization.progressr = FALSE)
+options(future.serialization.progressr.enable = FALSE)
+
+# future::plan(multisession, workers = 3)
+# future::plan(sequential)
+
+```
+
+
+Loading Seurat object
+
+
+```{r}
+seurat_obj <- readRDS( 
+    glue("{data_path}/seurat/snRNASeq/",
+    "seurat_obj_onlyparsefilters_celltyped_2025-12-27.rds")
+    )
+seurat_obj
+# Subset the seurat object to only keep cells that pass the QC filters
+seurat_obj <- seurat_obj %>% subset(subset = keep_cell)
+seurat_obj@meta.data %>% glimpse()
+
+```
+
+
+
+MAST Function
+
+```{r}
+# Gene inclusion filter (expressed in at least 10% of cells)
+# Cell type filter - must have at least 50 WildR and 50 SPF cells
+# If there are at least 2k cells per group, randomly subsample to 2k cells per group
+
+run_mast <- function(cell_type_column, celltype, tissue)  {
+    get_time <- function() print(format(Sys.time(), "%Y-%m-%d_%H:%M:%S"))
+
+    require(MAST)
+    require(dplyr)
+    require(data.table)
+    require(Seurat)
+    require(glue)
+    require(magrittr)
+
+    wkdir <- "/resnick/groups/MazmanianLab/jboktor/WILDRxSPF_brains"
+    data_path <- glue("{wkdir}/data/interim")
+    seur_path <- glue("{data_path}/seurat/snRNASeq/seurat_obj_onlyparsefilters_celltyped_2025-12-27.rds")
+    seurat_obj <- readRDS(seur_path)
+
+    # filter out quality cells only
+    seur_analysis <- seurat_obj %>% subset(subset = keep_cell)
+
+    # Filter CELLS using metadata directly
+    message(glue("{get_time()} Filtering cells"))
+    cells_to_keep <- seur_analysis@meta.data[[cell_type_column]] == celltype & 
+                    seur_analysis@meta.data$tissue == tissue
+    seur_analysis <- seur_analysis[, cells_to_keep]
+
+    # generate a log standardized nFeature_RNA score
+    message(glue("{get_time()} Generating log standardized nFeature_RNA score"))
+    seur_analysis$log_std_nFeature_RNA <- scale(log10(seur_analysis@meta.data$nFeature_RNA + 1))
+
+    # cpm normalization
+    message(glue("{get_time()} Normalizing data"))
+    seur_analysis <- Seurat::NormalizeData(seur_analysis, 
+                                normalization.method = "RC", 
+                                scale.factor = 1e6,
+                                verbose = TRUE)
+
+    # filter GENES using criteria (protein coding and thresholded prevalence)
+    message(glue("{get_time()} Filtering genes"))
+    gene_meta <- seur_analysis[["RNA"]][[]] %>% glimpse()
+    mat <- SeuratObject::GetAssayData(seur_analysis, assay = "RNA", layer = "counts")
+    gene_prevalence <- Matrix::rowSums(mat > 0) / ncol(mat)
+    gene_thres <- gene_prevalence >= 0.1
+    genes_to_test <- gene_meta[gene_thres, ] %>% 
+        dplyr::filter(gene_type == "protein_coding") %>% 
+        rownames()
+
+    message(glue("{get_time()} Filtered from {nrow(seur_analysis)} to {length(genes_to_test)} genes"))
+    seur_analysis <- seur_analysis[genes_to_test, ]
+
+    # pulling out the cpm matrix
+    cpm_matrix <- SeuratObject::GetAssayData(seur_analysis, layer = "data")
+    # Log2 scaling CPM gene counts
+    message(glue("{get_time()} Log2 scaling CPM matrix"))
+    log2_cpm_matrix <- log2(cpm_matrix + 1)
+
+    # assembling the SingleCellAssay object
+    sca <- MAST::FromMatrix(
+        exprsArray = as.matrix(log2_cpm_matrix), 
+        cData = as.data.frame(seur_analysis@meta.data)
+    )
+    
+    # fit MAST models 
+    message(glue("{get_time()} Fitting MAST models\n"))
+    zlm <- MAST::zlm(~ microbiome + log_std_nFeature_RNA, sca)
+
+    # LRT analysis 
+    message(glue("{get_time()} Performing LRT analysis"))
+    summary_res <- summary(zlm, doLRT = "microbiomeWildR")
+    summary_res %>% glimpse()
+
+    summary_resDt <- summary_res$datatable
+        mast_res_df <- merge(
+            summary_resDt[
+                contrast=='microbiomeWildR' & component=='H',.(primerid, `Pr(>Chisq)`)], #hurdle P values    
+            summary_resDt[
+                contrast=='microbiomeWildR' & component=='logFC', .(primerid, coef, ci.hi, ci.lo)], #logFC coefficients
+                by='primerid')
+
+    mast_res_df[,p_adjust:=p.adjust(`Pr(>Chisq)`, 'BH')]
+    output_path = glue(
+            "/resnick/groups/MazmanianLab/jboktor/WILDRxSPF_brains/data/interim/",
+            "mast/snRNASeq/{cell_type_column}/",
+            "{celltype}_{tissue}_{Sys.Date()}.rds")
+
+    dir.create(dirname(output_path), showWarnings = FALSE, recursive = TRUE)
+    message(glue("{get_time()} Saving results to {output_path}"))
+    saveRDS(mast_res_df, output_path)
+}
+
+
+# # example run
+# run_mast(
+#     cell_type_column = "subclass_label", 
+#     celltype = "CS20230722_SUBC_002", 
+#     tissue = "AMY"
+#     )
+```
+
+
+Generating slurm batch parameters dataframe - selecting celltypes to run MAST on
+
+```{r}
+celltype_droplist <- readRDS(
+  glue("{data_path}/seurat/snRNASeq/celltype_droplist_2025-12-30.rds")
+  )
+
+metadata_df <- seurat_obj@meta.data %>% glimpse()
+class_batchdata <- 
+    dplyr::select(metadata_df, celltype = class_label, tissue) %>% 
+    distinct() %>%
+    mutate(cell_type_column = "class_label")
+subclass_batchdata <- 
+    dplyr::select(metadata_df, celltype = subclass_label, tissue) %>% 
+    distinct() %>%
+    mutate(cell_type_column = "subclass_label")
+supertype_batchdata <- 
+    dplyr::select(metadata_df, celltype = supertype_label, tissue) %>% 
+    distinct() %>%
+    mutate(cell_type_column = "supertype_label")
+
+batchparams_df <- 
+    bind_rows(class_batchdata, subclass_batchdata, supertype_batchdata) %>% 
+    left_join(celltype_droplist) %>%
+    filter(is.na(dropme)) %>% 
+    dplyr::select(cell_type_column, celltype, tissue) %>% 
+    glimpse()
+
+```
+
+
+Executing slurm workflow for all runs (classes, subclasses, and supertypes)
+
+
+```{r}
+# configure registry ----
+cluster_run <- glue("{get_time()}_MAST_SingleNuclei")
+message("\n\nRUNNING:  ", cluster_run, "\n")
+breg <- makeRegistry(
+  file.dir = glue("{wkdir}/.cluster_runs/", cluster_run),
+  seed = 42
+)
+breg$cluster.functions <- batchtools::makeClusterFunctionsSlurm(
+  template = glue("{wkdir}/batchtools_templates/",
+    "batchtools.slurm_mamba-spatialomics.tmpl"),
+  scheduler.latency = 0.1,
+  fs.latency = 1
+)
+# Submit Jobs ----
+jobs <- batchMap(
+  fun = run_mast,
+  args = batchparams_df,
+  reg = breg
+)
+
+jobs[, chunk := chunk(job.id, chunk.size = 3)]
+print(jobs[, .N, by = chunk])
+
+submitJobs(jobs,
+  resources = list(
+    walltime = 120, # mins (2 hrs)
+    memory = "200GB",
+    ncpus = 4,
+    max.concurrent.jobs = 9999
+  )
+)
+
+```
+
+
+Aggregating results
+
+```{r}
+mast_resdir <- glue("{data_path}/mast/snRNASeq")
+
+class_res_paths <- list.files(
+  glue("{mast_resdir}/class_label"), full.names = TRUE)
+subclass_res_paths <- list.files(
+  glue("{mast_resdir}/subclass_label"), full.names = TRUE)
+supertype_res_paths <- list.files(
+  glue("{mast_resdir}/supertype_label"), full.names = TRUE)
+
+pull_mast_res <- function(mast_rds_path) {
+    readRDS(mast_rds_path) %>% filter(p_adjust < 0.05)
+}
+
+format_mast_res <- function(mast_res_paths) {
+  mast_res_paths %>% 
+    set_names(basename(.) %>% str_before_last("_")) %>%
+    furrr::future_map(pull_mast_res) %>% 
+    bind_rows(.id = "celltype_tissue") %>% 
+    mutate(tissue = str_after_last(celltype_tissue, "_")) %>%
+    mutate(cell_type = str_before_last(celltype_tissue, "_")) %>%
+    glimpse()
+}
+
+future::plan("multisession", workers = 10)
+class_hits <- class_res_paths %>% format_mast_res() %>% glimpse()
+subclass_hits <- subclass_res_paths %>% format_mast_res()
+supertype_hits <- supertype_res_paths %>% format_mast_res()
+
+allen_annot_df <- seurat_obj@meta.data %>% 
+  select(class_name, class_label, subclass_name, 
+    subclass_label, supertype_name, supertype_label) %>% 
+  distinct() %>% 
+  glimpse()
+
+# adding back cell type names to labels
+class_mast_df <- class_hits %>% left_join(
+  allen_annot_df %>% select(class_label, class_name) %>% distinct(), 
+  by = c("cell_type" = "class_label")) %>% 
+  glimpse()
+subclass_mast_df <- subclass_hits %>% left_join(
+  allen_annot_df %>% select(subclass_label, subclass_name) %>% distinct(), 
+  by = c("cell_type" = "subclass_label")) %>% 
+  glimpse()
+supertype_mast_df <- supertype_hits %>% left_join(
+  allen_annot_df %>% select(supertype_label, supertype_name) %>% distinct(), 
+  by = c("cell_type" = "supertype_label")) %>% 
+  glimpse()
+
+saveRDS(class_mast_df,
+  glue("{data_path}/mast/snRNASeq/class_mast_signif_hits_{Sys.Date()}.rds")
+  )
+saveRDS(subclass_mast_df, 
+  glue("{data_path}/mast/snRNASeq/subclass_mast_signif_hits_{Sys.Date()}.rds")
+  )
+saveRDS(supertype_mast_df, 
+  glue("{data_path}/mast/snRNASeq/supertype_mast_signif_hits_{Sys.Date()}.rds")
+  )
+
+```
+
+
+
+Analyzing results
+
+```{r}
+# Loading significant MAST results
+class_mast_df <- readRDS(
+  glue("{data_path}/mast/snRNASeq/class_mast_signif_hits_2025-12-31.rds")
+  )
+subclass_mast_df <- readRDS(
+  glue("{data_path}/mast/snRNASeq/subclass_mast_signif_hits_2025-12-31.rds")
+  )
+supertype_mast_df <- readRDS(
+  glue("{data_path}/mast/snRNASeq/supertype_mast_signif_hits_2025-12-31.rds")
+  )
+
+# loading in AUGUR AUC results
+subclass_aucs_df <- readRDS(
+  glue("{data_path}/augur/snRNASeq/subclass_aucs_df_2025-12-30.rds")
+  )
+supertype_aucs_df <- readRDS(
+  glue("{data_path}/augur/snRNASeq/supertype_aucs_df_2025-12-30.rds")
+  )
+
+mast_df <- supertype_mast_df %>% glimpse()
+augur_df <- supertype_aucs_df %>% glimpse()
+groupbyvar <- "supertype_name"
+# groupbyvar <- "subclass_name"
+
+deg_summary_subclass <- mast_df %>% 
+    group_by(celltype_tissue, {{groupbyvar}}) %>% 
+    dplyr::summarise(n_deg_hits = n(), .groups = "drop") %>% 
+    arrange(desc(n_deg_hits)) %>% 
+    left_join(augur_df) %>% 
+    glimpse()
+
+p_subclass_mast_v_augur <- deg_summary_subclass %>% 
+    # filter(auc > 0.5) %>% 
+    ggplot(aes(x = auc, y = n_deg_hits, color = tissue)) +
+    geom_point() +
+    theme_bw() +
+    # geom_smooth(method = "loess") +
+    # scale_x_log10() +
+    scale_y_log10() +
+    labs(x = "AUROC", y = "Number of DEG Hits", color = "Cell Type") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(glue("{fig_path}/DEG/snRNASeq/subclass_mast_v_augur_{Sys.Date()}.png"), 
+    p_subclass_mast_v_augur, width = 6, height = 4)
+
+
+
+```

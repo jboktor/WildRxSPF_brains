@@ -1,0 +1,163 @@
+---
+title: "Differential Expression Analysis Visualization and Interpretation"
+editor: source
+author: "Joe Boktor"
+date: '2026-01-01'
+format: 
+  html:
+    self-contained: true
+    code-fold: true
+    code-tools: true
+    fig-align: right
+    fig-height: 8
+    fig-width: 14 
+---
+
+
+```{r}
+library(Seurat)
+library(Matrix)
+library(irlba)
+library(scico)
+library(tidyverse)
+library(patchwork)
+library(glue)
+library(presto)
+library(hdf5r)
+library(tidyseurat)
+library(Augur)
+library(batchtools)
+
+library(tictoc)
+library(future)
+library(strex)
+library(cowplot)
+library(aplot)
+library(SingleCellExperiment)
+library(BiocParallel)
+library(ggside)
+
+theme_set(theme_bw())
+
+home_dir <- "/resnick/groups/MazmanianLab/jboktor"
+rnk_dir <- "/resnick/groups/mthomson/jboktor"
+split_pipe_dir <- glue("{rnk_dir}/split-pipe_workflow")
+wkdir <- glue("{home_dir}/WILDRxSPF_brains")
+anndata_path <- glue("{wkdir}/data/input/parse_bio_anndata")
+data_path <- glue("{wkdir}/data/interim")
+fig_path <- glue("{wkdir}/figures")
+abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
+
+source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
+
+# Set memory limit for future
+options(future.globals.maxSize = 200000 * 1024^2)  # Set to ~200GB
+# Use more memory-efficient serialization
+options(future.serialization.progressr = FALSE)
+options(future.serialization.progressr.enable = FALSE)
+
+# future::plan(multisession, workers = 3)
+# future::plan(sequential)
+
+```
+
+
+Loading Seurat object
+
+
+```{r}
+seurat_obj <- readRDS( 
+    glue("{data_path}/seurat/snRNASeq/",
+    "seurat_obj_onlyparsefilters_celltyped_2025-12-27.rds")
+    )
+seurat_obj
+# Subset the seurat object to only keep cells that pass the QC filters
+seurat_obj <- seurat_obj %>% subset(subset = keep_cell)
+seurat_obj@meta.data %>% glimpse()
+
+allen_annot_df <- seurat_obj@meta.data %>% 
+  select(class_name, class_label, subclass_name, 
+    subclass_label, supertype_name, supertype_label) %>% 
+  distinct() %>% 
+  glimpse()
+
+allen_annot_long <- allen_annot_df %>% 
+  pivot_longer(
+    cols = everything(),
+    names_to = c("cell_type_level", ".value"),
+    names_pattern = "(class|subclass|supertype)_(name|label)"
+  ) %>% 
+  dplyr::rename(cell_type_name = name, cell_type_label = label) %>% 
+  glimpse()
+
+```
+
+
+Loading Analysis Results
+
+```{r}
+# clean  up format of MAST results
+format_mastdf <- function(mast_df, name_col, level_col) {
+  mast_df %>% 
+    dplyr::rename(cell_type_name = {{name_col}}) %>% 
+    janitor::clean_names() %>% 
+    mutate(cell_type_level = {{level_col}}) %>% 
+    glimpse()
+} 
+
+# MAST Results (signficant hits only)
+class_mast_df <- readRDS(glue("{data_path}/mast/snRNASeq/class_mast_signif_hits_2025-12-31.rds")) %>% 
+    format_mastdf(name_col = "class_name", level_col = "class")
+subclass_mast_df <- readRDS(
+  glue("{data_path}/mast/snRNASeq/subclass_mast_signif_hits_2025-12-31.rds")) %>% 
+    format_mastdf(name_col = "subclass_name", level_col = "subclass")
+supertype_mast_df <- readRDS(
+  glue("{data_path}/mast/snRNASeq/supertype_mast_signif_hits_2025-12-31.rds")) %>% 
+    format_mastdf(name_col = "supertype_name", level_col = "supertype")
+mast_df <- bind_rows(class_mast_df, subclass_mast_df, supertype_mast_df) %>% 
+    glimpse()
+
+
+# Augur Results
+format_augurdf <- function(augur_df, name_col, level_col) {
+  augur_df %>% 
+    dplyr::rename(cell_type_name = {{name_col}}) %>% 
+    mutate(cell_type_level = {{level_col}}) %>% 
+    glimpse()
+}
+
+class_aucs_df <- readRDS(
+  glue("{data_path}/augur/snRNASeq/class_aucs_df_2025-12-30.rds")) %>% 
+  format_augurdf(name_col = "class_name", level_col = "class")
+subclass_aucs_df <- readRDS(
+  glue("{data_path}/augur/snRNASeq/subclass_aucs_df_2025-12-30.rds")) %>% 
+  format_augurdf(name_col = "subclass_name", level_col = "subclass")
+supertype_aucs_df <- readRDS(
+  glue("{data_path}/augur/snRNASeq/supertype_aucs_df_2025-12-30.rds")) %>% 
+  format_augurdf(name_col = "supertype_name", level_col = "supertype")
+augur_df <- bind_rows(class_aucs_df, subclass_aucs_df, supertype_aucs_df) %>% 
+    glimpse()
+
+# PseudoBulk Results (EdgeR LRT)
+edgeR_res <- readRDS(
+  glue("{data_path}/edgeR/snRNASeq/edgeR_signif_hits_lrt_res_{Sys.Date()}.rds")) %>% 
+  mutate(
+    celltype_tissue = celltype, 
+    cell_type = str_before_last(celltype, "_"), 
+    cell_type_label = cell_type) %>% 
+  filter(FDR < 0.1) %>% 
+  dplyr::select(-celltype) %>% 
+  left_join(allen_annot_long, relationship = "many-to-many") %>% 
+  glimpse()
+
+
+```
+
+
+Q1: What cell types have the most DEGs, and are the most altered in state between WildR vs SPF?
+
+```{r}
+# Visualize a ranked list of cell types by number of DEGS in each tissue for each analysis
+
+
+```

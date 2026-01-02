@@ -1,0 +1,357 @@
+---
+title: "Augur Single Nuclei Analysis"
+editor: source
+author: "Joe Boktor"
+date: '2025-12-27'
+format: 
+  html:
+    self-contained: true
+    code-fold: true
+    code-tools: true
+    fig-align: right
+    fig-height: 8
+    fig-width: 14 
+---
+
+
+```{r}
+library(Seurat)
+library(Matrix)
+library(irlba)
+library(scico)
+library(tidyverse)
+library(patchwork)
+library(glue)
+library(presto)
+library(hdf5r)
+library(tidyseurat)
+library(Augur)
+library(batchtools)
+
+library(tictoc)
+library(future)
+library(strex)
+library(cowplot)
+library(aplot)
+library(SingleCellExperiment)
+library(BiocParallel)
+library(ggside)
+
+theme_set(theme_bw())
+
+home_dir <- "/resnick/groups/MazmanianLab/jboktor"
+rnk_dir <- "/resnick/groups/mthomson/jboktor"
+split_pipe_dir <- glue("{rnk_dir}/split-pipe_workflow")
+wkdir <- glue("{home_dir}/WILDRxSPF_brains")
+anndata_path <- glue("{wkdir}/data/input/parse_bio_anndata")
+data_path <- glue("{wkdir}/data/interim")
+fig_path <- glue("{wkdir}/figures")
+abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
+
+source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
+
+# Set memory limit for future
+options(future.globals.maxSize = 200000 * 1024^2)  # Set to ~200GB
+# Use more memory-efficient serialization
+options(future.serialization.progressr = FALSE)
+options(future.serialization.progressr.enable = FALSE)
+
+# future::plan(multisession, workers = 3)
+# future::plan(sequential)
+
+```
+
+
+Loading Seurat object
+
+
+```{r}
+seurat_obj <- readRDS( 
+    glue("{data_path}/seurat/snRNASeq/",
+    "seurat_obj_onlyparsefilters_celltyped_2025-12-27.rds")
+    )
+seurat_obj
+# Subset the seurat object to only keep cells that pass the QC filters
+seurat_obj <- seurat_obj %>% subset(subset = keep_cell)
+seurat_obj@meta.data %>% glimpse()
+
+```
+
+Running Augur
+
+```{r}
+# script contains updated augur variance filter
+source(glue("{wkdir}/notebooks/R_scripts/augur_functions.R"))
+
+# Utility function to run Augur on a seurat object
+run_augur <- function(cell_type_column, label_column, threads, tissue, celltype, output_path) {
+    
+    require(Seurat)
+    require(Augur)
+    require(glue)
+    require(dplyr)
+    require(magrittr)
+    
+    wkdir <- "/resnick/groups/MazmanianLab/jboktor/WILDRxSPF_brains"
+    data_path <- glue("{wkdir}/data/interim")
+    source(glue("{wkdir}/notebooks/R_scripts/augur_functions.R"))
+    godmode:::assignAnywhere("select_variance", select_variance_disp)
+    message("Printing updated function to check it worked: \n")
+    print(select_variance)
+
+    seur_path <- glue("{data_path}/seurat/snRNASeq/seurat_obj_onlyparsefilters_celltyped_2025-12-27.rds")
+    seurat_obj <- readRDS(seur_path)
+    
+    # filter out quality cells only
+    seur_analysis <- seurat_obj %>% subset(subset = keep_cell)
+
+    # Filter for celltype x tissue using metadata directly
+    cells_to_keep <- seur_analysis@meta.data[[cell_type_column]] == celltype & 
+                  seur_analysis@meta.data$tissue == tissue
+    seur_analysis <- seur_analysis[, cells_to_keep]
+    seur_analysis@meta.data %>% glimpse()
+    meta <- seur_analysis@meta.data
+    
+    # determine subsampling size based on cell type
+    group_min_cells <- meta %>% group_by(microbiome) %>% tally() %>% pull(n) %>% min()
+    message(glue("Minimum cells in any microbiome group: {group_min_cells}"))
+    
+    if (unique(meta$broad_cell_group) == "Neuron") {
+      if (group_min_cells > 200) {
+        message("Subsampling neurons to 200 cells")
+        subsample_n <- 200
+      } else {
+        message("Subsampling neurons to {group_min_cells} cells")
+        subsample_n <- group_min_cells
+      }
+    } else {
+      if (group_min_cells > 100) {
+        message("Subsampling non-neurons to 100 cells")
+        subsample_n <- 100
+      } else {
+        message("Subsampling non-neurons to {group_min_cells} cells")
+        subsample_n <- group_min_cells
+      }
+    }
+
+    # CPM normalization and log2 transformation
+    counts <- Seurat::GetAssayData(seur_analysis, layer = "counts")
+    cpm <- t(t(counts) / colSums(counts)) * 1e6
+    log2_cpm <- log2(cpm + 1) %>% as.matrix()
+    
+    # Gene prevalence thresholding
+    gene_prevalence <- Matrix::rowSums(counts > 0) / ncol(counts)
+    gene_thres <- gene_prevalence >= 0.1
+    log2_cpm <- log2_cpm[gene_thres, ]
+    message(glue("Filtered from {nrow(cpm)} to {nrow(log2_cpm)} genes"))
+    
+    augur_res <- calculate_auc(
+        log2_cpm,
+        meta,
+        cell_type_col = cell_type_column,
+        label_col = label_column,
+        show_progress = TRUE,
+        n_threads = threads,
+        feature_perc = 0.8,
+        var_quantile = 0.9,
+        subsample_size = subsample_n
+    )
+    
+    dir.create(dirname(output_path), showWarnings = FALSE, recursive = TRUE)
+    saveRDS(augur_res, output_path)
+}
+
+# Example run
+# seurat_obj_hyp <- seurat_obj %>% subset(subset = tissue == "HYP")
+# celltype <- "CS20230722_SUBC_002"
+# tissue <- "AMY"
+# cell_type_column = "subclass_label"
+# label_column <- "microbiome"
+# threads <- 4
+# augur_hyp <- calculate_auc(
+#     seurat_obj_hyp@assays$RNA@counts, 
+#     seurat_obj_hyp@meta.data,
+#     cell_type_col = "subclass_label", 
+#     label_col = "microbiome",
+#     show_progress = TRUE,
+#     n_threads = 4
+#     )
+
+```
+
+Generating slurm batch parameters dataframe - selecting celltypes to run Augur on
+
+```{r}
+metadata_df <- seurat_obj@meta.data %>% glimpse()
+celltype_droplist <- readRDS(glue("{data_path}/seurat/snRNASeq/celltype_droplist_2025-12-30.rds"))
+
+class_batchdata <- 
+    dplyr::select(metadata_df, celltype = class_label, tissue) %>% 
+    distinct() %>%
+    mutate(cell_type_column = "class_label")
+subclass_batchdata <- 
+    dplyr::select(metadata_df, celltype = subclass_label, tissue) %>% 
+    distinct() %>%
+    mutate(cell_type_column = "subclass_label")
+supertype_batchdata <- 
+    dplyr::select(metadata_df, celltype = supertype_label, tissue) %>% 
+    distinct() %>%
+    mutate(cell_type_column = "supertype_label")
+
+batchparams_df <- 
+    bind_rows(class_batchdata, subclass_batchdata, supertype_batchdata) %>% 
+    left_join(celltype_droplist, by = c("celltype", "tissue")) %>%
+    filter(is.na(dropme)) %>%
+    mutate(label_column = "microbiome") %>% 
+        mutate(output_path = glue(
+        "{data_path}/augur/snRNASeq/{cell_type_column}/",
+        "{celltype}_{tissue}_{Sys.Date()}.rds"), 
+        threads = 4
+        ) %>% 
+    dplyr::select(cell_type_column, celltype, tissue, label_column, output_path, threads) %>% 
+    glimpse()
+
+```
+
+
+Executing slurm workflow for all runs (classes, subclasses, and supertypes)
+
+
+```{r}
+# configure registry ----
+cluster_run <- glue("{get_time()}_Augur_snRNASeq")
+message("\n\nRUNNING:  ", cluster_run, "\n")
+breg <- makeRegistry(
+  file.dir = glue("{wkdir}/.cluster_runs/", cluster_run),
+  seed = 42
+)
+breg$cluster.functions <- batchtools::makeClusterFunctionsSlurm(
+  template = glue("{wkdir}/batchtools_templates/",
+    "batchtools.slurm_mamba-spatialomics.tmpl"),
+  scheduler.latency = 0.1,
+  fs.latency = 1
+)
+# Submit Jobs ----
+jobs <- batchMap(
+  fun = run_augur,
+  args = batchparams_df,
+  reg = breg
+)
+
+jobs[, chunk := chunk(job.id, chunk.size = 3)]
+print(jobs[, .N, by = chunk])
+
+submitJobs(jobs,
+  resources = list(
+    walltime = 120, # mins (2 hrs)
+    memory = "200GB",
+    ncpus = 4,
+    max.concurrent.jobs = 9999
+  )
+)
+
+
+```
+
+
+Loading results
+
+```{r}
+augur_resdir <- glue("{data_path}/augur/snRNASeq")
+
+class_res_paths <- list.files(
+  glue("{augur_resdir}/class_label"), full.names = TRUE)
+subclass_res_paths <- list.files(
+  glue("{augur_resdir}/subclass_label"), full.names = TRUE)
+supertype_res_paths <- list.files(
+  glue("{augur_resdir}/supertype_label"), full.names = TRUE)
+
+pull_augur_auc <- function(augur_rds_path) {
+    augur_res <- readRDS(augur_rds_path)
+    return(augur_res$AUC)
+}
+
+format_augur_res <- function(augur_res_paths) {
+  augur_res_paths %>% 
+    set_names(basename(.) %>% str_before_last("_")) %>%
+    furrr::future_map(pull_augur_auc) %>% 
+    bind_rows(.id = "celltype_tissue") %>% 
+    mutate(tissue = str_after_last(celltype_tissue, "_")) %>%
+    glimpse()
+}
+
+future::plan("multisession", workers = 10)
+
+class_aucs_df <- format_augur_res(class_res_paths)
+subclass_aucs_df <- format_augur_res(subclass_res_paths)
+supertype_aucs_df <- format_augur_res(supertype_res_paths)
+
+allen_annot_df <- seurat_obj@meta.data %>% 
+  select(class_name, class_label, subclass_name, 
+    subclass_label, supertype_name, supertype_label) %>% 
+  distinct() %>% 
+  glimpse()
+
+# adding back cell type names to labels
+class_aucs_df %<>% left_join(
+  allen_annot_df %>% select(class_label, class_name) %>% distinct(), 
+  by = c("cell_type" = "class_label")) %>% 
+  glimpse()
+subclass_aucs_df %<>% left_join(
+  allen_annot_df %>% select(subclass_label, subclass_name) %>% distinct(), 
+  by = c("cell_type" = "subclass_label")) %>% 
+  glimpse()
+supertype_aucs_df %<>% left_join(
+  allen_annot_df %>% select(supertype_label, supertype_name) %>% distinct(), 
+  by = c("cell_type" = "supertype_label")) %>% 
+  glimpse()
+
+
+saveRDS(class_aucs_df, 
+  glue("{data_path}/augur/snRNASeq/class_aucs_df_{Sys.Date()}.rds")
+  )
+saveRDS(subclass_aucs_df, 
+  glue("{data_path}/augur/snRNASeq/subclass_aucs_df_{Sys.Date()}.rds")
+  )
+saveRDS(supertype_aucs_df, 
+  glue("{data_path}/augur/snRNASeq/supertype_aucs_df_{Sys.Date()}.rds")
+  )
+
+```
+
+## Visualizing results
+
+```{r}
+class_aucs_df <- readRDS(
+  glue("{data_path}/augur/snRNASeq/class_aucs_df_2025-12-30.rds")
+  )
+subclass_aucs_df <- readRDS(
+  glue("{data_path}/augur/snRNASeq/subclass_aucs_df_2025-12-30.rds")
+  )
+supertype_aucs_df <- readRDS(
+  glue("{data_path}/augur/snRNASeq/supertype_aucs_df_2025-12-30.rds")
+  )
+
+```
+
+
+```{r}
+subclass_aucs_df %>% 
+  filter(abs(auc - 0.5) > 0.05) %>% 
+  glimpse()
+
+bind_rows(class_aucs_df, subclass_aucs_df, supertype_aucs_df) %>% 
+  ggplot(aes(x = fct_reorder(cell_type, auc), y = auc, color = tissue)) +
+  geom_hline(yintercept = 0.5, linetype = "solid") +
+  geom_hline(yintercept = 0.55, linetype = "dashed") +
+  geom_hline(yintercept = 0.45, linetype = "dashed") +
+  geom_point() +
+  theme_bw() +
+  labs(x = NULL, y = "AUROC", color = "Cell Type") +
+  # facet_wrap(~ cell_type_column, scales = "free_x") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+How did we end up getting this to work - increase subsample size up to 100 non-neuronal or 200 neuronal cells, filter out celltypes with below 50 cells in either group (WildR/SPF), filter out genes that are expressed in less than 10% of cells prior to running Augur, we adjusted fractional sampling up to 0.8, and then updated the variance filter to use dispersion instead of coefficient of variation and set a high quantile cuttoff for the variance filter (0.9). We run this on Log2(CPM + 1) normalized counts - prior to filtering genes.

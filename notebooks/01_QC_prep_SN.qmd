@@ -1,0 +1,1208 @@
+---
+title: "Loading Parsebio data into Seurat"
+editor: source
+author: "Joe Boktor"
+date: '2025-04-10'
+format: 
+  html:
+    self-contained: true
+    code-fold: true
+    code-tools: true
+    fig-align: right
+    fig-height: 8
+    fig-width: 14 
+---
+
+
+```{r}
+library(Seurat)
+library(Matrix)
+library(irlba)
+library(scico)
+library(tidyverse)
+library(patchwork)
+library(glue)
+library(presto)
+library(hdf5r)
+library(tidyseurat)
+# library(scrattch.hicat)
+library(DoubletFinder)
+
+# library(SeuratDisk)
+library(tictoc)
+library(future)
+library(strex)
+library(cowplot)
+library(aplot)
+library(scDblFinder)
+library(SingleCellExperiment)
+library(BiocParallel)
+library(ggside)
+
+theme_set(theme_bw())
+
+home_dir <- "/resnick/groups/MazmanianLab/jboktor"
+rnk_dir <- "/resnick/groups/mthomson/jboktor"
+split_pipe_dir <- glue("{rnk_dir}/split-pipe_workflow")
+wkdir <- glue("{home_dir}/WILDRxSPF_brains")
+anndata_path <- glue("{wkdir}/data/input/parse_bio_anndata")
+data_path <- glue("{wkdir}/data/interim")
+fig_path <- glue("{wkdir}/figures")
+abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
+
+# Set memory limit for future
+options(future.globals.maxSize = 200000 * 1024^2)  # Set to ~200GB
+# Use more memory-efficient serialization
+options(future.serialization.progressr = FALSE)
+options(future.serialization.progressr.enable = FALSE)
+
+# future::plan(multisession, workers = 3)
+future::plan(sequential)
+
+```
+
+```{r}
+# # Convenience functions
+# SaveFigure <- function(plots, name, type = "png", width, height, res){
+#   if(type == "png") {
+#     png(paste0(fig_path, name, ".", type),
+#       width = width, height = height, units = "in", res = 200)
+#   } else {
+#     pdf(paste0(fig_path, name, ".", type),
+#       width = width, height = height)
+#       }
+#       print(plots)
+#       dev.off()
+# }
+
+# SaveObject <- function(object, name, data_path){
+#   saveRDS(object, paste0(data_path, name, ".rds"))
+# }
+
+# ReadObject <- function(name, data_path){
+#   readRDS(paste0(data_path, name, ".rds"))
+# }
+```
+
+
+
+Loading Seurat object from h5ad file (this takes ~10 minutes for this 18GB file)
+
+```{r}
+tic()
+seurat_obj <- schard::h5ad2seurat(glue("{anndata_path}/wildrxspf_data.h5ad"))
+seurat_obj
+toc()
+
+```
+
+
+Adding additional gene metadata (coding/non-coding) to the seurat object 
+
+```{r}
+# seurat gene metadata in object
+gene_meta_df <- seurat_obj@assays$RNA@meta.features %>% glimpse()
+
+# adding gene info metadata to seurat object
+gene_metadata <- read.delim(glue("{wkdir}/data/input/geneInfo.tab"), 
+    skip = 1, header = FALSE, sep = "\t") %>% 
+  dplyr::rename(gene_id = V1, gene_name = V2, gene_type = V3) %>%
+  dplyr::filter(gene_id %in% gene_meta_df$gene_id) %>%
+  dplyr::mutate(gene_id = factor(gene_id, levels = gene_meta_df$gene_id)) %>%
+  dplyr::arrange(gene_id) %>% 
+  glimpse()
+
+seurat_obj[["RNA"]][["gene_type"]] <- gene_metadata$gene_type
+seurat_obj[["RNA"]][["gene_type"]] %>% table()
+
+```
+
+
+Reading in MapMyCells cell type annotation and adding to seurat object
+
+```{r}
+# Calculating percent mitochondrial reads
+seurat_obj[["percent.mt"]] <- 
+  PercentageFeatureSet(seurat_obj, pattern = "^mt-")
+
+allen_class_categories <- readr::read_csv(
+  glue("{wkdir}/data/input/allen_class_categories.csv")) %>% 
+  glimpse()
+
+cell_type_df <- readr::read_csv(glue("{data_path}/MapMyCells/output.csv"),
+  skip = 4) %>% 
+  left_join(allen_class_categories, by = c("class_name")) %>% 
+  column_to_rownames("cell_id") %>% 
+  glimpse()
+
+seurat_obj <- AddMetaData(seurat_obj, cell_type_df)
+seurat_obj@meta.data %>% glimpse()
+
+```
+
+Calculating a QC Score as was done in the original Allen Brain Atlas [paper](https://www.nature.com/articles/s41586-023-06812-z#Sec10).
+
+
+```{r}
+qc_genes <- readxl::read_excel(
+  glue("{wkdir}/data/input/41586_2023_6812_MOESM5_ESM.xlsx"), 
+  sheet = "qc.genes", col_names = "qc_genes")$qc_genes
+
+gene_meta_df <- seurat_obj@assays$RNA@meta.features %>% glimpse()
+qc_genes %in% gene_meta_df$gene_name %>% table()
+
+# there are 9 genes that we do not detect
+qc_genes[!qc_genes %in% gene_meta_df$gene_name]
+#' Missing 
+#' [1] "2010107E04Rik" "Atp5d"         "Atp5e"         "Atp5g1"       
+#' [5] "Atp5g3"        "Atp5j"         "Atp5j2"        "Atp5k"        
+#' [9] "Atp5l"
+present_qc_genes <- qc_genes[qc_genes %in% gene_meta_df$gene_name]
+
+# calculating qc score : summed log-transformed expression of gene set above
+# Calculating CPM matrix
+future::plan("sequential")
+feature_meta <- seurat_obj[["RNA"]][[]]
+feature_meta %>% glimpse()
+
+
+seurat_obj <- NormalizeData(seurat_obj, 
+                            normalization.method = "RC", 
+                            scale.factor = 1e6,
+                            verbose = TRUE)
+
+# Checking that the CPM matrix is correctly normalized
+# Raw counts
+seurat_obj@assays$RNA@counts[1:10, 1:10] %>% as.matrix() 
+# Normalized data
+seurat_obj@assays$RNA@data[1:10, 1:10] %>% as.matrix() 
+
+# Subsetting the seurat object to the QC genes
+feature_meta <- seurat_obj[["RNA"]][[]]
+matching_features <- rownames(feature_meta)[feature_meta$gene_name %in% present_qc_genes]
+qc_gene_subset <- seurat_obj[matching_features, ]
+qc_gene_subset %>% dim()
+
+# calculating Log2(CPM + 1)
+cpm_matrix <- GetAssayData(qc_gene_subset, layer = "data")
+log2_cpm_matrix <- log2(cpm_matrix + 1)
+log2_cpm_matrix[1:10, 1:10]
+
+# summing the log2(CPM + 1) for each cell
+qc_scores <- colSums(log2_cpm_matrix) %>% as.data.frame() %>%
+  dplyr::rename(qc_score_protein_coding = 1) %>% 
+  glimpse()
+
+# adding the qc scores to the seurat object
+seurat_obj <- AddMetaData(seurat_obj, metadata = qc_scores["qc_score"])
+seurat_obj@meta.data %>% glimpse()
+seurat_obj$qc_score  %>% hist()
+  
+```
+
+
+Trying scrattch.hicat modified version of DoubletFinder
+
+```{r}
+# library(scrattch.hicat)
+# scrattch.hicat::doubletFinder(seurat_obj,
+#   k = 20,
+#   n_iter = 100,
+# )
+
+# function adapted from: https://biostatsquid.com/doubletfinder-tutorial/ 
+# run_doubletfinder_custom runs Doublet_Finder() and returns a dataframe with the cell IDs and a column with either 'Singlet' or 'Doublet'
+run_doubletfinder_custom <- function(seu_sample_subset, multiplet_rate = 0.03){
+
+  message("\nProcessing sample: ", unique(seu_sample_subset[['sample']]), "..... \n") 
+  message("\n Setting multiplet rate to: ", multiplet_rate, "\n")
+  
+  # Pre-process seurat object with standard seurat workflow --- 
+  sample <- Seurat::NormalizeData(seu_sample_subset)
+  sample <- Seurat::FindVariableFeatures(sample)
+  sample <- Seurat::ScaleData(sample)
+  sample <- Seurat::RunPCA(sample, nfeatures.print = 10)
+  
+  # Find significant PCs
+  stdv <- sample[["pca"]]@stdev
+  percent_stdv <- (stdv/sum(stdv)) * 100
+  cumulative <- cumsum(percent_stdv)
+  co1 <- which(cumulative > 90 & percent_stdv < 5)[1] 
+  co2 <- sort(which((percent_stdv[1:length(percent_stdv) - 1] - 
+                       percent_stdv[2:length(percent_stdv)]) > 0.1), 
+              decreasing = T)[1] + 1
+  min_pc <- min(co1, co2)
+  
+  # Finish pre-processing with min_pc
+  sample <- Seurat::RunUMAP(sample, dims = 1:min_pc)
+  sample <- Seurat::FindNeighbors(object = sample, dims = 1:min_pc)              
+  sample <- Seurat::FindClusters(object = sample, resolution = 0.1)
+  
+  # pK identification (no ground-truth) 
+  #introduces artificial doublets in varying props, merges with real data set and 
+  # preprocesses the data + calculates the prop of artficial neighrest neighbours, 
+  # provides a list of the proportion of artificial nearest neighbours for varying
+  # combinations of the pN and pK
+  sweep_list <- DoubletFinder::paramSweep(sample, PCs = 1:min_pc, sct = FALSE)   
+  sweep_stats <- DoubletFinder::summarizeSweep(sweep_list)
+  bcmvn <- DoubletFinder::find.pK(sweep_stats) # computes a metric to find the optimal pK value (max mean variance normalised by modality coefficient)
+  # Optimal pK is the max of the bimodality coefficient (BCmvn) distribution
+  optimal.pk <- bcmvn %>% 
+    dplyr::filter(BCmetric == max(BCmetric)) %>%
+    dplyr::select(pK)
+  optimal.pk <- as.numeric(as.character(optimal.pk[[1]]))
+  
+  ## Homotypic doublet proportion estimate
+  annotations <- sample@meta.data$class_name # use the clusters as the user-defined cell types
+  homotypic.prop <- DoubletFinder::modelHomotypic(annotations) # get proportions of homotypic doublets
+  
+  nExp.poi <- round(multiplet_rate * nrow(sample@meta.data)) # multiply by number of cells to get the number of expected multiplets
+  nExp.poi.adj <- round(nExp.poi * (1 - homotypic.prop)) # expected number of doublets
+  
+  # run DoubletFinder
+  sample <- doubletFinder(seu = sample, 
+                          PCs = 1:min_pc, 
+                          pK = optimal.pk, # the neighborhood size used to compute the number of artificial nearest neighbours
+                          nExp = nExp.poi.adj) # number of expected real doublets
+  
+  # change name of metadata column with Singlet/Doublet information
+  sample@meta.data %>% glimpse()
+  colnames(sample@meta.data)[grepl('DF.classifications.*', colnames(sample@meta.data))] <- "doublet_finder"
+  
+  double_finder_res <- sample@meta.data['doublet_finder'] # get the metadata column with singlet, doublet info
+  double_finder_res <- rownames_to_column(double_finder_res, "row_names") # add the cell IDs as new column to be able to merge correctly
+  return(double_finder_res)
+
+}
+
+
+samp_split <- SplitObject(seurat_obj, split.by = "sample") 
+
+double_finder_res <- samp_split %>% 
+  purrr::map(run_doubletfinder_custom)
+
+double_finder_meta <- bind_rows(double_finder_res) %>% 
+  as.data.frame() %>% 
+  column_to_rownames("row_names") %>% 
+  glimpse()
+
+# double_finder_meta$doublet_finder %>% table()
+seurat_obj <- AddMetaData(seurat_obj, double_finder_meta)
+seurat_obj@meta.data %>% glimpse()
+
+seurat_obj$tissue <- str_after_last(seurat_obj$sample, "_")
+seurat_obj$microbiome <- str_before_first(seurat_obj$sample, "_")
+seurat_obj$group <- glue("{seurat_obj$microbiome}_{seurat_obj$tissue}")
+
+```
+
+
+Identifying Doublets using scDblFinder
+
+```{r}
+# convert Seurat object to SingleCellExperiment (SCE)
+sce <- as.SingleCellExperiment(seurat_obj, assay = "RNA")
+
+# 'samples' argument ensures doublets are called *within* each sample independently.
+# 'dbr' (doublet rate) is expected to be 0.03 (3%) based on Parse Biosciences specs for Brain/Nuclei data but we're uncertain.
+# Setting dbr.sd=1 to let the tool estimate it automatically,
+set.seed(42)
+sce <- scDblFinder(sce, samples = "sample", dbr.sd=1)
+
+# add the results back to the Seurat object
+seurat_obj$scDblFinder_class <- sce$scDblFinder.class
+seurat_obj$scDblFinder_score <- sce$scDblFinder.score
+seurat_obj@meta.data %>% glimpse()
+seurat_obj@meta.data$scDblFinder_class %>% table()
+seurat_obj@meta.data$scDblFinder_score %>% summary()
+seurat_obj@meta.data$scDblFinder_score %>% hist()
+
+```
+
+
+Comparing Doublet Calls from scDblFinder and DoubletFinder. We see that scDblFinder has many more doublets than DoubletFinder.
+
+scDblFinder_class is at a 27% doublet rate, while DoubletFinder is at a 2.4% doublet rate.
+
+
+```{r}
+table(
+  seurat_obj@meta.data$scDblFinder_class,
+  seurat_obj@meta.data$doublet_finder
+)
+# consensus scDblFinder_class and doublet_finder  
+  #         Doublet Singlet
+  # singlet     634  323600
+  # doublet    9067   81290
+
+seur_df <- seurat_obj@meta.data %>% 
+  as.data.frame() %>% 
+  mutate(consensus_doublet = ifelse(
+    scDblFinder_class == "doublet" & doublet_finder == "Doublet", 
+    "Doublet", "Singlet")) %>% 
+  glimpse()
+
+table(seur_df$consensus_doublet)
+# Doublet Singlet 
+#    9067  405524 
+
+seurat_obj$consensus_doublet <- seur_df$consensus_doublet
+seurat_obj@meta.data %>% glimpse()
+
+#Saving Seurat object with all cells with scDblFinder results, mitochondrial fraction, and map my cells cell type annotation.
+saveRDS(seurat_obj, 
+    glue("{data_path}/seurat/snRNASeq/",
+      "seurat_obj_onlyparsefilters_celltyped_{Sys.Date()}.rds"),
+      compress = FALSE
+    )
+
+```
+
+
+
+
+## Visualzing distribution of QC metrics to select thresholds
+
+
+What thresholds should we use for :
+
+- nFeature_RNA 
+
+- nCount_RNA
+
+- percent mitochondrial reads
+
+- potential doublets
+
+
+
+```{r}
+seurat_obj <- readRDS( 
+    glue("{data_path}/seurat_singlenuclei/seurat_obj_onlyparsefilters_celltyped_2025-12-21.rds")
+    )
+seurat_obj
+seurat_obj@meta.data %>% glimpse()
+
+```
+
+
+A percent mitochondrial reads threshold of 2% across the board seems appropriate. 
+
+```{r}
+# nCount_RNA, nFeature_RNA, percent.mt, scDblFinder_score, scDblFinder_class
+p_mt_nFeature <- seurat_obj %>% 
+  ggplot(aes(x = percent.mt + 1, y = nFeature_RNA)) +
+  geom_point(color = "grey20", alpha = 0.35, size = 0.6) +
+  stat_density_2d(geom = "polygon", contour = TRUE, aes(fill = after_stat(level)), 
+    colour = "black", alpha = 0.65, bins = 10) +
+  scale_fill_distiller(palette = "Blues", direction = 1) +  
+  facet_wrap(~ broad_cell_group) +
+  guides(fill = "none") +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(x = "Percent Mitochondrial Reads + 1", y = "Number of unique genes") +
+  geom_vline(xintercept = 3, color = "black", linewidth = 0.8) +
+  theme_bw()
+
+ggsave(
+  filename = glue("{fig_path}/QC/scatter_QC_mt_nFeature_{Sys.Date()}.png"),
+  plot = p_mt_nFeature,
+  width = 10,
+  height = 10,
+  dpi = 300
+)
+
+```
+
+
+
+![Scatter plot of percent mitochondrial reads vs. number of unique genes](../figures/QC/scatter_QC_mt_nFeature_2025-12-17.png)
+
+
+Plotting the distribution of QC metrics vs Gene Detection Counts
+
+```{r}
+seurat_obj@meta.data %>% glimpse()
+seurat_obj$nCount_RNA %>% summary()
+seurat_obj$nFeature_RNA %>% summary()
+
+gene_thresh <- list(
+  "Neuron"      = list(min_genes = 1000, max_genes = 8500),
+  "Neuroglial"  = list(min_genes = 800,  max_genes = 6000),
+  "Other_IMN"   = list(min_genes = 600,  max_genes = 5500),
+  "Other"       = list(min_genes = 600,  max_genes = 4000)
+)
+
+metadata_df <- seurat_obj@meta.data %>% 
+  as.data.frame() %>% 
+  mutate(consensus_doublet = factor(consensus_doublet, levels = c("Singlet", "Doublet"))) %>% 
+  arrange(consensus_doublet) %>% 
+  mutate(
+    min_genes_thres = case_when(
+      broad_cell_group == "Neuron"     ~ gene_thresh[["Neuron"]]$min_genes,
+      broad_cell_group == "Neuroglial" ~ gene_thresh[["Neuroglial"]]$min_genes,
+      broad_cell_group == "Other_IMN"  ~ gene_thresh[["Other_IMN"]]$min_genes,
+      broad_cell_group == "Other"      ~ gene_thresh[["Other"]]$min_genes,
+      TRUE                             ~ 0  # Fallback for undefined classes
+    ),
+    max_genes_thres = case_when(
+      broad_cell_group == "Neuron"     ~ gene_thresh[["Neuron"]]$max_genes,
+      broad_cell_group == "Neuroglial" ~ gene_thresh[["Neuroglial"]]$max_genes,
+      broad_cell_group == "Other_IMN"  ~ gene_thresh[["Other_IMN"]]$max_genes,
+      broad_cell_group == "Other"      ~ gene_thresh[["Other"]]$max_genes,
+      TRUE                             ~ 0
+    )
+  ) %>% 
+  mutate(keep_cell = ifelse(
+    percent.mt < 2 & 
+    consensus_doublet == "Singlet" &
+    (nFeature_RNA > min_genes_thres & nFeature_RNA < max_genes_thres), TRUE, FALSE)) %>% 
+  glimpse()
+
+# metadata_df$keep_cell %>% table()
+
+p_nFeature_nCount <- metadata_df %>% 
+  ggplot(aes(y = nCount_RNA, x = nFeature_RNA)) +
+  geom_point(
+    aes(color = consensus_doublet), alpha = 0.35, size = 0.6) +
+  stat_density_2d(geom = "polygon", contour = TRUE, aes(fill = after_stat(level)), 
+    colour = "black", alpha = 0.65, bins = 10) +
+  scale_fill_distiller(palette = "Blues", direction = 1) +  
+  facet_wrap(~ broad_cell_group, scales = "free") +
+  guides(fill = "none") +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(x = "Number of unique transcripts", y = "Number of transcripts") +
+  theme_bw() +
+  scale_color_manual(values = c("Singlet" = "grey20", "Doublet" = "red")) +
+  geom_vline(aes(xintercept = min_genes_thres), color = "black", linewidth = 0.8) +
+  geom_vline(aes(xintercept = max_genes_thres), color = "red", linewidth = 0.8) +
+  geom_xsidedensity(aes(y = after_stat(density), color = consensus_doublet)) +
+  geom_ysidedensity(aes(x = after_stat(density), color = consensus_doublet)) +
+  scale_ysidex_continuous(guide = guide_axis(angle = 90), minor_breaks = NULL) +
+  scale_xsidey_discrete() +
+  # coord_fixed() +
+  theme(
+    ggside.panel.scale.x = .2, ggside.panel.scale.y = .3, 
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "bottom")
+
+
+ggsave(
+  filename = glue("{fig_path}/QC/scatter_QC_nCount_nFeature_{Sys.Date()}.png"),
+  plot = p_nFeature_nCount,
+  width = 9,
+  height = 8
+)
+
+```
+
+
+![Scatter plot of QC score vs. number of unique genes](../figures/QC/scatter_QC_qc_score_nFeature_2025-12-21.png)
+
+```{r}
+p_nFeature_sample_doublet <- seurat_obj %>% 
+  mutate(group = factor(group, levels = 
+    c("SPF_AMY", "WildR_AMY", "SPF_HYP", "WildR_HYP"))) %>%
+  ggplot(aes(x = sample, y = nFeature_RNA, color = consensus_doublet)) +
+  geom_violin(draw_quantiles = c(0.5)) +
+  facet_wrap( ~ group, scales = "free_x") +
+  theme_bw() +
+  scale_color_manual(values = c("Singlet" = "grey20", "Doublet" = "red")) +
+  labs(x = NULL, y = "Number of unique transcripts", color = "Doublet Call") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(
+  filename = glue("{fig_path}/QC/violin_nFeature_sample_doublet_{Sys.Date()}.png"),
+  plot = p_nFeature_sample_doublet,
+  width = 8,
+  height = 6
+)
+
+```
+
+![Violin plot of number of unique transcripts vs. sample](../figures/QC/violin_nFeature_sample_doublet_2025-12-21.png)
+
+
+
+Visualzing cells filtered by cell type
+```{r}
+
+p_celltype_qc_prop <- metadata_df %>% 
+  ggplot(aes(x = class_name, fill = keep_cell)) +
+  geom_bar(stat = "count", position = "fill", width = 0.8) +
+  theme_bw() +
+  labs(x = NULL, y = "Proportion of Cells", fill = "Passed QC") +
+  scale_fill_manual(values = c("TRUE" = "grey", "FALSE" = "darkred")) +
+  facet_grid(rows = vars(tissue), scales = "free_x") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+pre_qc_cells <- metadata_df %>% 
+  group_by(class_name, tissue) %>% 
+  summarise(Pre_QC = n())
+post_qc_cells <- metadata_df %>% 
+  filter(keep_cell) %>% 
+  group_by(class_name, tissue) %>% 
+  summarise(Post_QC = n())
+
+cell_qc_stats <- full_join(pre_qc_cells, post_qc_cells) %>% 
+  pivot_longer(cols = c(Pre_QC, Post_QC), 
+    names_to = "qc_type", values_to = "cell_count") %>% 
+  # mutate(cell_count_thous = cell_count / 1000) %>% 
+  glimpse()
+
+# cell_qc_stats %>% View()
+
+p_celltype_qc_counts <- cell_qc_stats %>% 
+  ggplot(aes(x = class_name, y = cell_count, fill = qc_type)) +
+  geom_bar(stat = "identity", position = "identity", width = 0.8) +
+  theme_bw() +
+  scale_y_log10() +
+  labs(x = NULL, y = "Cell Counts", fill = NULL) +
+  scale_fill_manual(
+    values = c(
+      "Pre_QC" = "black", 
+      "Post_QC" = "lightgrey")) +
+  facet_grid(rows = vars(tissue), scales = "free_x") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+ggsave(
+  filename = glue("{fig_path}/QC/barplot_celltype_qc_counts_{Sys.Date()}.png"),
+  plot = p_celltype_qc_counts,
+  width = 9, height = 6
+)
+ggsave(
+  filename = glue("{fig_path}/QC/barplot_celltype_qc_prop_{Sys.Date()}.png"),
+  plot = p_celltype_qc_prop,
+  width = 9, height = 6
+)
+
+
+
+```
+
+
+Final thresholds based on visualizing the distribution of QC metrics:
+
+- nFeature_RNA  (custom min and max thresholds for each broad cell category)
+
+- percent mitochondrial reads (max = 2%)
+
+- potential doublets (consensus between scDblFinder and DoubletFinder)
+
+
+
+Saving metadata with all QC metrics
+
+```{r}
+thresh_meta <- metadata_df %>%
+  dplyr::select(min_genes_thres, max_genes_thres, keep_cell) %>% 
+  glimpse()
+
+seurat_obj <- AddMetaData(seurat_obj, thresh_meta)
+seurat_obj@meta.data %>% glimpse()
+
+saveRDS(seurat_obj, 
+    glue("{data_path}/seurat/snRNASeq/",
+      "seurat_obj_onlyparsefilters_celltyped_{Sys.Date()}.rds"),
+      compress = FALSE
+    )
+
+
+```
+
+
+
+Identifying cells to drop from analysis based on low counts (needs at least 50 cells in BOTH groups (SPF/WildR))
+
+```{r}
+metadata_df <- seurat_obj@meta.data %>% glimpse()
+
+# identifying cell types with too few cells to run MAST
+class_label_tissue_droplist <- metadata_df %>% 
+    group_by(class_label, tissue, microbiome) %>% 
+    dplyr::summarise(n = n(), .groups = "drop") %>% 
+    filter(n < 50) %>% 
+    dplyr::select(celltype = class_label, tissue) %>% 
+    distinct() %>% 
+    mutate(dropme = TRUE)
+subclass_label_tissue_droplist <- metadata_df %>% 
+    group_by(subclass_label, tissue, microbiome) %>% 
+    dplyr::summarise(n = n(), .groups = "drop") %>% 
+    filter(n < 50) %>% 
+    dplyr::select(celltype = subclass_label, tissue) %>% 
+    distinct() %>% 
+    mutate(dropme = TRUE)
+supertype_label_tissue_droplist <- metadata_df %>% 
+    group_by(supertype_label, tissue, microbiome) %>% 
+    dplyr::summarise(n = n(), .groups = "drop") %>% 
+    filter(n < 50) %>% 
+    dplyr::select(celltype = supertype_label, tissue) %>% 
+    distinct() %>% 
+    mutate(dropme = TRUE)
+
+celltype_droplist <- bind_rows(
+  class_label_tissue_droplist, 
+  subclass_label_tissue_droplist, 
+  supertype_label_tissue_droplist) %>% 
+  glimpse()
+
+saveRDS(celltype_droplist, 
+  glue("{data_path}/seurat/snRNASeq/celltype_droplist_{Sys.Date()}.rds")
+  )
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### NOT SURE WHAT TO DO WITH THIS YET
+
+
+
+
+
+```{r}
+
+# seurat_obj@meta.data %>% glimpse()
+# seurat_obj@meta.data$percent.mt %>% log10() %>% hist()
+# seurat_obj@meta.data$percent.mt %>% summary()
+# seurat_obj@meta.data$nCount_RNA %>% log10() %>% hist()
+# seurat_obj@meta.data$nFeature_RNA %>% log10() %>% hist()
+
+# plot <- VlnPlot(seurat_obj, #pt.size = 0.10,
+#   features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+# SaveFigure(plot, "vln_QC", width = 12, height = 6)
+
+# plot1 <- FeatureScatter(seurat_obj, 
+#                         feature1 = "nCount_RNA", 
+#                         feature2 = "percent.mt",
+#                         group.by = "sample")
+# plot2 <- FeatureScatter(seurat_obj, 
+#                        feature1 = "nCount_RNA", 
+#                        feature2 = "nFeature_RNA",
+#                        group.by = "sample") +
+#                 geom_vline(xintercept = 1.7e5, linetype = "dashed", color = "red") +
+#                 geom_hline(yintercept = 1.2e4, linetype = "dashed", color = "blue")
+
+# SaveFigure(plot1, "scatter_QC_with_MT", width = 9, height = 6)
+# SaveFigure(plot2, "scatter_QC", width = 9, height = 6)
+
+
+```
+
+Perform filtering based on the scatter plot. In this process we select for cells with fewer than 2% mitochondrial reads, less than 1.2e4 unique genes and less than 1.7e5 counts. Going from 414591 cells to 411875 cells.
+
+```{r}
+seurat_obj <- subset(seurat_obj, 
+  subset = nFeature_RNA < 1.2e4 & nCount_RNA < 1.7e5 & percent.mt < 2)
+
+seurat_obj
+saveRDS(seurat_obj, 
+    glue("{data_path}/seurat/seurat_obj_filtered_{Sys.Date()}.rds")
+    )
+```
+
+
+Reading in filtered seurat object
+
+```{r}
+seurat_obj <- readRDS(glue(
+  "{data_path}/seurat/seurat_obj_filtered_2025-04-22.rds")
+  )
+```
+
+
+Normalizing the data
+
+```{r}
+future::plan("sequential")
+tic()
+seurat_obj <- NormalizeData(
+    seurat_obj,
+    normalization.method = "LogNormalize", scale.factor = 10000
+)
+toc()
+
+```
+
+
+```{r}
+seurat_obj <- FindVariableFeatures(seurat_obj, selection.method = "vst", nfeatures = 2000)
+# Identify the 10 most highly variable genes
+top10 <- head(VariableFeatures(seurat_obj), 10)
+# plot variable features with and without labels
+plot1 <- VariableFeaturePlot(seurat_obj)
+plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+SaveFigure((plot1 + plot2), "var_features", width = 12, height = 6)
+```
+
+Performing PCA 
+
+
+```{r}
+tic()
+# Scaling the data
+seurat_obj <- ScaleData(seurat_obj)
+# Running PCA
+seurat_obj <- RunPCA(seurat_obj)
+toc()
+
+# Examine and visualize PCA results a few different ways
+print(seurat_obj[["pca"]], dims = 1:5, nfeatures = 5)
+```
+
+
+```{r}
+plot <- VizDimLoadings(seurat_obj, dims = 1:2, reduction = "pca")
+SaveFigure(plot, "viz_PCA_loadings", width = 10, height = 8)
+```
+
+```{r}
+plot <- DimPlot(seurat_obj, reduction = "pca", group.by = "orig.ident")
+SaveFigure(plot, "pc1_2_scatter", width = 8, height = 6)
+```
+
+```{r}
+# Image doesn't save as png unless fast = FALSE
+plot <- DimHeatmap(seurat_obj, dims = 1, cells = 500, balanced = TRUE, fast = FALSE)
+SaveFigure(plot, "dim_heatmap1", width = 8, height = 6)
+```
+
+
+```{r}
+plot <- DimHeatmap(seurat_obj, dims = 1:15, cells = 500, balanced = TRUE, fast = FALSE)
+SaveFigure(plot, "dim_heatmap1_15", width = 12, height = 18)
+```
+
+
+```{r}
+plot <- ElbowPlot(seurat_obj,ndims = 50)
+SaveFigure(plot, "PC_elbow_plot", width = 8, height = 10)
+```
+
+
+```{r}
+seurat_obj <- JackStraw(seurat_obj, num.replicate = 100)
+seurat_obj <- ScoreJackStraw(seurat_obj, dims = 1:20)
+```
+
+
+```{r}
+seurat_obj <- FindNeighbors(seurat_obj, dims = 1:30)
+seurat_obj <- FindClusters(seurat_obj, resolution = 0.30)
+```
+
+
+```{r}
+seurat_obj <- BuildClusterTree(seurat_obj, reorder = TRUE, reorder.numeric = TRUE)
+
+```
+
+
+```{r}
+future::plan(multisession, workers = 8)
+
+seurat_obj <- RunUMAP(seurat_obj, dims = 1:30)
+plot <- DimPlot(seurat_obj, reduction = "umap")
+SaveFigure(plot, "umap_louvain_res_p3", width = 9, height = 8)
+```
+
+
+```{r}
+
+# SaveObject(seurat_obj, "seurat_obj_clustered")
+# seurat_obj <- ReadObject("seurat_obj_clustered")
+
+# Idents(seurat_obj) %>% glimpse
+```
+
+
+```{r}
+seurat_obj_markers <- FindAllMarkers(seurat_obj, min.pct = 0.25, logfc.threshold = 0.25)
+seurat_obj_markers %>% group_by(cluster) %>% top_n(n = 2, wt = avg_log2FC)
+```
+
+
+```{r}
+saveRDS(seurat_obj_markers, 
+    glue("{data_path}/seurat/seurat_obj_markers_{Sys.Date()}.rds")
+    )
+saveRDS(seurat_obj, 
+    glue("{data_path}/seurat/seurat_obj_clustered_{Sys.Date()}.rds")
+    )
+
+```
+
+Reading in filtered & clustered seurat object
+
+```{r}
+seurat_obj <- readRDS(glue(
+  "{data_path}/seurat/seurat_obj_clustered_2025-04-22.rds")
+  )
+
+seurat_obj@meta.data %>% glimpse()
+```
+
+
+
+TOSS ME
+
+```{r}
+cell_type_map %>% glimpse()
+
+cell_type_map$supertype_name %>% unique() %>% 
+keep(grepl("OB", .))
+
+
+cell_type_map$class_name %>% unique() %>% 
+
+cell_type_map %>%
+  filter(class_name == "03 OB-CR Glut") %>% 
+  glimpse()
+```
+
+
+
+```{r}
+seurat_obj@meta.data %>% glimpse()
+# cell_type_map$class_bootstrapping_probability %>% summary()
+# cell_type_map$class_bootstrapping_probability %>% hist()
+
+cell_meta_annot_df <- seurat_obj@meta.data %>% 
+  rownames_to_column("rowname") %>%
+  left_join(cell_type_map, by = c("bc_wells" = "cell_id")) %>%
+  column_to_rownames("rowname") %>%
+  glimpse()
+
+# cell_meta_annot_df %>% rownames() %>% head
+# seurat_obj@meta.data <- cell_meta_annot_df
+# seurat_obj@meta.data %>% rownames() %>% head
+
+p_umap_celltype <- DimPlot(seurat_obj,
+  group.by = "class_name",
+  label = TRUE, 
+  label.box = TRUE,
+  raster = FALSE,
+  repel = TRUE
+) +
+    coord_fixed() +
+  scale_color_manual(values = abca_color_pal[["cluster_colors"]]) +
+  scale_fill_manual(values = abca_color_pal[["cluster_colors"]])
+
+ggsave(
+  glue("{fig_path}/umaps/umap_mapmycells_{Sys.Date()}.png"),
+  p_umap_celltype,
+  width = 15, height = 10
+)
+```
+
+
+
+Manual UMAP plotting
+
+```{r}
+seurat_obj <- readRDS(glue(
+  "{data_path}/seurat/seurat_obj_clustered_celltyped_2025-05-12.rds")
+  )
+
+set.seed(123)
+umap_coords <- Embeddings(seurat_obj, reduction = "umap") %>%
+  cbind(seurat_obj@meta.data) %>% 
+  mutate(tissue = str_after_last(sample, "_")) %>%
+  mutate(group = str_before_first(sample, "_")) %>%
+  slice_sample(prop = 1) %>%  # random shuffle row order
+  glimpse()
+
+p_celltype_umap <- umap_coords %>% 
+  ggplot(aes(x = umap_1, y = umap_2, color = class_name)) +
+  geom_point(size = 0.1, alpha = 0.2) +
+  theme_void() +
+  coord_fixed() +
+  guides(color = guide_legend(override.aes = list(size = 4))) +
+  scale_color_manual(values = abca_color_pal[["cluster_colors"]])
+
+ggsave(
+  glue("{wkdir}/figures/umaps/umap_celltype_{Sys.Date()}.png"),
+  p_celltype_umap,
+  width = 9, height = 7
+)
+
+p_celltype_umap_group <- umap_coords %>% 
+  # mutate(group = factor(group, levels = c("SPF" = "spf", "WildR" = "wildr"))) %>%
+  ggplot(aes(x = umap_1, y = umap_2, color = group)) +
+  geom_point(size = 0.1, alpha = 0.2) +
+  theme_void() +
+  coord_fixed() +
+  guides(color = guide_legend(override.aes = list(size = 4))) +
+  ggsci::scale_color_d3()
+
+ggsave(
+  glue("{wkdir}/figures/umaps/umap_celltype_group_{Sys.Date()}.png"),
+  p_celltype_umap_group,
+  width = 9, height = 7
+)
+
+
+
+combined_umap <- p_celltype_umap + p_celltype_umap_group
+# Save the combined plot
+ggsave(
+  glue("{wkdir}/figures/umaps/umap_celltype_combined_{Sys.Date()}.png"),
+  combined_umap,
+  width = 18, height = 7  # double the width for two plots side by side
+)
+
+# Just the legend
+p_celltype_umap_4legend <- umap_coords %>% 
+  slice_sample(prop = 1) %>%  # random shuffle row order
+  ggplot(aes(x = umap_1, y = umap_2, color = class_name)) +
+  geom_point(size = 0.1) +
+  theme_void() +
+  guides(color = guide_legend(override.aes = list(size = 4))) +
+  scale_color_manual(values = abca_color_pal[["cluster_colors"]])
+
+# Extract just the legend
+legend_only <- get_legend(p_celltype_umap_4legend)
+# Save the legend
+ggsave(
+  glue("{wkdir}/figures/umaps/umap_celltype_legend_{Sys.Date()}.png"),
+  legend_only,
+  width = 3, height = 8  # adjust these dimensions as needed for your legend
+)
+
+
+```
+
+
+```{r}
+meta_df <- seurat_obj@meta.data %>% glimpse()
+
+celltype_counts_df <- meta_df %>% 
+  mutate(group = str_before_first(sample, "_")) %>% 
+  mutate(tissue = str_after_last(sample, "_")) %>% 
+  group_by(class_name, sample, tissue) %>% 
+  summarise(celltype_counts= n()) %>% 
+  glimpse()
+
+for (celltype in unique(celltype_counts_df$class_name)) {
+  for (tis in c("AMY", "HYP")) {
+    celltype_counts_df %>% 
+      filter(class_name == celltype) %>% 
+      filter(tissue == tis) %>% 
+      glimpse()
+  }
+}
+
+
+```
+
+
+
+```{r}
+# First, let's modify the data preparation to include group information
+celltype_counts_df <- meta_df %>% 
+  mutate(group = str_before_first(sample, "_")) %>% 
+  mutate(tissue = str_after_last(sample, "_")) %>% 
+  group_by(class_name, sample, tissue, group) %>% 
+  summarise(celltype_counts= n()) %>% 
+  group_by(sample) %>% 
+  mutate(relab = celltype_counts/sum(celltype_counts) * 100) %>% 
+  ungroup() %>% 
+  glimpse()
+
+
+View(celltype_counts_df)
+
+# Now run the linear model for each cell type and tissue combination
+results <- list()
+
+for (celltype in unique(celltype_counts_df$class_name)) {
+  for (tis in c("AMY", "HYP")) {
+    # Filter data for current cell type and tissue
+    current_data <- celltype_counts_df %>% 
+      filter(class_name == celltype, tissue == tis)
+    
+    # Run linear model
+    model_counts <- lm(celltype_counts ~ group, data = current_data)
+    model_relab <- lm(relab ~ group, data = current_data)
+    
+    # Store results
+    results[[paste(celltype, tis, sep = "_")]] <- summary(model)
+  }
+}
+
+# Print results
+for (name in names(results)) {
+  cat("\nResults for:", name, "\n")
+  print(results[[name]])
+}
+
+
+
+```
+
+
+
+Testing for differences in relative abundance and total counts between groups
+
+```{r}
+seurat_obj <- readRDS(glue(
+  "{data_path}/seurat/seurat_obj_clustered_celltyped_2025-05-12.rds")
+  )
+
+```
+
+
+
+```{r}
+# key sample metadata needs to be added into seurat_obj@meta.data
+# Should move this up as early as possible
+seurat_obj@meta.data$sample %>% sample(40)
+seurat_obj@meta.data$region <- seurat_obj@meta.data$sample %>% str_after_last("_")
+seurat_obj@meta.data$group <- seurat_obj@meta.data$sample %>% str_before_first("_")
+
+seurat_obj@meta.data %>% glimpse()
+count_df <- seurat_obj@meta.data %>% 
+  as.data.frame() %>% 
+  group_by(class_name, sample, region, group) %>% 
+  dplyr::summarise(counts = n()) %>% 
+  group_by(sample, region, group) %>% 
+  dplyr::mutate(relab = counts/sum(counts) * 100) %>% 
+  mutate(group_x_tissue = paste(group, region, sep = "_")) %>% 
+  mutate(group_x_tissue = factor(group_x_tissue, 
+    levels = c("SPF_AMY", "WildR_AMY", "SPF_HYP", "WildR_HYP"))) %>% 
+  glimpse()
+
+p_bar <- count_df %>% 
+  ggplot(aes(x=sample, y=relab, fill = class_name)) +
+  geom_bar(stat = "identity", color = "black", linewidth = 0.3) +
+  scale_fill_manual(values = abca_color_pal[["cluster_colors"]]) +
+  facet_wrap(~group_x_tissue, ncol = 2, scales = "free") +
+  labs(x =NULL, y= "Relative Abundance (%)", fill = NULL) +
+  theme_classic()  +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(
+  glue("{fig_path}/celltype_plots/celltype_barplot_{Sys.Date()}.png"),
+  p_bar,
+  width = 9, height = 10
+)
+
+p_bar_counts <- count_df %>% 
+  ggplot(aes(x=sample, y=counts, fill = class_name)) +
+  geom_bar(stat = "identity", color = "black", linewidth = 0.3) +
+  scale_fill_manual(values = abca_color_pal[["cluster_colors"]]) +
+  facet_wrap(~group_x_tissue, ncol = 2, scales = "free_x") +
+  labs(x =NULL, y= "Cell Counts", fill = NULL) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(
+  glue("{fig_path}/celltype_plots/celltype_barplot_counts_{Sys.Date()}.png"),
+  p_bar_counts,
+  width = 9, height = 10
+)
+```
+
+How does the cell type labeling compare with MapMyCells?
+
+```{r}
+seurat_obj@meta.data %>% glimpse()
+
+tab <- table(
+  Assigned = seurat_obj@meta.data$subclass_name,
+  # Assigned = seurat_obj@meta.data$cluster_name,
+  Clusters = seurat_obj@meta.data$seurat_clusters
+)
+p_cluster_annot_heatmap <-
+  pheatmap::pheatmap(log10(tab + 1),
+  # pheatmap::pheatmap(tab,
+    color = colorRampPalette(c("white", "blue"))(10)
+  )
+ggsave(
+  glue("{fig_path}/celltype_plots/celltype_heatmap_{Sys.Date()}.png"),
+  p_cluster_annot_heatmap,
+  # width = 9, height = 30
+  width = 9, height = 7
+)
+```
+
+
+
+```{r}
+plot <- VlnPlot(seurat_obj, features = c("Itih3-GRCm39", "Cyp2j12-GRCm39"), group.by = "tree.ident")
+SaveFigure(plot, "vln_exp1", width = 16, height = 8)
+```
+
+
+```{r}
+# you can plot raw counts as well
+plot <- VlnPlot(seurat_obj, features = c("Itih3-GRCm39", "Cyp2j12-GRCm39"), slot = "counts", log = TRUE)
+SaveFigure(plot, "vln_exp2", width = 16, height = 8)
+```
+
+
+```{r}
+top5 <- seurat_obj_markers %>% group_by(cluster) %>% top_n(n = 5, wt = avg_log2FC)
+to_plot <- unique(top5$gene)
+plot <- DotPlot(seurat_obj, features = to_plot, group.by = "tree.ident") + coord_flip()
+SaveFigure(plot, "dplot_top5", width = 16, height = 25)
+```
+
+
+```{r}
+# Plotting seurat_obj markers
+markers <- c("Il7r", "CCR7", "S100A4", "CD14", "LYZ", "MS4A1", "CD8A",
+"FCGR3A", "MS4A7", "GNLY", "NKG7", "FCER1A", "CST3", "PPBP", "IGHA2", "ZNF385D")
+
+seurat_obj_markers <- FeaturePlot(seurat_obj, features = markers)
+SaveFigure(seurat_obj_markers, "seurat_obj_markers", width = 30, height = 30)
+```
+
+
+```{r}
+plot <- DimPlot(seurat_obj, reduction = "umap", label = TRUE) + NoAxes() + NoLegend
+SaveFigure(plot, "umap_louvain_nolegend", width = 8, height = 7)
+```
+
+
+```{r}
+# New IDs from official tutorial
+new_ids <- c("Naive CD4 T", "Memory CD4 T", "CD14+ Mono", "B", "CD8 T",
+  "FCGR3A+ Mono", "NK", "DC", "IGHA", "ZNF385D")
+
+new_id_list <- list(Naive.CD4.T = c(17,19,20), Memory.CD4.T = c(15,16,18),
+  CD14.Mono = c(2), B = c(5:7), CD8.T = 13, FCGR3A.Mono = 1, NK = c(10:12,14),
+  DC = c(3,8), IGHA = 4, ZNF385D = 9)
+
+for (i in 1:length(new_id_list)) {
+  ind <- which(seurat_obj@meta.data$tree.ident %in% new_id_list[[i]])
+  seurat_obj@meta.data$collapsed[ind] <- names(new_id_list)[i]
+}
+
+seurat_obj@meta.data$collapsed <- factor(
+  seurat_obj@meta.data$collapsed, levels = names(new_id_list), ordered = TRUE)
+Idents(seurat_obj) <- seurat_obj@meta.data$collapsed
+
+names(new_ids) <- levels(seurat_obj)
+seurat_obj <- RenameIdents(seurat_obj, new_ids)
+
+plot <- DimPlot(seurat_obj, reduction = "umap", label = TRUE) + NoAxes() + NoLegend()
+SaveFigure(plot, "umap_louvain_nolegend_names", width = 8, height = 7)
+```
