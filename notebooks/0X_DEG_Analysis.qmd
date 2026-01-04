@@ -88,6 +88,7 @@ allen_annot_long <- allen_annot_df %>%
     names_pattern = "(class|subclass|supertype)_(name|label)"
   ) %>% 
   dplyr::rename(cell_type_name = name, cell_type_label = label) %>% 
+  distinct() %>% 
   glimpse()
 
 ```
@@ -103,20 +104,20 @@ format_mastdf <- function(mast_df, name_col, level_col) {
     janitor::clean_names() %>% 
     mutate(cell_type_level = {{level_col}}) %>% 
     glimpse()
-} 
+}
 
 # MAST Results (signficant hits only)
-class_mast_df <- readRDS(glue("{data_path}/mast/snRNASeq/class_mast_signif_hits_2025-12-31.rds")) %>% 
+class_mast_df <- readRDS(glue("{data_path}/mast/snRNASeq/class_mast_signif_hits_2026-01-03.rds")) %>% 
     format_mastdf(name_col = "class_name", level_col = "class")
 subclass_mast_df <- readRDS(
-  glue("{data_path}/mast/snRNASeq/subclass_mast_signif_hits_2025-12-31.rds")) %>% 
+  glue("{data_path}/mast/snRNASeq/subclass_mast_signif_hits_2026-01-03.rds")) %>% 
     format_mastdf(name_col = "subclass_name", level_col = "subclass")
 supertype_mast_df <- readRDS(
-  glue("{data_path}/mast/snRNASeq/supertype_mast_signif_hits_2025-12-31.rds")) %>% 
+  glue("{data_path}/mast/snRNASeq/supertype_mast_signif_hits_2026-01-03.rds")) %>% 
     format_mastdf(name_col = "supertype_name", level_col = "supertype")
 mast_df <- bind_rows(class_mast_df, subclass_mast_df, supertype_mast_df) %>% 
+  filter(p_adjust < 0.1) %>% 
     glimpse()
-
 
 # Augur Results
 format_augurdf <- function(augur_df, name_col, level_col) {
@@ -140,24 +141,572 @@ augur_df <- bind_rows(class_aucs_df, subclass_aucs_df, supertype_aucs_df) %>%
 
 # PseudoBulk Results (EdgeR LRT)
 edgeR_res <- readRDS(
-  glue("{data_path}/edgeR/snRNASeq/edgeR_signif_hits_lrt_res_{Sys.Date()}.rds")) %>% 
+  glue("{data_path}/edgeR/snRNASeq/edgeR_signif_hits_lrt_res_2026-01-03.rds")) %>% 
   mutate(
-    celltype_tissue = celltype, 
-    cell_type = str_before_last(celltype, "_"), 
+    tissue = str_after_last(celltype_tissue, "_"), 
+    cell_type = str_before_last(celltype_tissue, "_"), 
     cell_type_label = cell_type) %>% 
   filter(FDR < 0.1) %>% 
-  dplyr::select(-celltype) %>% 
-  left_join(allen_annot_long, relationship = "many-to-many") %>% 
+  # filter(PValue < 0.05) %>% 
+  left_join(allen_annot_long) %>% 
   glimpse()
 
+# Deseq2 Results
+deseq2_res <- readRDS(
+  glue("{data_path}/DESeq2/snRNASeq/deseq2_signif_hits_res_2026-01-03.rds")) %>% 
+  mutate(
+    tissue = str_after_last(celltype_tissue, "_"), 
+    cell_type = str_before_last(celltype_tissue, "_"), 
+    cell_type_label = cell_type) %>% 
+  left_join(allen_annot_long) %>% 
+  filter(padj < 0.1) %>% 
+  left_join(allen_annot_long) %>% 
+  glimpse()
 
 ```
 
 
 Q1: What cell types have the most DEGs, and are the most altered in state between WildR vs SPF?
 
+
+```{r}
+mast_df %>% glimpse()
+edgeR_res %>% glimpse()
+deseq2_res %>% glimpse()
+augur_df %>% glimpse()
+
+mast_deg_summary <- mast_df %>% 
+    group_by(cell_type_name, tissue, cell_type_level) %>% 
+    tally() %>% 
+    mutate(analysis = "MAST")
+
+edgeR_deg_summary <- edgeR_res %>% 
+    group_by(cell_type_name, tissue, cell_type_level, celltype_tissue) %>% 
+    tally() %>% 
+    mutate(analysis = "EdgeR-Pseudobulk")
+
+deseq2_deg_summary <- deseq2_res %>% 
+    group_by(cell_type_name, tissue, cell_type_level, celltype_tissue) %>% 
+    tally() %>% 
+    mutate(analysis = "DESeq2-Pseudobulk")
+
+```
+
+
 ```{r}
 # Visualize a ranked list of cell types by number of DEGS in each tissue for each analysis
+tiss <- "AMY"
+
+deg_summary_plot <- bind_rows(mast_deg_summary, edgeR_deg_summary, deseq2_deg_summary) %>% 
+  filter(tissue == tiss) %>% 
+  filter(n > 1) %>% 
+  mutate(analysis = factor(analysis, 
+    levels = c("MAST", "EdgeR-Pseudobulk", "DESeq2-Pseudobulk"))) %>% 
+  group_by(cell_type_level) %>% 
+  arrange(n) %>% 
+  mutate(cell_type_name = fct_reorder(cell_type_name, n)) %>% 
+  glimpse()
+
+# Get intersection of cell types present in both datasets
+augur_tiss_celltypes <- augur_df %>% 
+  filter(tissue == tiss) %>% 
+  pull(cell_type_name) %>% 
+  unique()
+
+# Get the ordered cell types from DEG plot, preserving order within each level
+deg_celltypes_ordered <- deg_summary_plot %>% 
+  ungroup() %>% 
+  filter(analysis == "MAST") %>% 
+  select(cell_type_name, cell_type_level) %>% 
+  distinct() %>% 
+  mutate(cell_type_name = as.character(cell_type_name))
+
+# Filter to only common cell types, preserving the order
+common_celltypes_df <- deg_celltypes_ordered %>% 
+  filter(cell_type_name %in% augur_tiss_celltypes)
+
+# Create DEG summary plot (filtered to common cell types, preserving order within each level)
+p_deg_summary <- deg_summary_plot %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ungroup() %>%
+  ggplot(aes(x = n, y = cell_type_name)) +
+    geom_bar(stat = "identity", fill = "gray50", width = 0.75) +
+    # scale_x_log10() +
+    theme_bw() +
+    facet_grid(cell_type_level ~ analysis, scales = "free", space = "free_y") +
+    labs(x = "Number of DEGs (P-adjusted < 0.1)", y = "Cell Type") +
+    theme(strip.text.y = element_blank(), 
+      axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Create Augur lollipop chart (preserving order within each level)
+p_augur_scores <- augur_df %>% 
+  filter(tissue == tiss) %>% 
+  mutate(analysis = "Augur") %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ggplot(aes(x = auc, y = cell_type_name)) +
+    geom_segment(aes(x = 0.5, xend = auc, y = cell_type_name, yend = cell_type_name), 
+                 color = "gray50", linewidth = 0.5) +
+    geom_point(aes(fill = auc), size = 3, shape = 21) +
+    scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0.5) +
+    scale_x_continuous(limits = c(0.5, 0.8), expand = c(0, 0)) +
+    theme_bw() +
+    facet_grid(cell_type_level ~  analysis, scales = "free", space = "free_y") +
+    labs(x = "AUROC", y = "", color = "AUROC") +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          legend.position = "none"
+          )
+
+# Align plots using patchwork (which should align by shared y-axis)
+p_combined <- p_deg_summary + p_augur_scores + 
+  plot_layout(widths = c(3, 1), guides = "collect") +
+  plot_annotation(title = "Differential Expression Analysis",
+                  subtitle = tiss)
+# p_combined
+
+ggsave(
+  glue("{fig_path}/DEG/snRNASeq/mast_deg_summary_combined_{tiss}_{Sys.Date()}.png"), 
+  p_combined, width = 12, height = 16, dpi = 300)
+
+```
+
+Summary for HYPOTHALAMUS
+
+```{r}
+tiss <- "HYP"
+
+deg_summary_plot <- bind_rows(mast_deg_summary, edgeR_deg_summary, deseq2_deg_summary) %>% 
+  filter(tissue == tiss) %>% 
+  filter(n > 1) %>% 
+  mutate(analysis = factor(analysis, 
+    levels = c("MAST", "EdgeR-Pseudobulk", "DESeq2-Pseudobulk"))) %>% 
+  group_by(cell_type_level) %>% 
+  arrange(n) %>% 
+  left_join(allen_annot_long) %>% 
+  # mutate(cell_type_name = fct_reoder(cell_type_name, cell_type_name)) %>% 
+  glimpse()
+
+# Get intersection of cell types present in both datasets
+augur_tiss_celltypes <- augur_df %>% 
+  filter(tissue == tiss) %>% 
+  pull(cell_type_name) %>% 
+  unique()
+
+# Get the ordered cell types from DEG plot, preserving order within each level
+deg_celltypes_ordered <- deg_summary_plot %>% 
+  ungroup() %>% 
+  filter(analysis == "MAST") %>% 
+  select(cell_type_name, cell_type_level) %>% 
+  distinct() %>% 
+  mutate(cell_type_name = as.character(cell_type_name))
+
+# Filter to only common cell types, preserving the order
+common_celltypes_df <- deg_celltypes_ordered %>% 
+  filter(cell_type_name %in% augur_tiss_celltypes)
+
+# Create DEG summary plot (filtered to common cell types, preserving order within each level)
+p_deg_summary <- deg_summary_plot %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ungroup() %>%
+  ggplot(aes(x = n, y = cell_type_name)) +
+    geom_bar(stat = "identity", fill = "gray50", width = 0.75) +
+    # scale_x_log10() +
+    theme_bw() +
+    facet_grid(cell_type_level ~ analysis, scales = "free", space = "free_y") +
+    labs(x = "Number of DEGs (P-adjusted < 0.1)", y = "Cell Type") +
+    theme(strip.text.y = element_blank(), 
+      axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Create Augur lollipop chart (preserving order within each level)
+p_augur_scores <- augur_df %>% 
+  filter(tissue == tiss) %>% 
+  mutate(analysis = "Augur") %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ggplot(aes(x = auc, y = cell_type_name)) +
+    geom_segment(aes(x = 0.5, xend = auc, y = cell_type_name, yend = cell_type_name), 
+                 color = "gray50", linewidth = 0.5) +
+    geom_point(aes(fill = auc), size = 3, shape = 21) +
+    scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0.5) +
+    scale_x_continuous(limits = c(0.5, 0.8), expand = c(0, 0)) +
+    theme_bw() +
+    facet_grid(cell_type_level ~  analysis, scales = "free_y", space = "free") +
+    labs(x = "AUROC", y = "", color = "AUROC") +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          legend.position = "none"
+          )
+
+# Align plots using patchwork (which should align by shared y-axis)
+p_combined <- p_deg_summary + p_augur_scores + 
+  plot_layout(widths = c(3, 1), guides = "collect") +
+  plot_annotation(title = "Differential Expression Analysis",
+                  subtitle = tiss)
+
+# p_combined
+
+ggsave(
+  glue("{fig_path}/DEG/snRNASeq/mast_deg_summary_combined_{tiss}_{Sys.Date()}.png"), 
+  p_combined, width = 12, height = 19, dpi = 300)
+
+
+```
+
+
+
+REMAKING SUMMARY FIGURES WITH BOTH Pvalue and FDR thresholds
+
+```{r}
+mast_df_pvalue <- bind_rows(class_mast_df, subclass_mast_df, supertype_mast_df) %>% 
+  filter(pr_chisq < 0.05) %>% 
+    glimpse()
+
+edgeR_res_pvalue <- readRDS(
+  glue("{data_path}/edgeR/snRNASeq/edgeR_signif_hits_lrt_res_2026-01-03.rds")) %>% 
+  mutate(
+    tissue = str_after_last(celltype_tissue, "_"), 
+    cell_type = str_before_last(celltype_tissue, "_"), 
+    cell_type_label = cell_type) %>% 
+  filter(PValue < 0.05) %>% 
+  left_join(allen_annot_long) %>% 
+  glimpse()
+
+# Deseq2 Results
+deseq2_res_pvalue <- readRDS(
+  glue("{data_path}/DESeq2/snRNASeq/deseq2_signif_hits_res_2026-01-03.rds")) %>% 
+  mutate(
+    tissue = str_after_last(celltype_tissue, "_"), 
+    cell_type = str_before_last(celltype_tissue, "_"), 
+    cell_type_label = cell_type) %>% 
+  left_join(allen_annot_long) %>% 
+  filter(pvalue < 0.05) %>% 
+  left_join(allen_annot_long) %>% 
+  glimpse()
+
+mast_deg_summary_pvalue <- mast_df_pvalue %>% 
+    group_by(cell_type_name, tissue, cell_type_level) %>% 
+    tally() %>% 
+    mutate(analysis = "MAST")
+edgeR_deg_summary_pvalue <- edgeR_res_pvalue %>% 
+    group_by(cell_type_name, tissue, cell_type_level, celltype_tissue) %>% 
+    tally() %>% 
+    mutate(analysis = "EdgeR-Pseudobulk")
+deseq2_deg_summary_pvalue <- deseq2_res_pvalue %>% 
+    group_by(cell_type_name, tissue, cell_type_level, celltype_tissue) %>% 
+    tally() %>% 
+    mutate(analysis = "DESeq2-Pseudobulk")
+
+```
+
+  
+
+```{r}
+# Visualize a ranked list of cell types by number of DEGS in each tissue for each analysis
+tiss <- "AMY"
+
+deg_summary_plot <- bind_rows(mast_deg_summary, edgeR_deg_summary, deseq2_deg_summary) %>% 
+  filter(tissue == tiss) %>% 
+  filter(n > 1) %>% 
+  mutate(analysis = factor(analysis, 
+    levels = c("MAST", "EdgeR-Pseudobulk", "DESeq2-Pseudobulk"))) %>% 
+  group_by(cell_type_level) %>% 
+  arrange(n) %>% 
+  mutate(pthres = "FDR < 0.1") %>% 
+  glimpse()
+
+deg_summary_plot_pval <- bind_rows(
+    mast_deg_summary_pvalue, edgeR_deg_summary_pvalue, deseq2_deg_summary_pvalue) %>% 
+    left_join(allen_annot_long) %>% 
+  filter(tissue == tiss) %>% 
+  filter(cell_type_name %in% deg_summary_plot$cell_type_name) %>% 
+  mutate(analysis = factor(analysis, 
+    levels = c("MAST", "EdgeR-Pseudobulk", "DESeq2-Pseudobulk"))) %>% 
+  mutate(pthres = "P-value < 0.05") %>% 
+  glimpse()
+
+# Get intersection of cell types present in both datasets
+augur_tiss_celltypes <- augur_df %>% 
+  filter(tissue == tiss) %>% 
+  pull(cell_type_name) %>% 
+  unique()
+
+# Get the ordered cell types from DEG plot, preserving order within each level
+deg_celltypes_ordered <- deg_summary_plot %>% 
+  ungroup() %>% 
+  filter(analysis == "MAST") %>% 
+  select(cell_type_name, cell_type_level) %>% 
+  distinct() %>% 
+  mutate(cell_type_name = as.character(cell_type_name))
+
+# Filter to only common cell types, preserving the order
+common_celltypes_df <- deg_celltypes_ordered %>% 
+  filter(cell_type_name %in% augur_tiss_celltypes)
+
+# Create DEG summary plot (filtered to common cell types, preserving order within each level)
+p_deg_summary <- bind_rows(deg_summary_plot_pval, deg_summary_plot) %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  # mutate(pthres = factor(pthres, levels = c("FDR < 0.1", "P-value < 0.05"))) %>% 
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ungroup() %>%
+  ggplot(aes(x = n, y = cell_type_name, fill = pthres)) +
+    geom_bar(stat = "identity", position = "identity", width = 0.8) +
+    scale_fill_manual(values = c("P-value < 0.05" = "darkgrey", "FDR < 0.1" = "darkred")) +
+    scale_x_log10() +
+    theme_bw() +
+    facet_grid(cell_type_level ~ analysis, scales = "free", space = "free_y") +
+    labs(x = "Number of DEGs", y = "Cell Type", fill = NULL) +
+    theme(strip.text.y = element_blank(), 
+      axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Create Augur lollipop chart (preserving order within each level)
+p_augur_scores <- augur_df %>% 
+  filter(tissue == tiss) %>% 
+  mutate(analysis = "Augur") %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ggplot(aes(x = auc, y = cell_type_name)) +
+    geom_segment(aes(x = 0.5, xend = auc, y = cell_type_name, yend = cell_type_name), 
+                 color = "gray50", linewidth = 0.5) +
+    geom_point(aes(fill = auc), size = 3, shape = 21) +
+    scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0.5) +
+    scale_x_continuous(limits = c(0.5, 0.8), expand = c(0, 0)) +
+    theme_bw() +
+    facet_grid(cell_type_level ~  analysis, scales = "free", space = "free_y") +
+    labs(x = "AUROC", y = "", color = "AUROC") +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          legend.position = "none"
+          )
+
+# Align plots using patchwork (which should align by shared y-axis)
+p_combined <- p_deg_summary + p_augur_scores + 
+  plot_layout(widths = c(3, 1), guides = "collect") +
+  plot_annotation(title = "Differential Expression Analysis",
+                  subtitle = tiss)
+# p_combined
+
+ggsave(
+  glue("{fig_path}/DEG/snRNASeq/mast_deg_summary_combined_{tiss}_pvalue_fdr_{Sys.Date()}.png"), 
+  p_combined, width = 12, height = 16, dpi = 300)
+
+```
+
+Summary for HYPOTHALAMUS
+
+```{r}
+tiss <- "HYP"
+
+deg_summary_plot <- bind_rows(mast_deg_summary, edgeR_deg_summary, deseq2_deg_summary) %>% 
+  filter(tissue == tiss) %>% 
+  filter(n > 1) %>% 
+  mutate(analysis = factor(analysis, 
+    levels = c("MAST", "EdgeR-Pseudobulk", "DESeq2-Pseudobulk"))) %>% 
+  group_by(cell_type_level) %>% 
+  arrange(n) %>% 
+  mutate(pthres = "FDR < 0.1") %>% 
+  glimpse()
+
+deg_summary_plot_pval <- bind_rows(
+    mast_deg_summary_pvalue, edgeR_deg_summary_pvalue, deseq2_deg_summary_pvalue) %>% 
+    left_join(allen_annot_long) %>% 
+  filter(tissue == tiss) %>% 
+  filter(cell_type_name %in% deg_summary_plot$cell_type_name) %>% 
+  mutate(analysis = factor(analysis, 
+    levels = c("MAST", "EdgeR-Pseudobulk", "DESeq2-Pseudobulk"))) %>% 
+  mutate(pthres = "P-value < 0.05") %>% 
+  glimpse()
+
+# Get intersection of cell types present in both datasets
+augur_tiss_celltypes <- augur_df %>% 
+  filter(tissue == tiss) %>% 
+  pull(cell_type_name) %>% 
+  unique()
+
+# Get the ordered cell types from DEG plot, preserving order within each level
+deg_celltypes_ordered <- deg_summary_plot %>% 
+  ungroup() %>% 
+  filter(analysis == "MAST") %>% 
+  select(cell_type_name, cell_type_level) %>% 
+  distinct() %>% 
+  mutate(cell_type_name = as.character(cell_type_name))
+
+# Filter to only common cell types, preserving the order
+common_celltypes_df <- deg_celltypes_ordered %>% 
+  filter(cell_type_name %in% augur_tiss_celltypes)
+
+# Create DEG summary plot (filtered to common cell types, preserving order within each level)
+p_deg_summary <- bind_rows(deg_summary_plot_pval, deg_summary_plot) %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  # mutate(pthres = factor(pthres, levels = c("FDR < 0.1", "P-value < 0.05"))) %>% 
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ungroup() %>%
+  ggplot(aes(x = n, y = cell_type_name, fill = pthres)) +
+    geom_bar(stat = "identity", position = "identity", width = 0.7) +
+    scale_fill_manual(values = c("P-value < 0.05" = "darkgrey", "FDR < 0.1" = "darkred")) +
+    scale_x_log10() +
+    theme_bw() +
+    facet_grid(cell_type_level ~ analysis, scales = "free", space = "free_y") +
+    labs(x = "Number of DEGs", y = "Cell Type", fill = NULL) +
+    theme(strip.text.y = element_blank(), 
+      axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Create Augur lollipop chart (preserving order within each level)
+p_augur_scores <- augur_df %>% 
+  filter(tissue == tiss) %>% 
+  mutate(analysis = "Augur") %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ggplot(aes(x = auc, y = cell_type_name)) +
+    geom_segment(aes(x = 0.5, xend = auc, y = cell_type_name, yend = cell_type_name), 
+                 color = "gray50", linewidth = 0.5) +
+    geom_point(aes(fill = auc), size = 3, shape = 21) +
+    scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0.5) +
+    scale_x_continuous(limits = c(0.5, 0.8), expand = c(0, 0)) +
+    theme_bw() +
+    facet_grid(cell_type_level ~  analysis, scales = "free", space = "free_y") +
+    labs(x = "AUROC", y = "", color = "AUROC") +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          legend.position = "none"
+          )
+
+# Align plots using patchwork (which should align by shared y-axis)
+p_combined <- p_deg_summary + p_augur_scores + 
+  plot_layout(widths = c(3, 1), guides = "collect") +
+  plot_annotation(title = "Differential Expression Analysis",
+                  subtitle = tiss)
+# p_combined
+
+ggsave(
+  glue("{fig_path}/DEG/snRNASeq/mast_deg_summary_combined_{tiss}_pvalue_fdr_{Sys.Date()}.png"), 
+  p_combined, width = 12, height = 19, dpi = 300)
+
+
+```
+
+
+
+Spot checking that tissue labels are correct for the EdgeR data - it somehow seems that EdgeR trends in HYP match whats going on in MAST(AMY) data better than in MAST (HYP) data
+
+
+```{r}
+edger_dir <- glue("{data_path}/edgeR/snRNASeq")
+mast_resdir <- glue("{data_path}/mast/snRNASeq")
+# View(allen_annot_df)
+# CS20230722_CLAS_12_AMY
+
+mast_12_hyp <- readRDS(glue("{mast_resdir}/class_label/CS20230722_CLAS_12_HYP_2025-12-31.rds")) %>% 
+  dplyr::select(gene_id = primerid, PValue = `Pr(>Chisq)`, FDR = p_adjust, coef) %>% 
+    dplyr::rename_with(~ paste0(.x, "_HYP_MAST"), .cols = c(PValue, FDR, coef)) %>% 
+  glimpse()
+
+pb_12_hyp <- readRDS(glue("{edger_dir}/class_label/CS20230722_CLAS_12_HYP/res_lrt_2025-12-30.rds")) %>% 
+  select(logFC, PValue, FDR) %>% 
+  dplyr::rename_all(~ paste0(.x, "_HYP")) %>% 
+  rownames_to_column("gene_id") %>% 
+  glimpse()
+pb_12_amy <- readRDS(glue("{edger_dir}/class_label/CS20230722_CLAS_12_AMY/res_lrt_2025-12-30.rds")) %>% 
+  select(logFC, PValue, FDR) %>% 
+  dplyr::rename_all(~ paste0(.x, "_AMY")) %>% 
+  rownames_to_column("gene_id") %>% 
+  glimpse()
+
+
+merged_12_data <- full_join(pb_12_hyp, pb_12_amy, by = "gene_id") %>% 
+  full_join(mast_12_hyp) %>% 
+  glimpse()
+
+# I want to know if the labels on the edgeR results are correct for tissue, looking to see if the results with MAST data are more consistent in the right tissue (HYP) vs AMY
+merged_12_data %>% 
+  ggplot(aes(x = logFC_HYP, y = coef_HYP_MAST)) +
+    geom_point() +
+    theme_bw() +
+    labs(x = "EdgeR LogFC", y = "MAST LogFC")
+  
+merged_12_data %>% 
+  ggplot(aes(x = logFC_AMY, y = coef_HYP_MAST)) +
+    geom_point() +
+    theme_bw() +
+    labs(x = "EdgeR LogFC", y = "MAST LogFC")
+
+
+
+pb_12_hyp %>% glimpse()
+pb_12_hyp %>% filter(FDR_HYP < 0.1) 
+pb_12_hyp %>% View()
+
+pb_12_amy %>% glimpse()
+pb_12_amy %>% filter(FDR_AMY < 0.1) %>% glimpse()
+pb_12_amy %>% View()
+
+```
+
+
+
+Plotting counts of significant hits across tissue groups
+
+```{r}
+
+mast_deg_summary_wide <- mast_deg_summary %>% dplyr::rename(n_mast = n) %>% select(-analysis) 
+edgeR_deg_summary_wide <- edgeR_deg_summary %>% dplyr::rename(n_edgeR = n) %>% select(-analysis) 
+
+mast_edger_summary <- full_join(
+  mast_deg_summary_wide, 
+  edgeR_deg_summary_wide) %>% 
+  glimpse()
+
+mast_edger_summary %>% 
+  ggplot(aes(x = n_mast, y = n_edgeR)) +
+    geom_point() +
+    theme_bw() +
+    scale_x_log10() +
+    scale_y_log10() +
+    geom_smooth(method = "lm") +
+    facet_wrap(~ tissue) +
+    labs(x = "Number of DEGs (MAST)", y = "Number of DEGs (EdgeR)")
+
+# swapping tissue labels to test if its a better fit 
+edgeR_deg_summary_wide_swapped <- edgeR_deg_summary %>% dplyr::rename(n_edgeR = n) %>% select(-analysis)  %>% 
+  mutate(tissue = case_when(
+    tissue == "AMY" ~ "HYP",
+    tissue == "HYP" ~ "AMY",
+    TRUE ~ tissue
+  ))
+
+mast_edger_summary_swapped <- full_join(
+  mast_deg_summary_wide, 
+  edgeR_deg_summary_wide_swapped) %>% 
+  glimpse()
+
+mast_edger_summary_swapped %>% 
+  ggplot(aes(x = n_mast, y = n_edgeR)) +
+    geom_point() +
+    theme_bw() +
+    scale_x_log10() +
+    scale_y_log10() +
+    geom_smooth(method = "lm") +
+    facet_wrap(~ tissue) +
+    labs(x = "Number of DEGs (MAST)", y = "Number of DEGs (EdgeR)")
+
+
+
+```
+
+
+# Is there any trend between how many cells are used in MAST and the results?
+
+```{r}
 
 
 ```

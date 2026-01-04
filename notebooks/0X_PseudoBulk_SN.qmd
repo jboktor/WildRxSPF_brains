@@ -160,8 +160,7 @@ submitJobs(jobs,
 ```
 
 
-## Visualizing results
-
+Aggregating Results
 
 ```{r}
 edger_dir <- glue("{data_path}/edgeR/snRNASeq")
@@ -178,7 +177,7 @@ deseq2_res <- deseq2_res_paths %>%
         as.data.frame() %>% 
         filter(pvalue < 0.05) %>%  # filter for nominal significance
         rownames_to_column("gene")) %>% 
-    bind_rows(.id = "celltype") %>% 
+    bind_rows(.id = "celltype_tissue") %>% 
     glimpse()
 
 edgeR_res <- edgeR_res_paths %>% 
@@ -187,12 +186,34 @@ edgeR_res <- edgeR_res_paths %>%
         as.data.frame() %>% 
         filter(PValue < 0.05) %>%  # filter for nominal significance
         rownames_to_column("gene")) %>% 
-    bind_rows(.id = "celltype") %>% 
+    bind_rows(.id = "celltype_tissue") %>% 
     glimpse()
 
 
 saveRDS(deseq2_res, glue("{data_path}/DESeq2/snRNASeq/deseq2_signif_hits_res_{Sys.Date()}.rds"))
 saveRDS(edgeR_res, glue("{data_path}/edgeR/snRNASeq/edgeR_signif_hits_lrt_res_{Sys.Date()}.rds"))
+
+```
+
+
+
+## Visualizing results
+
+```{r}
+# manually inspecting 
+
+# run_pseudobulk_de(
+#     cell_type_column = "class_label", 
+#     group_column = "microbiome", 
+#     tissue = "AMY", 
+#     celltype = "CS20230722_SUPT_0039"
+#     )
+
+```
+
+
+
+```{r}
 
 # # how many DEGs per celltype (no FDR)
 # total_genes_tested <- deseq2_res_pcoding %>% 
