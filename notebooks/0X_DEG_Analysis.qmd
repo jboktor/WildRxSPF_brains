@@ -107,13 +107,13 @@ format_mastdf <- function(mast_df, name_col, level_col) {
 }
 
 # MAST Results (signficant hits only)
-class_mast_df <- readRDS(glue("{data_path}/mast/snRNASeq/class_mast_signif_hits_2026-01-03.rds")) %>% 
+class_mast_df <- readRDS(glue("{data_path}/mast/snRNASeq/class_mast_signif_hits_2026-01-04.rds")) %>% 
     format_mastdf(name_col = "class_name", level_col = "class")
 subclass_mast_df <- readRDS(
-  glue("{data_path}/mast/snRNASeq/subclass_mast_signif_hits_2026-01-03.rds")) %>% 
+  glue("{data_path}/mast/snRNASeq/subclass_mast_signif_hits_2026-01-04.rds")) %>% 
     format_mastdf(name_col = "subclass_name", level_col = "subclass")
 supertype_mast_df <- readRDS(
-  glue("{data_path}/mast/snRNASeq/supertype_mast_signif_hits_2026-01-03.rds")) %>% 
+  glue("{data_path}/mast/snRNASeq/supertype_mast_signif_hits_2026-01-04.rds")) %>% 
     format_mastdf(name_col = "supertype_name", level_col = "supertype")
 mast_df <- bind_rows(class_mast_df, subclass_mast_df, supertype_mast_df) %>% 
   filter(p_adjust < 0.1) %>% 
@@ -166,7 +166,7 @@ deseq2_res <- readRDS(
 ```
 
 
-Q1: What cell types have the most DEGs, and are the most altered in state between WildR vs SPF?
+## Q1: What cell types have the most DEGs, and are the most altered in state between WildR vs SPF?
 
 
 ```{r}
@@ -206,6 +206,11 @@ deg_summary_plot <- bind_rows(mast_deg_summary, edgeR_deg_summary, deseq2_deg_su
   arrange(n) %>% 
   mutate(cell_type_name = fct_reorder(cell_type_name, n)) %>% 
   glimpse()
+
+# TEMP DELETE ME LATER
+# deg_summary_plot %>% 
+#   filter(analysis == "EdgeR-Pseudobulk") %>% 
+#   View()
 
 # Get intersection of cell types present in both datasets
 augur_tiss_celltypes <- augur_df %>% 
@@ -641,15 +646,6 @@ merged_12_data %>%
     labs(x = "EdgeR LogFC", y = "MAST LogFC")
 
 
-
-pb_12_hyp %>% glimpse()
-pb_12_hyp %>% filter(FDR_HYP < 0.1) 
-pb_12_hyp %>% View()
-
-pb_12_amy %>% glimpse()
-pb_12_amy %>% filter(FDR_AMY < 0.1) %>% glimpse()
-pb_12_amy %>% View()
-
 ```
 
 
@@ -704,9 +700,137 @@ mast_edger_summary_swapped %>%
 ```
 
 
-# Is there any trend between how many cells are used in MAST and the results?
+
+### Q1.A Is there any trend between how many cells are used in MAST and the number of DEGs? 
+
+Some cell types appear to have a bunch of differences, is this just because of greater cell counts going into the analysis?
+
+```{r}
+library(ggpubr)
+library(ggrepel)
+
+get_mast_cell_counts <- function(cell_type_column, celltype, tissue)  {
+    get_time <- function() print(format(Sys.time(), "%Y-%m-%d_%H:%M:%S"))
+    # Filter CELLS using metadata directly
+    message(glue("{get_time()} Filtering cells"))
+    cells_to_keep <- seurat_obj@meta.data[[cell_type_column]] == celltype & 
+                    seurat_obj@meta.data$tissue == tissue
+    return(sum(cells_to_keep))
+}
+
+celltype_droplist <- readRDS(
+  glue("{data_path}/seurat/snRNASeq/celltype_droplist_2025-12-30.rds")
+  )
+
+metadata_df <- seurat_obj@meta.data %>% glimpse()
+class_batchdata <- 
+    dplyr::select(metadata_df, celltype = class_label, tissue) %>% 
+    distinct() %>%
+    mutate(cell_type_column = "class_label")
+subclass_batchdata <- 
+    dplyr::select(metadata_df, celltype = subclass_label, tissue) %>% 
+    distinct() %>%
+    mutate(cell_type_column = "subclass_label")
+supertype_batchdata <- 
+    dplyr::select(metadata_df, celltype = supertype_label, tissue) %>% 
+    distinct() %>%
+    mutate(cell_type_column = "supertype_label")
+
+batchparams_df <- 
+    bind_rows(class_batchdata, subclass_batchdata, supertype_batchdata) %>% 
+    left_join(celltype_droplist) %>%
+    filter(is.na(dropme)) %>% 
+    dplyr::select(cell_type_column, celltype, tissue) %>% 
+    glimpse()
+
+mast_cell_counts_df <- batchparams_df %>%
+  mutate(n_cells = pmap_dbl(list(cell_type_column, celltype, tissue), get_mast_cell_counts)) %>%
+  mutate(cell_type_label = celltype) %>% 
+  left_join(allen_annot_long) %>% 
+  glimpse()
+
+# new update subsamples down to 2000 cells per group max
+mast_cell_counts_df %<>%
+  mutate(n_cells = if_else(n_cells > 4000, 4000, n_cells)) %>% 
+  glimpse()
+
+mast_deg_summary_strict <- bind_rows(class_mast_df, subclass_mast_df, supertype_mast_df) %>%
+    # filter(pr_chisq < 0.05) %>% 
+    filter(p_adjust < 0.01) %>% 
+    group_by(cell_type_name, tissue, cell_type_level, celltype_tissue) %>% 
+    tally() %>% 
+    mutate(analysis = "MAST") %>% 
+    glimpse()
+
+mast_deg_summary_wcounts <- mast_deg_summary_strict %>% 
+  left_join(mast_cell_counts_df) %>% 
+  glimpse()
+
+p_mast_deg_summary_wcounts <- mast_deg_summary_wcounts %>% 
+  ggplot(aes(x = n_cells, y = n)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    stat_cor(method = "pearson", label.x.npc = 0.05, label.y.npc = 0.97) +
+    stat_regline_equation(label.x.npc = 0.05, label.y.npc = 0.91) +
+    theme_bw() +
+    # geom_vline(xintercept = 500, linetype = "dashed") +
+    # scale_x_log10() +
+    # scale_y_log10() +
+    # facet_grid(cell_type_level ~ tissue) +
+    facet_wrap( ~ tissue , scales = "free") +
+    labs(x = "Number of Cells", y = "Number of DEGs")
+
+ggsave(
+  glue("{fig_path}/DEG/snRNASeq/mast_deg_summary_wcounts_{Sys.Date()}.png"), 
+  p_mast_deg_summary_wcounts, width = 10, height = 6, dpi = 300)
+
+
+# Identify top 5 cell types with most DEGs per tissue
+top5_celltypes <- mast_deg_summary_wcounts %>%
+  group_by(tissue) %>%
+  slice_max(n, n = 10) %>%
+  ungroup()
+
+p_mast_deg_summary_wcounts_labeled <- mast_deg_summary_wcounts %>% 
+  ggplot(aes(x = n_cells, y = n)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    stat_cor(method = "pearson", label.x.npc = 0.05, label.y.npc = 0.97) +
+    stat_regline_equation(label.x.npc = 0.05, label.y.npc = 0.91) +
+    geom_label_repel(
+      data = top5_celltypes,
+      aes(label = cell_type_name),
+      alpha = 0.8,
+      force = 10,
+      force_pull = 0,
+      nudge_x = 0.25,
+      nudge_y = 0.25,
+      segment.curvature = 0.3,
+      segment.ncp = 3,
+      segment.angle = 10,
+      min.segment.length = 0,
+      box.padding = 0.5,
+      point.padding = 0.3,
+      max.overlaps = Inf
+    ) +
+    theme_bw() +
+    facet_wrap( ~ tissue , scales = "free") +
+    labs(x = "Number of Cells", y = "Number of DEGs")
+
+ggsave(
+  glue("{fig_path}/DEG/snRNASeq/mast_deg_summary_wcounts_labeled_{Sys.Date()}.png"), 
+  p_mast_deg_summary_wcounts_labeled, width = 10, height = 6, dpi = 300)
+
+# s
+# looks like theres a correlation in the HYP but not the AMY for number of cells in analysis and number of DEGs returned for that cell type with MAST.
+
+```
+
+
+
+
 
 ```{r}
 
-
 ```
+
