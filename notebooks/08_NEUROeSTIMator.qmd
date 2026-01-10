@@ -219,7 +219,7 @@ library(strex)
 library(scico)
 library(ggsci)
 
-homedir <- "/central/groups/MazmanianLab/joeB"
+homedir <- "/resnick/groups/MazmanianLab/jboktor"
 wkdir <- glue("{homedir}/WILDRxSPF_brains")
 figdir <- glue("{wkdir}/figures/neuroestimator")
 snRNAseq_dir <- glue("{homedir}/snRNAseq_analysis/WILDRxSPF_brains")
@@ -233,7 +233,7 @@ Loading NEUROeSTIMator results - seqFISH data
 
 ```{r}
 results_spatial <- readRDS(
-    glue("{neuro_dir}/neuroestimator_results_spatial_2025-04-28.rds")
+    glue("{neuro_dir}/neuroestimator_results_spatial_2025-05-01.rds")
 ) %>%
     rownames_to_column(var = "cell_id") %>%
     glimpse()
@@ -277,8 +277,7 @@ meta_df_gated <- readRDS(
     "{wkdir}/data/interim/neuroestimator/",
     "seqFISH_meta_2025-05-01.rds"
   )
-) %>% 
-  glimpse()
+) %>% glimpse()
 
 # ggplot(aes(x = center_x, y = center_y, color = predicted_activity)) +
 #     geom_point() +
@@ -514,6 +513,8 @@ Results overview - we see two significant results:
 
 ![NEUROeSTIMator results](../figures/neuroestimator/neuro_lmm_res_03%20OB-CR%20Glut%20%20HIPP_2025-05-01.png)
 ![NEUROeSTIMator results](../figures/neuroestimator/neuro_lmm_res_31%20OPC-Oligo%20HYP_2025-05-01.png)
+
+
 
 Loading NEUROeSTIMator results - snRNAseq data
 

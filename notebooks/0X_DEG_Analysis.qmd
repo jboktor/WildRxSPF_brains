@@ -127,14 +127,15 @@ format_augurdf <- function(augur_df, name_col, level_col) {
     glimpse()
 }
 
+augur_resdir <- glue("{data_path}/augur/snRNASeq/var_thresh_0.6")
 class_aucs_df <- readRDS(
-  glue("{data_path}/augur/snRNASeq/class_aucs_df_2025-12-30.rds")) %>% 
+  glue("{augur_resdir}/class_aucs_df_2026-01-10.rds")) %>% 
   format_augurdf(name_col = "class_name", level_col = "class")
 subclass_aucs_df <- readRDS(
-  glue("{data_path}/augur/snRNASeq/subclass_aucs_df_2025-12-30.rds")) %>% 
+  glue("{data_path}/augur/snRNASeq/var_thresh_0.6/subclass_aucs_df_2026-01-10.rds")) %>% 
   format_augurdf(name_col = "subclass_name", level_col = "subclass")
 supertype_aucs_df <- readRDS(
-  glue("{data_path}/augur/snRNASeq/supertype_aucs_df_2025-12-30.rds")) %>% 
+  glue("{data_path}/augur/snRNASeq/var_thresh_0.6/supertype_aucs_df_2026-01-10.rds")) %>% 
   format_augurdf(name_col = "supertype_name", level_col = "supertype")
 augur_df <- bind_rows(class_aucs_df, subclass_aucs_df, supertype_aucs_df) %>% 
     glimpse()
@@ -165,6 +166,49 @@ deseq2_res <- readRDS(
 
 ```
 
+
+Calculating the Odds ratio of each cell type for WildR vs SPF
+
+```{r}
+
+# (a/c) / (b/d)
+# where a is the number of aged cells in the cluster, b is the number of adult cells in the cluster, c is the number of aged cells in the class minus a and d is the number of adult cells in the class minus b
+# cell_type_name <- "class_name"
+
+calculate_odds_ratio <- function(cell_type_name) {
+  cell_counts_df <- seurat_obj@meta.data %>% 
+    dplyr::select(cell_type_name = {{cell_type_name}}, microbiome, tissue) %>% 
+    group_by(cell_type_name, microbiome, tissue) %>% 
+    summarise(n_cells = n(), .groups = "drop")
+    
+  tissue_group_totals <- cell_counts_df %>% 
+    group_by(tissue, microbiome) %>% 
+    summarise(group_tissue_ncells = sum(n_cells), .groups = "drop") %>% 
+    pivot_wider(names_from = microbiome, values_from = group_tissue_ncells, 
+      names_prefix = "total_cells_") %>% 
+    glimpse()
+
+  cell_counts_df %>% 
+    pivot_wider(names_from = microbiome, values_from = n_cells) %>% 
+    left_join(tissue_group_totals) %>% 
+    mutate(celltype_tissue = glue("{cell_type_name}_{tissue}")) %>% 
+    mutate(odds_ratio = (WildR / (total_cells_WildR - WildR)) / (SPF / (total_cells_SPF - SPF))) %>% 
+    glimpse()
+}
+
+# tst <- calculate_odds_ratio("class_name") %>% glimpse()
+odds_ratio_df <- bind_rows(
+  calculate_odds_ratio("class_name") %>% mutate(cell_type_level = "class"),
+  calculate_odds_ratio("subclass_name") %>% mutate(cell_type_level = "subclass"),
+  calculate_odds_ratio("supertype_name") %>% mutate(cell_type_level = "supertype")
+) %>% 
+arrange(desc(odds_ratio))
+# View(odds_ratio_df)
+
+
+
+
+```
 
 ## Q1: What cell types have the most DEGs, and are the most altered in state between WildR vs SPF?
 
