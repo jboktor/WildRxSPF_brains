@@ -129,3 +129,14 @@ seriate_matrix_rows <- function(mat,
   ranked_order <- rownames(mat)[order]
   return(ranked_order)
 }
+
+
+get_unique_gene_counts <- function(seurat_obj) {
+    counts <- SeuratObject::GetAssayData(seurat_obj, layer = "counts")
+    clean_genes <- strex::str_before_first(rownames(counts), "-GRCm39")
+    clean_counts <- rowsum(counts, group = clean_genes)
+    # Sanity check
+    # sum(counts[grep("^Gnai3", rownames(counts)), ])
+    # sum(clean_counts["Gnai3", ])
+    return(clean_counts)
+}
