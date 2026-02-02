@@ -1,0 +1,371 @@
+---
+title: "Metabolic Flux Analysis"
+editor: source
+author: "Joe Boktor"
+date: '2026-01-24'
+format: 
+  html:
+    self-contained: true
+    code-fold: true
+    code-tools: true
+    fig-align: right
+    fig-height: 8
+    fig-width: 14 
+---
+
+```{r}
+library(Seurat)
+library(Matrix)
+library(irlba)
+library(scico)
+library(tidyverse)
+library(patchwork)
+library(glue)
+library(presto)
+library(hdf5r)
+library(tidyseurat)
+library(Augur)
+library(batchtools)
+library(tictoc)
+library(future)
+library(strex)
+library(cowplot)
+library(aplot)
+library(SingleCellExperiment)
+library(BiocParallel)
+library(ggside)
+theme_set(theme_bw())
+
+home_dir <- "/resnick/groups/MazmanianLab/jboktor"
+wkdir <- glue("{home_dir}/WILDRxSPF_brains")
+data_path <- glue("{wkdir}/data/interim")
+fig_path <- glue("{wkdir}/figures")
+abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
+scFEA_gitpath <- glue("{home_dir}/git/scFEA")
+scFEA_input_path <- glue("{wkdir}/data/input/scFEA")
+scFEA_output_path <- glue("{wkdir}/data/interim/scFEA/snRNASeq")
+# dir.create(scFEA_output_path, showWarnings = FALSE, recursive = TRUE)
+
+source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
+
+# Set memory limit for future
+options(future.globals.maxSize = 200000 * 1024^2)  # Set to ~200GB
+# Use more memory-efficient serialization
+options(future.serialization.progressr = FALSE)
+options(future.serialization.progressr.enable = FALSE)
+
+# future::plan(multisession, workers = 3)
+# future::plan(sequential)
+```
+
+
+## Analysis Prep
+
+Loading Seurat object
+
+```{r}
+seurat_obj <- readRDS( 
+    glue("{data_path}/seurat/snRNASeq/",
+    "seurat_obj_onlyparsefilters_celltyped_2025-12-27.rds")
+    )
+seurat_obj
+# Subset the seurat object to only keep cells that pass the QC filters
+seurat_obj <- seurat_obj %>% subset(subset = keep_cell)
+seurat_obj@meta.data %>% glimpse()
+
+allen_annot_df <- seurat_obj@meta.data %>% 
+  select(class_name, class_label, subclass_name, 
+    subclass_label, supertype_name, supertype_label) %>% 
+  distinct() %>% 
+  glimpse()
+
+allen_annot_long <- allen_annot_df %>% 
+  pivot_longer(
+    cols = everything(),
+    names_to = c("cell_type_level", ".value"),
+    names_pattern = "(class|subclass|supertype)_(name|label)"
+  ) %>% 
+  dplyr::rename(cell_type_name = name, cell_type_label = label) %>% 
+  distinct() %>% 
+  glimpse()
+
+```
+
+
+Git repo for scFEA is cloned into this path `scFEA_gitpath`.
+
+
+Save a cellxgene matrix for each mouse sample separately, For each sample matrix:
+
+1. CPM normalize, log2 transform
+2. Filter out specific genes in metabolic modules
+3. Save matrix in our data path
+
+
+
+```{r}
+# Load Metabolic Gene List (Clean names, e.g., "Hk2", "G6pd")
+metabolic_genes <- read.delim(glue("{scFEA_input_path}/scFEA.mouse.genes.txt"), header = FALSE) %>% 
+  pull(V1)
+
+generate_cpm_matrix <- function(seurat_obj, tissue) {
+  # STEP 1: Get Raw Data & Calculate Library Size
+  seurat_obj <- seurat_obj %>% subset(subset = tissue == tissue)
+  counts <- Seurat::GetAssayData(seurat_obj, layer = "counts")
+  total_counts <- Matrix::colSums(counts)
+
+  # STEP 2: Filter for Metabolic Genes
+  metabolism_gene_lgl <- seurat_obj[["RNA"]][[]]$gene_name %in% metabolic_genes
+  counts_filtered <- counts[metabolism_gene_lgl, ]
+  # Sanity Check
+  message(glue("Original Genes: {nrow(counts)}"))
+  message(glue("Filtered Metabolic Genes: {nrow(counts_filtered)}"))
+  message(glue("Genes Removed: {sum(!metabolism_gene_lgl)}"))
+
+
+  # STEP 3: Aggregate Isoforms (The Matrix Multiplication Method)
+  # 3a. Clean Gene Names (Remove suffixes like -GRCm39)
+  clean_genes <- strex::str_before_first(rownames(counts_filtered), "-GRCm39")
+
+  # 3b. create the Transformation Matrix
+  # as.factor sorts levels alphabetically -> Rows of agg_mat will be sorted!
+  clean_genes_factor <- as.factor(clean_genes)
+  agg_mat <- as(clean_genes_factor, "sparseMatrix") 
+
+  # 3c. Perform Matrix Multiplication (Summation)
+  # [UniqueGenes x OldGenes] %*% [OldGenes x Cells] = [UniqueGenes x Cells]
+  # --- SAFETY CHECK ---
+  # Verify alignment: The number of columns in our mapper must match rows in data
+  if (ncol(agg_mat) != nrow(counts_filtered)) {
+      stop("CRITICAL ERROR: Dimension mismatch. The aggregation matrix does not align with the count matrix.")
+  } else {
+      message(glue("Validation Passed: Aggregating {ncol(agg_mat)} original gene rows into {nrow(agg_mat)} unique gene rows."))
+      clean_counts <- agg_mat %*% counts_filtered
+  }
+
+  # STEP 4: Normalize (CPM + Log2)
+  # 4a. Scaling Factors (using original library sizes)
+  scaling_factors <- 1e6 / total_counts
+
+  # 4b. Calculate CPM (Sparse Multiplication)
+  # Multiply each column by its specific scaling factor
+  cpm_sparse <- clean_counts %*% Matrix::Diagonal(x = scaling_factors)
+
+  # 4c. Log2 Transform (Safe for Sparse Matrices)
+  # log1p(x) / log(2) is mathematically equal to log2(x+1)
+  # but it preserves zeros (sparsity), saving RAM.
+  final_matrix <- log1p(cpm_sparse) / log(2)
+  colnames(final_matrix) <- colnames(counts_filtered)
+  # rownames(final_matrix) <- toupper(rownames(final_matrix))
+
+  # Final Check
+  message("Final Matrix Stats:")
+  print(dim(final_matrix))
+  print(final_matrix[1:5, 1:5]) # Preview corner
+
+  # final_matrix_subset <- final_matrix[, sample(ncol(final_matrix), size = 1000)]
+  # final_matrix_subset[1:5, 1:5]
+
+  output_file <- glue("{scFEA_input_path}/snRNASeq/snRNASeq_log2cpm_{tissue}.csv")
+  write.csv(as.matrix(final_matrix), output_file, quote = FALSE)
+
+  # output_file <- glue("{scFEA_input_path}/snRNASeq/snRNASeq_log2cpm_{tissue}.csv")
+  # write.csv(as.matrix(final_matrix_subset), output_file, quote = FALSE)
+}
+
+tissues <- seurat_obj@meta.data$tissue %>% unique()
+for (tissue in tissues) {
+  tic()
+  message(glue("Processing {tissue}"))
+  generate_cpm_matrix(seurat_obj, tissue)
+  toc()
+}
+
+```
+
+
+Running scFEA script
+```{r}
+tissues <- c("AMY", "HYP")
+for (tissue in tissues) {
+  cmd <- glue(
+      "sbatch {wkdir}/notebooks/shell_scripts/run_scFEA.sh",
+      " --input_matrix {scFEA_input_path}/snRNASeq/snRNASeq_log2cpm_subset_{tissue}.csv")
+  print(cmd)
+  shell_do(cmd)
+}
+
+```
+
+
+
+```{r}
+# Complete mouse gene list - downloaded from https://scflux.org/media/module_info_for_res/scFEA.mouse.genes.txt
+metabolic_genes <- 
+    read.delim(glue("{scFEA_input_path}/scFEA.mouse.genes.txt"), header = FALSE) %>% 
+    pull(V1)
+
+# sample_ids <- seurat_obj@meta.data %>% pull(sample) %>% unique()
+class_names <- seurat_obj@meta.data$subclass_name %>% unique()
+# dir.create(glue("{scFEA_input_path}/snRNASeq"), showWarnings = FALSE, recursive = TRUE)
+
+# celltype <- class_names[1]
+for (celltype in class_names) {
+  temp_seur <- seurat_obj %>% subset(subset = subclass_name == celltype)
+
+  # CPM normalization and log2 transformation
+  # pull counts and sum isoforms into one gene row
+  counts <- get_unique_gene_counts(temp_seur)
+  cpm <- t(t(counts) / colSums(counts)) * 1e6
+  log2_cpm <- log2(cpm + 1) %>% as.matrix()  
+
+  # Filter out specific genes in metabolic modules
+  selected_genes <- rownames(log2_cpm) %in% metabolic_genes
+  log2_cpm_filtered <- log2_cpm[selected_genes,]
+
+  # filter out cells that contain non-zero values for at least ten genes related in metabolic modules
+  cell_nonzero_genes <- Matrix::colSums(log2_cpm_filtered > 0)
+  # summary(cell_nonzero_genes)
+  min_nonzero_genes <- 5
+  message(glue("
+    {celltype}: Number of cells with at least {min_nonzero_genes} non-zero genes:",
+    " {sum(cell_nonzero_genes >= min_nonzero_genes)} out of {ncol(log2_cpm_filtered)}")
+    )
+  cells_to_keep <- cell_nonzero_genes >= min_nonzero_genes
+  log2_cpm_filtered <- log2_cpm_filtered[, cells_to_keep]
+  rownames(log2_cpm_filtered) <- toupper(rownames(log2_cpm_filtered))
+  log2_cpm_filtered[1:10, 1:10]
+  log2_cpm_filtered %>% dim()
+
+  message(glue(
+    "Number of selected genes: {sum(selected_genes)}",
+    " out of {length(metabolic_genes)} metabolic genes"
+    ))
+
+  write.csv(log2_cpm_filtered, 
+    glue("{scFEA_input_path}/snRNASeq/{celltype}_log2cpm.csv")
+    )
+}
+
+```
+
+
+## Execute scFEA
+
+```{r}
+# python src/scFEA.py 
+# --data_dir data \
+# —input_dir input \
+# —test_file Melissa_full.csv  \
+# —moduleGene_file module_gene_m168.csv \
+# —stoichiometry_matrix cmMat_c70_m168.csv
+
+# python src/scFEA.py --data_dir data --input_dir input \
+#                     --test_file mouse_example_data.csv \
+#                     --moduleGene_file module_gene_complete_mouse_m168.csv \
+#                     --stoichiometry_matrix cmMat_complete_mouse_c70_m168.csv \
+#                     --sc_imputation True \
+#                     --output_flux_file output/mouse_flux.csv \
+#                     --output_balance_file output/mouse_balance.csv
+
+# celltype <- class_names[1]
+
+
+glue(
+  "python {scFEA_gitpath}/src/scFEA.py",
+  " --data_dir {scFEA_gitpath}/data",
+  " --input_dir {scFEA_input_path}/snRNASeq",
+  " --test_file 'snRNASeq_log2cpm_subset.csv'",
+  " --moduleGene_file module_gene_complete_mouse_m168.csv",
+  " --stoichiometry_matrix cmMat_complete_mouse_c70_m168.csv",
+  " --sc_imputation True",
+  " --output_flux_file '{scFEA_output_path}/snRNASeq_flux_TEST2.csv'",
+  " --output_balance_file '{scFEA_output_path}/snRNASeq_balance_TEST2.csv'"
+)
+
+
+
+# Alternative networks seem broken on scFEAs end
+
+# network_list <- list(
+#   "m171_nad" = list(
+#     gene_list = "scFEA.M171_NAD.mouse.symbols.gmt",
+#     moduleGene_file = "scFEA.M171_NAD.mouse.moduleinfo.csv",
+#     stoichiometry_matrix = "cmMat_M171_NAD_mouse.csv"
+#   )
+# )
+
+
+# netname <- "m171_nad"
+# glist <- network_list[[netname]][["gene_list"]] %>% print()
+# mfile <- network_list[[netname]][["moduleGene_file"]] %>% print()
+# sfile <- network_list[[netname]][["stoichiometry_matrix"]] %>% print()
+
+# glue(
+#   "python {scFEA_gitpath}/src/scFEA.py",
+#   " --data_dir {scFEA_gitpath}/data",
+#   " --input_dir {scFEA_input_path}/snRNASeq",
+#   " --test_file 'snRNASeq_log2cpm_subset.csv'",
+#   " --moduleGene_file {glist}.csv",
+#   " --stoichiometry_matrix {sfile}",
+#   " --sc_imputation True",
+#   " --output_flux_file '{scFEA_output_path}/snRNASeq_flux_{netname}.csv'",
+#   " --output_balance_file '{scFEA_output_path}/snRNASeq_balance_{netname}.csv'"
+# )
+
+
+# library(clusterProfiler)
+# library(glue)
+
+# # Read GMT file
+# gmt_data <- clusterProfiler::read.gmt(glue("{scFEA_gitpath}/data/{glist}"))
+
+# # Convert from long format (term, gene) to wide format (M_X, gene1, gene2, ...)
+# csv_rows <- lapply(sort(unique(gmt_data$term)), function(term) {
+#   genes <- gmt_data$gene[gmt_data$term == term]
+#   c(term, genes)
+# })
+
+# # Find the maximum number of columns needed
+# max_cols <- max(sapply(csv_rows, length))
+
+# # Pad rows with empty strings to ensure all rows have the same number of columns
+# csv_rows_padded <- lapply(csv_rows, function(row) {
+#   if (length(row) < max_cols) {
+#     c(row, rep("", max_cols - length(row)))
+#   } else {
+#     row
+#   }
+# })
+
+# # Create header row: "1" followed by "A" repeated (max_cols - 1) times
+# # This matches the format of the original CSV file
+# header_row <- c("1", rep("A", max_cols - 1))
+
+# # Combine header with data rows
+# all_rows <- c(list(header_row), csv_rows_padded)
+
+# # Convert to data frame
+# csv_df <- as.data.frame(do.call(rbind, all_rows), stringsAsFactors = FALSE) %>% 
+#   mutate(V1 = glue("M_{V1}")) %>% 
+#   glimpse()
+
+# # Write to CSV without row names, column names, or quotes
+# output_file_path <- glue(glue("{scFEA_gitpath}/data/{glist}.csv"))
+# write.table(csv_df, 
+#             file = output_file_path,
+#             sep = ",",
+#             row.names = FALSE,
+#             col.names = FALSE,
+#             quote = FALSE
+#             )
+
+
+
+```
+
+
+
+```{r}
+
+```

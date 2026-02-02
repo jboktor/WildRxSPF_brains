@@ -729,3 +729,193 @@ for (i in 1:nrow(sig_res)) {
 6 AMY    04 DG-IMN Glut     588180. 0.00321       0.0251       *           
 7 HYP    14 HY Glut      299756038  0.00493       0.0331       *           
 > 
+
+
+Re-doing this analysis for single-nuclei data
+
+```{r}
+snRNAseq_meta_neuroest <- readRDS(
+  glue(
+    "{wkdir}/data/interim/neuroestimator/",
+    "snRNAseq_meta_2025-05-01.rds"
+  )
+  ) %>% 
+  distinct() %>%
+  column_to_rownames(var = "bc_wells") %>%
+  select(, predicted_activity) %>%
+  glimpse()
+
+# snRNAseq_meta_neuroest[4, "bc_wells"]
+# snRNAseq_meta_neuroest[17, "bc_wells"]
+
+
+seurat_obj <- readRDS( 
+    glue("{data_path}/seurat/snRNASeq/",
+    "seurat_obj_onlyparsefilters_celltyped_2025-12-27.rds")
+    )
+seurat_obj
+# Subset the seurat object to only keep cells that pass the QC filters
+seurat_obj <- seurat_obj %>% subset(subset = keep_cell)
+
+# Adding NEUROeSTIMator results to seurat object metadata
+# snRNAseq_meta_neuroest %>% glimpse()
+seurat_obj <- Seurat::AddMetaData(seurat_obj, snRNAseq_meta_neuroest)
+snRNAseq_meta <- seurat_obj@meta.data %>% glimpse()
+
+allen_annot_df <- seurat_obj@meta.data %>% 
+  select(class_name, class_label, subclass_name, 
+    subclass_label, supertype_name, supertype_label) %>% 
+  distinct() %>% 
+  glimpse()
+
+allen_annot_long <- allen_annot_df %>% 
+  pivot_longer(
+    cols = everything(),
+    names_to = c("cell_type_level", ".value"),
+    names_pattern = "(class|subclass|supertype)_(name|label)"
+  ) %>% 
+  dplyr::rename(cell_type_name = name, cell_type_label = label) %>% 
+  distinct() %>% 
+  glimpse()
+
+```
+
+Trying a lmm for testing shifted probabilities of neuronal activity between groups - not the best approach
+
+```{r}
+snRNAseq_meta %>% glimpse()
+celltype_droplist <- readRDS(
+  glue("{wkdir}/data/interim/seurat/snRNASeq/celltype_droplist_2025-12-30.rds")
+  )
+
+snRNAseq_meta$predicted_activity %>% summary()
+
+neuroest_lmm_res <- list()
+for (tiss in unique(snRNAseq_meta$tissue)) {
+  metadata_tiss <- snRNAseq_meta %>% filter(tissue == tiss)
+  tissue_droplist <- celltype_droplist %>% filter(tissue == tiss) %>% 
+    left_join(allen_annot_long, by = c("celltype" = "cell_type_label"))
+  
+  for (cell_type_level in c("class_name", "subclass_name", "supertype_name")) {
+    metadata_tiss_filtered <- metadata_tiss %>% 
+      filter(.data[[cell_type_level]] %nin% unique(tissue_droplist$cell_type_name))
+
+    for (cell_type in unique(metadata_tiss_filtered[[cell_type_level]])) {
+      message(glue("Running LMM for {tiss} {cell_type_level} {cell_type}"))
+      sub_df <- metadata_tiss_filtered %>% 
+        filter(.data[[cell_type_level]] == cell_type)
+
+      # Linear mixed effects model
+      neuroest_lmm_res[[glue("{cell_type_level}__{tiss}__{cell_type}")]] <- 
+        nlme::lme(predicted_activity ~ group, random = ~ 1 | sample, data = sub_df)
+    }
+  }
+}
+  
+
+neuroest_lmm_res[["supertype_name__AMY__0407 MPN-MPO-LPO Lhx6 Zfhx3 Gaba_1"]] %>% 
+  broom.mixed::tidy()
+
+neuroest_lmm_res_df <- neuroest_lmm_res %>% 
+  purrr::map(~ broom.mixed::tidy(.)) %>%
+  bind_rows(.id = "model") %>%
+  tidyr::separate(model, into = c("cell_type_level", "tissue", "cell_type"), 
+    sep = "__", remove = FALSE) %>%
+  glimpse()
+
+neuroest_lmm_res_df %>% 
+  filter(grepl("group", term)) %>% 
+  group_by(cell_type_level, tissue) %>%
+  mutate(p_adj = p.adjust(p.value, method = "BH")) %>%
+  arrange(p_adj) %>%
+  glimpse()
+
+
+```
+
+Using a GLMM with a beta distribution family to test shifted probabilities of neuronal activity between groups
+
+```{r}
+library(glmmTMB)
+library(dplyr)
+snRNAseq_meta %>% glimpse()
+celltype_droplist <- readRDS(
+  glue("{wkdir}/data/interim/seurat/snRNASeq/celltype_droplist_2025-12-30.rds")
+  )
+snRNAseq_meta$predicted_activity %>% summary()
+
+sub_df_list <- list()
+for (tiss in unique(snRNAseq_meta$tissue)) {
+  metadata_tiss <- snRNAseq_meta %>% filter(tissue == tiss)
+  tissue_droplist <- celltype_droplist %>% filter(tissue == tiss) %>% 
+    left_join(allen_annot_long, by = c("celltype" = "cell_type_label"))
+  
+  for (cell_type_level in c("class_name", "subclass_name", "supertype_name")) {
+    metadata_tiss_filtered <- metadata_tiss %>% 
+      filter(.data[[cell_type_level]] %nin% unique(tissue_droplist$cell_type_name))
+
+    for (cell_type in unique(metadata_tiss_filtered[[cell_type_level]])) {
+      message(glue("Selecting df for {tiss} {cell_type_level} {cell_type}"))
+      sub_df_list[[glue("{cell_type_level}__{tiss}__{cell_type}")]] <- 
+        metadata_tiss_filtered %>% filter(.data[[cell_type_level]] == cell_type)
+
+    }
+  }
+}
+
+
+run_beta_glmm_lrt <- function(sub_df) {
+      m_beta <- tryCatch({
+        glmmTMB(predicted_activity ~ group + (1 | sample), 
+                data = sub_df, 
+                family = beta_family())
+      }, error = function(e) NULL)
+
+      # 2. Get P-values using LRT via the 'car' package or base anova
+      if (!is.null(m_beta)) {
+        
+        # Create Null for LRT
+        m_beta_null <- glmmTMB(predicted_activity ~ 1 + (1 | sample), 
+                              data = sub_df, 
+                              family = beta_family())
+        
+        lrt <- stats::anova(m_beta, m_beta_null)
+        
+        res_df <- data.frame(
+          # Pr(>Chisq) is the p-value for the LRT
+          p_value = lrt$`Pr(>Chisq)`[2],
+          # Coefficient: Positive = Higher in WildR 
+          log_odds_effect = glmmTMB::fixef(m_beta)$cond[2] 
+        )
+      return(res_df)
+      }
+      return(NULL)
+}
+
+
+future::plan(future::multisession, workers = 12)
+neuroest_beta_res_df <- sub_df_list %>% 
+  furrr::future_map(run_beta_glmm_lrt) %>%
+  bind_rows(.id = "model") %>%
+  glimpse()
+
+neuroest_beta_res_df %<>%
+  tidyr::separate(model, into = c("cell_type_level", "tissue", "cell_type_name"), 
+    sep = "__", remove = FALSE) %>%
+  group_by(cell_type_level, tissue) %>%
+  mutate(p_adj = p.adjust(p_value, method = "BH")) %>%
+  arrange(p_value) %>%
+  glimpse()
+
+saveRDS(neuroest_beta_res_df, glue(
+  "{wkdir}/data/interim/neuroestimator/",
+  "neuroest_beta_lmm_res_df_snRNAseq_{Sys.Date()}.rds"
+))
+
+```
+
+
+Methods section description of this approach
+
+
+To statistically evaluate differences in predicted neuronal activity between microbiome groups, we utilized a Generalized Linear Mixed Model (GLMM) with a Beta distribution family, implemented in the glmmTMB R package. This approach was selected to appropriately model the bounded, non-normal distribution of the activity scores within the open interval (0, 1). The model specified the microbiome condition as a fixed effect and the biological sample ID as a random intercept to account for intra-sample correlation and biological replication. Statistical significance was determined via a Likelihood Ratio Test (LRT) comparing the fit of the full model against a null model excluding the microbiome term.

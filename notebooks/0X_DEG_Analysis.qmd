@@ -170,7 +170,6 @@ deseq2_res <- readRDS(
 Calculating the Odds ratio of each cell type for WildR vs SPF
 
 ```{r}
-
 # (a/c) / (b/d)
 # where a is the number of aged cells in the cluster, b is the number of adult cells in the cluster, c is the number of aged cells in the class minus a and d is the number of adult cells in the class minus b
 # cell_type_name <- "class_name"
@@ -192,7 +191,7 @@ calculate_odds_ratio <- function(cell_type_name) {
     pivot_wider(names_from = microbiome, values_from = n_cells) %>% 
     left_join(tissue_group_totals) %>% 
     mutate(celltype_tissue = glue("{cell_type_name}_{tissue}")) %>% 
-    mutate(odds_ratio = (WildR / (total_cells_WildR - WildR)) / (SPF / (total_cells_SPF - SPF))) %>% 
+    mutate(odds_ratio = (WildR + 1 / (total_cells_WildR - WildR + 1)) / (SPF + 1 / (total_cells_SPF - SPF + 1))) %>% 
     glimpse()
 }
 
@@ -201,14 +200,76 @@ odds_ratio_df <- bind_rows(
   calculate_odds_ratio("class_name") %>% mutate(cell_type_level = "class"),
   calculate_odds_ratio("subclass_name") %>% mutate(cell_type_level = "subclass"),
   calculate_odds_ratio("supertype_name") %>% mutate(cell_type_level = "supertype")
-) %>% 
-arrange(desc(odds_ratio))
+  ) %>% 
+  mutate(analysis = "Odds Ratio", log_odds_ratio = log2(odds_ratio)) %>% 
+  arrange(desc(log_odds_ratio)) %>% 
+  mutate(odds_ratio_hit = if_else(abs(log_odds_ratio) > 2.5, "Yes", "No")) %>% 
+  glimpse()
 # View(odds_ratio_df)
 
+```
 
+
+```{r}
+# Running speckle/propeller testing for cell type proportion differences between the two 
+# groups - this accounts for compositional data structure, variability in between samples, and prevents pseudoreplication
+
+library(speckle)
+library(limma)
+metadata <- seurat_obj@meta.data %>% glimpse()
+
+celltype_droplist <- readRDS(
+  glue("{data_path}/seurat/snRNASeq/celltype_droplist_2025-12-30.rds")
+  )
+
+cell_prop_res <- list()
+for (tiss in unique(metadata$tissue)) {
+  metadata_tiss <- metadata %>% filter(tissue == tiss)
+  tissue_droplist <- celltype_droplist %>% filter(tissue == tiss) %>% 
+    left_join(allen_annot_long, by = c("celltype" = "cell_type_label"))
+  
+  for (cell_type_level in c("class_name", "subclass_name", "supertype_name")) {
+  
+  metadata_tiss_filtered <- metadata_tiss %>% 
+    filter(.data[[cell_type_level]] %nin% unique(tissue_droplist$cell_type_name)) %>% 
+    glimpse()
+  
+  cell_prop_res[[glue("{cell_type_level}_{tiss}")]] <- propeller(
+    clusters = metadata_tiss[[cell_type_level]], 
+    sample = metadata_tiss$sample,
+    group = metadata_tiss$microbiome,
+    transform = "logit"
+    ) %>% 
+    mutate(cell_type_level = cell_type_level, tissue = tiss)
+    } %>% 
+    arrange(P.Value) %>% 
+    glimpse()
+}
+
+bind_rows(cell_prop_res) %>% 
+  arrange(FDR) %>%
+  glimpse()
+
+# conclusion is there is no significant difference in cell type proportions between the two groups
+
+```
+
+NeuroeSTIMator results
+
+```{r}
+neuroest_beta_res_df <- readRDS(glue(
+  "{wkdir}/data/interim/neuroestimator/",
+  "neuroest_beta_lmm_res_df_snRNAseq_2026-01-11.rds"
+)) %>% 
+  mutate(analysis = "NeuroeSTIMator-GLMM", 
+  neg_log10_p_value = -log10(p_value)
+  )
+neuroest_beta_res_df %>% glimpse()
 
 
 ```
+
+
 
 ## Q1: What cell types have the most DEGs, and are the most altered in state between WildR vs SPF?
 
@@ -250,11 +311,6 @@ deg_summary_plot <- bind_rows(mast_deg_summary, edgeR_deg_summary, deseq2_deg_su
   arrange(n) %>% 
   mutate(cell_type_name = fct_reorder(cell_type_name, n)) %>% 
   glimpse()
-
-# TEMP DELETE ME LATER
-# deg_summary_plot %>% 
-#   filter(analysis == "EdgeR-Pseudobulk") %>% 
-#   View()
 
 # Get intersection of cell types present in both datasets
 augur_tiss_celltypes <- augur_df %>% 
@@ -310,16 +366,48 @@ p_augur_scores <- augur_df %>%
           legend.position = "none"
           )
 
+log_odds_ratio_plot <- odds_ratio_df %>% 
+  filter(tissue == tiss) %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ggplot(aes(x = log_odds_ratio, y = cell_type_name)) +
+    geom_bar(stat = "identity", aes(fill = odds_ratio_hit), width = 0.75) +
+    scale_fill_manual(values = c("Yes" = "darkred", "No" = "gray50")) +
+    theme_bw() +
+    facet_grid(cell_type_level ~ analysis, scales = "free", space = "free_y") +
+    labs(x = "Log2 Odds Ratio (WildR / SPF)", y = NULL) +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          legend.position = "none"
+          )
+
+neuroest_beta_plot <- neuroest_beta_res_df %>% 
+  filter(tissue == tiss) %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ggplot(aes(x = log_odds_effect, y = cell_type_name)) +
+    geom_bar(stat = "identity", aes(fill = neg_log10_p_value), 
+      width = 0.75) +
+    scale_fill_viridis_c(option = "cividis", direction = -1) +
+    theme_bw() +
+    facet_grid(cell_type_level ~ analysis, scales = "free", space = "free_y") +
+    labs(x = "Log Odds Effect (WildR / SPF)", y = NULL, fill = "-log10(P-value)") +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank()
+          )
+
 # Align plots using patchwork (which should align by shared y-axis)
-p_combined <- p_deg_summary + p_augur_scores + 
-  plot_layout(widths = c(3, 1), guides = "collect") +
+p_combined <- p_deg_summary + p_augur_scores + log_odds_ratio_plot + neuroest_beta_plot +
+  plot_layout(widths = c(3, 1, 1, 1), guides = "collect") +
   plot_annotation(title = "Differential Expression Analysis",
                   subtitle = tiss)
 # p_combined
 
-ggsave(
-  glue("{fig_path}/DEG/snRNASeq/mast_deg_summary_combined_{tiss}_{Sys.Date()}.png"), 
-  p_combined, width = 12, height = 16, dpi = 300)
+# ggsave(
+#   glue("{fig_path}/DEG/snRNASeq/mast_deg_summary_combined_{tiss}_{Sys.Date()}.png"), 
+#   p_combined, width = 18, height = 16, dpi = 300)
 
 ```
 
@@ -393,17 +481,48 @@ p_augur_scores <- augur_df %>%
           legend.position = "none"
           )
 
+log_odds_ratio_plot <- odds_ratio_df %>% 
+  filter(tissue == tiss) %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ggplot(aes(x = log_odds_ratio, y = cell_type_name)) +
+    geom_bar(stat = "identity", aes(fill = odds_ratio_hit), width = 0.75) +
+    scale_fill_manual(values = c("Yes" = "darkred", "No" = "gray50")) +
+    theme_bw() +
+    facet_grid(cell_type_level ~ analysis, scales = "free", space = "free_y") +
+    labs(x = "Log2 Odds Ratio (WildR / SPF)", y = NULL) +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          legend.position = "none"
+          )
+
+neuroest_beta_plot <- neuroest_beta_res_df %>% 
+  filter(tissue == tiss) %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ggplot(aes(x = log_odds_effect, y = cell_type_name)) +
+    geom_bar(stat = "identity", aes(fill = neg_log10_p_value), 
+      width = 0.75) +
+    scale_fill_viridis_c(option = "cividis", direction = -1) +
+    theme_bw() +
+    facet_grid(cell_type_level ~ analysis, scales = "free", space = "free_y") +
+    labs(x = "Log Odds Effect (WildR / SPF)", y = NULL, fill = "-log10(P-value)") +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank()
+          )
+
 # Align plots using patchwork (which should align by shared y-axis)
-p_combined <- p_deg_summary + p_augur_scores + 
-  plot_layout(widths = c(3, 1), guides = "collect") +
+p_combined <- p_deg_summary + p_augur_scores + log_odds_ratio_plot + neuroest_beta_plot +
+  plot_layout(widths = c(3, 1, 1, 1), guides = "collect") +
   plot_annotation(title = "Differential Expression Analysis",
                   subtitle = tiss)
 
 # p_combined
-
-ggsave(
-  glue("{fig_path}/DEG/snRNASeq/mast_deg_summary_combined_{tiss}_{Sys.Date()}.png"), 
-  p_combined, width = 12, height = 19, dpi = 300)
+# ggsave(
+#   glue("{fig_path}/DEG/snRNASeq/mast_deg_summary_combined_{tiss}_{Sys.Date()}.png"), 
+#   p_combined, width = 18, height = 19, dpi = 300)
 
 
 ```
@@ -536,16 +655,48 @@ p_augur_scores <- augur_df %>%
           legend.position = "none"
           )
 
+log_odds_ratio_plot <- odds_ratio_df %>% 
+  filter(tissue == tiss) %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ggplot(aes(x = log_odds_ratio, y = cell_type_name)) +
+    geom_bar(stat = "identity", aes(fill = odds_ratio_hit), width = 0.75) +
+    scale_fill_manual(values = c("Yes" = "darkred", "No" = "gray50")) +
+    theme_bw() +
+    facet_grid(cell_type_level ~ analysis, scales = "free", space = "free_y") +
+    labs(x = "Log2 Odds Ratio (WildR / SPF)", y = NULL) +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          legend.position = "none"
+          )
+
+neuroest_beta_plot <- neuroest_beta_res_df %>% 
+  filter(tissue == tiss) %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ggplot(aes(x = log_odds_effect, y = cell_type_name)) +
+    geom_bar(stat = "identity", aes(fill = neg_log10_p_value), 
+      width = 0.75) +
+    scale_fill_viridis_c(option = "cividis", direction = -1) +
+    theme_bw() +
+    facet_grid(cell_type_level ~ analysis, scales = "free", space = "free_y") +
+    labs(x = "Log Odds Effect (WildR / SPF)", y = NULL, fill = "-log10(P-value)") +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank()
+          )
+
 # Align plots using patchwork (which should align by shared y-axis)
-p_combined <- p_deg_summary + p_augur_scores + 
-  plot_layout(widths = c(3, 1), guides = "collect") +
+p_combined <- p_deg_summary + p_augur_scores + log_odds_ratio_plot + neuroest_beta_plot +
+  plot_layout(widths = c(3, 1, 1, 1), guides = "collect") +
   plot_annotation(title = "Differential Expression Analysis",
                   subtitle = tiss)
 # p_combined
 
 ggsave(
   glue("{fig_path}/DEG/snRNASeq/mast_deg_summary_combined_{tiss}_pvalue_fdr_{Sys.Date()}.png"), 
-  p_combined, width = 12, height = 16, dpi = 300)
+  p_combined, width = 18, height = 16, dpi = 300)
 
 ```
 
@@ -630,19 +781,186 @@ p_augur_scores <- augur_df %>%
           legend.position = "none"
           )
 
+log_odds_ratio_plot <- odds_ratio_df %>% 
+  filter(tissue == tiss) %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ggplot(aes(x = log_odds_ratio, y = cell_type_name)) +
+    geom_bar(stat = "identity", aes(fill = odds_ratio_hit), width = 0.75) +
+    scale_fill_manual(values = c("Yes" = "darkred", "No" = "gray50")) +
+    theme_bw() +
+    facet_grid(cell_type_level ~ analysis, scales = "free", space = "free_y") +
+    labs(x = "Log2 Odds Ratio (WildR / SPF)", y = NULL) +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          legend.position = "none"
+          )
+
+neuroest_beta_plot <- neuroest_beta_res_df %>% 
+  filter(tissue == tiss) %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ggplot(aes(x = log_odds_effect, y = cell_type_name)) +
+    geom_bar(stat = "identity", aes(fill = neg_log10_p_value), 
+      width = 0.75) +
+    scale_fill_viridis_c(option = "cividis", direction = -1) +
+    theme_bw() +
+    facet_grid(cell_type_level ~ analysis, scales = "free", space = "free_y") +
+    labs(x = "Log Odds Effect (WildR / SPF)", y = NULL, fill = "-log10(P-value)") +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank()
+          )
+
 # Align plots using patchwork (which should align by shared y-axis)
-p_combined <- p_deg_summary + p_augur_scores + 
-  plot_layout(widths = c(3, 1), guides = "collect") +
+p_combined <- p_deg_summary + p_augur_scores + log_odds_ratio_plot + neuroest_beta_plot +
+  plot_layout(widths = c(3, 1, 1, 1), guides = "collect") +
   plot_annotation(title = "Differential Expression Analysis",
                   subtitle = tiss)
 # p_combined
 
 ggsave(
   glue("{fig_path}/DEG/snRNASeq/mast_deg_summary_combined_{tiss}_pvalue_fdr_{Sys.Date()}.png"), 
-  p_combined, width = 12, height = 19, dpi = 300)
+  p_combined, width = 18, height = 19, dpi = 300)
 
 
 ```
+
+
+## Pulling out cell types of interest from this panel
+
+```{r}
+# tiss <- "HYP"
+# cell_type_regex <- "PVpo-VMPO-MPN|AVPV-MEPO-SFO|LHA-MEA Otp"
+tiss <- "AMY"
+cell_type_regex <- "MEA-BST Sox6|MEA-BST Lhx6|COAa-PAA-MEA"
+
+deg_summary_plot <- bind_rows(mast_deg_summary, edgeR_deg_summary, deseq2_deg_summary) %>% 
+  filter(tissue == tiss) %>% 
+  filter(n > 1) %>% 
+  mutate(analysis = factor(analysis, 
+    levels = c("MAST", "EdgeR-Pseudobulk", "DESeq2-Pseudobulk"))) %>% 
+  group_by(cell_type_level) %>% 
+  arrange(n) %>% 
+  mutate(pthres = "FDR < 0.1") %>% 
+  glimpse()
+
+deg_summary_plot_pval <- bind_rows(
+    mast_deg_summary_pvalue, edgeR_deg_summary_pvalue, deseq2_deg_summary_pvalue) %>% 
+    left_join(allen_annot_long) %>% 
+  filter(tissue == tiss) %>% 
+  filter(cell_type_name %in% deg_summary_plot$cell_type_name) %>% 
+  mutate(analysis = factor(analysis, 
+    levels = c("MAST", "EdgeR-Pseudobulk", "DESeq2-Pseudobulk"))) %>% 
+  mutate(pthres = "P-value < 0.05") %>% 
+  glimpse()
+
+# Get intersection of cell types present in both datasets
+augur_tiss_celltypes <- augur_df %>% 
+  filter(tissue == tiss) %>% 
+  pull(cell_type_name) %>% 
+  unique()
+
+# Get the ordered cell types from DEG plot, preserving order within each level
+deg_celltypes_ordered <- deg_summary_plot %>% 
+  ungroup() %>% 
+  filter(analysis == "MAST") %>% 
+  select(cell_type_name, cell_type_level) %>% 
+  distinct() %>% 
+  mutate(cell_type_name = as.character(cell_type_name)) %>% 
+  filter(grepl(cell_type_regex, cell_type_name)) %>% 
+  glimpse()
+
+# Filter to only common cell types, preserving the order
+common_celltypes_df <- deg_celltypes_ordered %>% 
+  filter(cell_type_name %in% augur_tiss_celltypes)
+
+# Create DEG summary plot (filtered to common cell types, preserving order within each level)
+p_deg_summary <- bind_rows(deg_summary_plot_pval, deg_summary_plot) %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  # mutate(pthres = factor(pthres, levels = c("FDR < 0.1", "P-value < 0.05"))) %>% 
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ungroup() %>%
+  ggplot(aes(x = n, y = cell_type_name, fill = pthres)) +
+    geom_bar(stat = "identity", position = "identity", width = 0.7) +
+    scale_fill_manual(values = c("P-value < 0.05" = "darkgrey", "FDR < 0.1" = "darkred")) +
+    scale_x_log10() +
+    theme_bw() +
+    facet_grid(cell_type_level ~ analysis, scales = "free", space = "free_y") +
+    labs(x = "Number of DEGs", y = "Cell Type", fill = NULL) +
+    theme(strip.text.y = element_blank(), 
+      axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Create Augur lollipop chart (preserving order within each level)
+p_augur_scores <- augur_df %>% 
+  filter(tissue == tiss) %>% 
+  mutate(analysis = "Augur") %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ggplot(aes(x = auc, y = cell_type_name)) +
+    geom_segment(aes(x = 0.5, xend = auc, y = cell_type_name, yend = cell_type_name), 
+                 color = "gray50", linewidth = 0.5) +
+    geom_point(aes(fill = auc), size = 3, shape = 21) +
+    scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0.5) +
+    scale_x_continuous(limits = c(0.5, 0.8), expand = c(0, 0)) +
+    theme_bw() +
+    facet_grid(cell_type_level ~  analysis, scales = "free", space = "free_y") +
+    labs(x = "AUROC", y = "", color = "AUROC") +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          legend.position = "none"
+          )
+
+log_odds_ratio_plot <- odds_ratio_df %>% 
+  filter(tissue == tiss) %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ggplot(aes(x = log_odds_ratio, y = cell_type_name)) +
+    geom_bar(stat = "identity", aes(fill = odds_ratio_hit), width = 0.75) +
+    scale_fill_manual(values = c("Yes" = "darkred", "No" = "gray50")) +
+    theme_bw() +
+    facet_grid(cell_type_level ~ analysis, scales = "free", space = "free_y") +
+    labs(x = "Log2 Odds Ratio (WildR / SPF)", y = NULL) +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          legend.position = "none"
+          )
+
+neuroest_beta_plot <- neuroest_beta_res_df %>% 
+  filter(tissue == tiss) %>% 
+  filter(cell_type_name %in% common_celltypes_df$cell_type_name) %>%
+  mutate(cell_type_name = factor(cell_type_name, 
+                                 levels = deg_celltypes_ordered$cell_type_name)) %>%
+  ggplot(aes(x = log_odds_effect, y = cell_type_name)) +
+    geom_bar(stat = "identity", aes(fill = neg_log10_p_value), 
+      width = 0.75) +
+    scale_fill_viridis_c(option = "cividis", direction = -1) +
+    theme_bw() +
+    facet_grid(cell_type_level ~ analysis, scales = "free", space = "free_y") +
+    labs(x = "Log Odds Effect (WildR / SPF)", y = NULL, fill = "-log10(P-value)") +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank()
+          )
+
+# Align plots using patchwork (which should align by shared y-axis)
+p_combined <- p_deg_summary + p_augur_scores + log_odds_ratio_plot + neuroest_beta_plot +
+  plot_layout(widths = c(3, 1, 1, 1), guides = "collect") +
+  plot_annotation(title = "Differential Expression Analysis",
+                  subtitle = tiss)
+# p_combined
+
+ggsave(
+  glue("{fig_path}/DEG/snRNASeq/",
+  "mast_deg_summary_combined_{tiss}_pvalue_fdr_{cell_type_regex}_{Sys.Date()}.png"),
+  p_combined, width = 18, height = 4, dpi = 300)
+
+
+```
+
 
 
 

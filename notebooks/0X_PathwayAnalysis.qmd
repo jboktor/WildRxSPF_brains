@@ -48,6 +48,7 @@ anndata_path <- glue("{wkdir}/data/input/parse_bio_anndata")
 data_path <- glue("{wkdir}/data/interim")
 fig_path <- glue("{wkdir}/figures")
 abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
+gprofile_figs <- glue("{fig_path}/gprofiler")
 
 source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
 
@@ -90,70 +91,236 @@ gene_meta <- seurat_obj[["RNA"]][[]] %>%
     dplyr::glimpse()
 
 class_mast_df <- readRDS(
-  glue("{data_path}/mast/snRNASeq/class_mast_signif_hits_2025-12-29.rds")
+  glue("{data_path}/mast/snRNASeq/class_mast_signif_hits_2026-01-04.rds")
   ) %>% 
   left_join(gene_meta, by = c("primerid")) %>% 
   mutate(cell_type = class_name, cell_type_label = "class_name") %>% 
   glimpse()
 subclass_mast_df <- readRDS(
-  glue("{data_path}/mast/snRNASeq/subclass_mast_signif_hits_2025-12-29.rds")
+  glue("{data_path}/mast/snRNASeq/subclass_mast_signif_hits_2026-01-04.rds")
     ) %>% left_join(gene_meta, by = c("primerid")) %>% 
   mutate(cell_type = subclass_name, cell_type_label = "subclass_name") %>% 
   glimpse()
 supertype_mast_df <- readRDS(
-  glue("{data_path}/mast/snRNASeq/supertype_mast_signif_hits_2025-12-29.rds")
+  glue("{data_path}/mast/snRNASeq/supertype_mast_signif_hits_2026-01-04.rds")
   ) %>% left_join(gene_meta, by = c("primerid")) %>% 
   mutate(cell_type = supertype_name, cell_type_label = "supertype_name") %>% 
   glimpse()
+all_mast_df <- bind_rows(class_mast_df, subclass_mast_df, supertype_mast_df) %>% 
+  filter(p_adjust <= 0.1) %>% 
+  glimpse()
 
 
-all_mast_df <- bind_rows(class_mast_df, subclass_mast_df, supertype_mast_df)
 all_ndegs <- all_mast_df %>% 
-    filter(p_adjust < 0.05) %>% 
     group_by(celltype_tissue) %>% 
     tally() %>% 
     arrange(desc(n)) %>% 
     glimpse()
+
+
 
 ```
 
 
 
 ```{r}
+gprofiler_dir <- glue("{data_path}/gprofiler/snRNASeq")
+
 run_gprofiler <- function(genelist, output_path) {
-    gostres <- gprofiler2::gost(
-        query = genelist, organism = "mmusculus")
+    dir.create(dirname(output_path), showWarnings = FALSE, recursive = TRUE)
+    gostres <- gprofiler2::gost(query = genelist, 
+      organism = "mmusculus", ordered_query = TRUE, correction_method = "gSCS"
+      )
     saveRDS(gostres, output_path)
 }
 
+# # # example run of gprofiler
+# # tic()
+# genels <- all_mast_df %>% 
+#   filter(celltype_tissue == "CS20230722_CLAS_30_AMY") %>% 
+#   arrange(`Pr(>Chisq)`) %>% 
+#   pull(gene_id)
+# gres <- gprofiler2::gost(query = genels, organism = "mmusculus", ordered_query = TRUE, correction_method = "gSCS")
+# gres$result %>% glimpse()
+# # toc()
 
-# MAST results with a p-value adjustment of < 0.05
-class_mast_df %>% 
-    dplyr::select(celltype_tissue, gene_id) %>% 
-    group_by(celltype_tissue) %>% 
-    nest() %>% 
-    mutate(output_path = glue("{data_path}/gprofiler/snRNASeq/class_mast_df_{celltype_tissue}_{Sys.Date()}.rds")) %>% 
-    pmap(run_gprofiler)
+# gres$result %>% 
+#   ggplot(aes(x = fct_reorder(term_name, p_value), y = p_value)) +
+#   geom_bar(stat = "identity", aes(fill = p_value)) +
+#   scale_fill_viridis_c(option = "cividis", direction = -1) +
+#   theme_bw() +
+#   labs(x = "Term Name", y = "P-value") +
+#   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-# tic()
-# genels <- class_mast_df %>% 
-#     filter(celltype_tissue == "CS20230722_CLAS_30_AMY") %>% 
-#     pull(gene_id)
-# gres <- gprofiler2::gost(query = genels, organism = "mmusculus")
-# toc()
-
-
-class_mast_df %>% 
-    dplyr::select(celltype_tissue, gene_id) %>% 
-    group_by(celltype_tissue) %>% 
-    summarise(gene_id = list(gene_id), .groups = "drop") %>% 
-    mutate(output_path = glue("{data_path}/gprofiler/snRNASeq/class_mast_df_{celltype_tissue}_{Sys.Date()}.rds")) %>% 
-    pmap(run_gprofiler)
+```
 
 
-# # p <- 
-# gostplot(gres, capped = FALSE, interactive = FALSE)
+```{r}
+# Running gprofiler on all MAST results using slurm batchtools
+all_mast_df %>% glimpse()
+batchparams_df <- all_mast_df %>% 
+    mutate(direction = case_when(
+      coef > 0 ~ "WildR-Up",
+      coef < 0 ~ "WildR-Down",
+      TRUE ~ "ERROR"
+    )) %>% 
+    mutate(celltype_tissue = glue("{celltype_tissue}_{direction}")) %>% 
+    dplyr::select(celltype_tissue, cell_type, gene_id) %>% 
+    group_by(celltype_tissue, cell_type) %>% 
+    summarise(genelist = list(gene_id), .groups = "drop") %>% 
+    mutate(output_path = glue("{gprofiler_dir}/{celltype_tissue}_MASTpadj0.1_{Sys.Date()}.rds")) %>% 
+    select(genelist, output_path) %>% 
+    glimpse()
+# batchparams_df$output_path  %>% head
 
-# supertype_mast_df %>% 
+# configure registry ----
+cluster_run <- glue("{get_time()}_GProfiler_snRNASeq")
+message("\n\nRUNNING:  ", cluster_run, "\n")
+breg <- makeRegistry(
+  file.dir = glue("{wkdir}/.cluster_runs/", cluster_run),
+  seed = 42
+)
+breg$cluster.functions <- batchtools::makeClusterFunctionsSlurm(
+  template = glue("{wkdir}/batchtools_templates/",
+    "batchtools.slurm_mamba-spatialomics.tmpl"),
+  scheduler.latency = 0.1,
+  fs.latency = 1
+)
+
+# Submit Jobs ----
+jobs <- batchMap(
+  fun = run_gprofiler,
+  args = batchparams_df,
+  reg = breg
+)
+
+jobs[, chunk := chunk(job.id, chunk.size = 20)]
+print(jobs[, .N, by = chunk])
+
+submitJobs(jobs,
+  resources = list(
+    walltime = 30, # mins (2.6 hrs)
+    memory = "5GB",
+    ncpus = 1,
+    max.concurrent.jobs = 9999
+  )
+)
+
+```
+
+
+Plotting function
+
+```{r}
+plot_gprofiler_barchart <- function(paths_df, 
+                                    top_n = 20,
+                                    p_value_col = "p_value",
+                                    term_col = "term_name",
+                                    nterm_cutoff = 2000) {
+  # Extract results from both directions and combine
+  plot_data <- paths_df %>%
+    mutate(
+      result_df = map(go_res, ~ .x$result)
+    ) %>%
+    select(direction, result_df) %>%
+    unnest(result_df) %>%
+    # Filter out terms that are too broad (term_size > nterm_cutoff)
+    filter(term_size <= nterm_cutoff) %>%
+    # filter out only GO terms for now
+    filter(grepl("GO:", source)) %>% 
+    # Remove pathways that appear in both directions
+    group_by(term_name) %>%
+    filter(n_distinct(direction) == 1) %>%
+    ungroup() %>%
+    # Get top N terms by p-value for each direction
+    group_by(direction) %>%
+    slice_min(!!sym(p_value_col), n = top_n) %>%
+    ungroup() %>%
+    # Create a combined term identifier for ordering
+    mutate(
+      term_direction = paste0(term_name, "_", direction),
+      neg_log10_p = -log10(!!sym(p_value_col))
+    ) %>%
+    # Order terms by p-value within each direction
+    arrange(direction, !!sym(p_value_col)) %>%
+    mutate(
+      term_name = factor(term_name, levels = unique(term_name))
+    )
+  
+  # Create the plot
+  p <- plot_data %>%
+    ggplot(aes(x = fct_reorder(term_name, neg_log10_p, .desc = F), 
+               y = neg_log10_p, 
+               fill = direction)) +
+    geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+    scale_fill_manual(
+      values = c("WildR-Up" = "red", "WildR-Down" = "#2E86AB"),
+      labels = c("WildR-Up" = "WildR Upregulated", "WildR-Down" = "WildR Downregulated")
+    ) +
+    labs(
+      x = NULL,
+      y = expression(-log[10](P)),
+      fill = "Direction",
+      title = paste0(unique(paths_df$cell_type), " - ", unique(paths_df$tissue))
+    ) +
+    theme_bw() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "right"
+    ) +
+    coord_flip()
+  
+  return(p)
+}
+
+```
+
+
+Reading in results
+
+
+```{r}
+gprofiler_res_paths <- list.files(
+  gprofiler_dir,
+  pattern = "MASTpadj0.1",
+  full.names = TRUE,
+  recursive = TRUE
+)
+
+gprofiler_res_paths_df <- all_mast_df %>% 
+    mutate(direction = case_when(
+      coef > 0 ~ "WildR-Up",
+      coef < 0 ~ "WildR-Down",
+      TRUE ~ "ERROR"
+    )) %>% 
+    mutate(celltype_tissue_direction = glue("{celltype_tissue}_{direction}")) %>% 
+    mutate(output_path = glue("{gprofiler_dir}/{celltype_tissue_direction}_MASTpadj0.1_2026-01-12.rds")) %>% 
+    select(-c(`Pr(>Chisq)`, coef, ci.hi, ci.lo, p_adjust, gene_id, gene_name, gene_type, primerid)) %>% 
+    distinct() %>% 
+    glimpse()
+
+
+# I want to plot the pathways from the following cell types of the following tissues
+# tissue = "HYP"
+# "VMH Nr5a1|AHN|LHA-MEA|DMH-LHA"
+# tissue = "AMY"
+# "MEA-BST"
+
+tiss <- "AMY"
+coi <- "074 MEA-BST Lhx6 Sp9 Gaba"
+gprofiler_df <- gprofiler_res_paths_df %>% 
+  filter(tissue == tiss) %>% 
+  filter(cell_type == coi) %>% 
+  mutate(go_res = map(output_path, readRDS)) %>% 
+  glimpse()
+
+# gprofiler_df %>% glimpse()
+# gprofiler_df$go_res[[1]]$result %>% glimpse()
+# gprofiler_df$go_res[[1]]$result %>% View()
+
+p_gprofiler_barchart <- plot_gprofiler_barchart(gprofiler_df)
+ggsave(glue("{gprofile_figs}/{tiss}__MASTpadj0.1_{coi}_{Sys.Date()}.png"),
+  p_gprofiler_barchart, width = 10, height = 7, dpi = 300)
+
 
 ```
