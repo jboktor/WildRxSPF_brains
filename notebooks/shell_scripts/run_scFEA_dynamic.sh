@@ -8,6 +8,16 @@
 #SBATCH --ntasks=1
 #SBATCH --mem=600G
 
+while getopts "i:o:t:" opt; do
+  case $opt in
+    i) scfea_input_path="$OPTARG";;
+    o) scfea_output_path="$OPTARG";;
+    t) input_file="$OPTARG";;
+    \?) echo "Invalid option -$OPTARG" >&2; exit 1;;
+  esac
+done
+
+
 log() {
   # Timestamped log lines (go to both Slurm log + our tee log)
   echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*"
@@ -24,8 +34,8 @@ log "Activated conda env (scFEA)"
 
 
 scfea_gitpath="/resnick/groups/MazmanianLab/jboktor/git/scFEA"
-scfea_input_path="/resnick/groups/MazmanianLab/jboktor/WILDRxSPF_brains/data/input/scFEA/snRNASeq"
-scfea_output_path="/resnick/groups/MazmanianLab/jboktor/WILDRxSPF_brains/data/interim/scFEA/snRNASeq"
+# scfea_input_path="/resnick/groups/MazmanianLab/jboktor/WILDRxSPF_brains/data/input/scFEA/snRNASeq"
+# scfea_output_path="/resnick/groups/MazmanianLab/jboktor/WILDRxSPF_brains/data/interim/scFEA/snRNASeq"
 
 log "Running scFEA"
 
@@ -33,16 +43,18 @@ cd ${scfea_gitpath}
 log "CWD after cd: $(pwd)"
 
 # HERE IS WHERE YOU CHANGE THE FILE YOU ARE RUNNING
-test_file="snRNASeq_log2cpm_AMY.csv"
+# test_file="snRNASeq_log2cpm_AMY.csv"
 
-input_name="${test_file%.*}"
-log "Test file: ${test_file}"
+log "Test file: ${input_file}"
+input_name="${input_file%.*}"
 log "Input name: ${input_name}"
+
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 python src/scFEA.py \
 --data_dir ${scfea_gitpath}/data \
 --input_dir "${scfea_input_path}" \
---test_file "${test_file}" \
+--test_file "${input_file}" \
 --moduleGene_file module_gene_complete_mouse_m168.csv \
 --stoichiometry_matrix cmMat_complete_mouse_c70_m168.csv \
 --sc_imputation True \
