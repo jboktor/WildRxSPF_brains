@@ -19,6 +19,7 @@ library(Matrix)
 library(irlba)
 library(scico)
 library(tidyverse)
+library(magrittr)
 library(patchwork)
 library(glue)
 library(presto)
@@ -189,14 +190,6 @@ for (ts in tissues) {
   }
 }
 
-# tissues <- seurat_obj@meta.data$tissue %>% unique()
-# for (tissue in tissues) {
-#   tic()
-#   message(glue("Processing {tissue}"))
-#   generate_cpm_matrix(seurat_obj, tissue)
-#   toc()
-# }
-
 ```
 
 ## Execute scFEA
@@ -213,10 +206,10 @@ for (tissue in tissues) {
 }
 
 
-sh /resnick/groups/MazmanianLab/jboktor/WILDRxSPF_brains/notebooks/shell_scripts/run_scFEA_dynamic.sh \
--i "/resnick/groups/MazmanianLab/jboktor/WILDRxSPF_brains/data/input/scFEA/snRNASeq" \
--o "/resnick/groups/MazmanianLab/jboktor/WILDRxSPF_brains/data/interim/scFEA/snRNASeq" \
--t "snRNASeq_log2cpm_AMY_CS20230722_CLAS_03.csv"
+# sh /resnick/groups/MazmanianLab/jboktor/WILDRxSPF_brains/notebooks/shell_scripts/run_scFEA_dynamic.sh \
+# -i "/resnick/groups/MazmanianLab/jboktor/WILDRxSPF_brains/data/input/scFEA/snRNASeq" \
+# -o "/resnick/groups/MazmanianLab/jboktor/WILDRxSPF_brains/data/interim/scFEA/snRNASeq" \
+# -t "snRNASeq_log2cpm_AMY_CS20230722_CLAS_03.csv"
 
 class_scfea_inputs <- list.files(glue("{scFEA_input_path}/snRNASeq"), pattern = "_CLAS_")
 # input <- class_scfea_inputs[1]
@@ -255,9 +248,14 @@ class_counts$scfea_filename_exists %>% table()
 ## Analyzing scFEA results
 
 ```{r}
+celltype_droplist <- readRDS(glue("{data_path}/seurat/snRNASeq/celltype_droplist_2025-12-30.rds"))
 metadata_metabolic <- seurat_obj@meta.data %>% 
   as.data.frame() %>% 
-  dplyr::select(bc_wells, group, class_label, class_name, subclass_label, subclass_name, supertype_label, supertype_name) %>% 
+  dplyr::select(bc_wells, group, tissue,
+  # class_label, class_name, subclass_label, subclass_name, 
+  supertype_label, supertype_name) %>% 
+  left_join(celltype_droplist, by = c("supertype_label" = "celltype", "tissue")) %>%
+  filter(is.na(dropme)) %>%
   distinct() %>% 
   glimpse()
 
@@ -268,22 +266,119 @@ mouse_modules <- mouse_module_info %>% as.data.frame() %>% glimpse
 flux_paths <- list.files(glue("{scFEA_output_path}"), full.names = TRUE) %>% 
   keep(~ grepl("flux", .) & grepl("_CLAS_", .))
 
-flux_df <- read.csv(flux_paths[1]) %>% 
-  dplyr::rename(bc_wells = X) %>% 
-  left_join(metadata_metabolic, by = "bc_wells") %>% 
+
+# T-tests: compare two groups (e.g. SPF vs WildR) per supertype_name and module (M_1 .. M_171).
+# Works for any tissue (AMY, HYP, etc.) — group names come from flux_df$group.
+# Safe t-test: return NA when data are constant or only one group.
+safe_ttest <- function(value, group) {
+  out <- tryCatch(
+    t.test(value ~ group),
+    error = function(e) list(
+      statistic = NA_real_, p.value = NA_real_,
+      estimate = c(NA_real_, NA_real_)  # generic; extraction uses [1] and [2]
+    )
+  )
+  out
+}
+
+# Looping through flux data for statistical testing
+flux_ttest_results_df <- data.frame()
+
+for (flux_path in flux_paths) {
+  message(glue("Processing {flux_path}"))
+  flux_df <- read.csv(flux_path) %>% 
+    dplyr::rename(bc_wells = X) %>% 
+    left_join(metadata_metabolic, by = "bc_wells") %>% 
+    filter(!is.na(supertype_label))
+
+  flux_ttest_results <- flux_df %>%
+    pivot_longer(
+      cols = matches("^M_\\d+"),
+      names_to = "module",
+      values_to = "value"
+    ) %>%
+    group_by(supertype_name, module) %>%
+    filter(n_distinct(group) == 2L) %>%
+    summarise(
+      t_result = list(safe_ttest(value, group)),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      statistic = map_dbl(t_result, "statistic"),
+      p_value   = map_dbl(t_result, "p.value"),
+      # Means are in alphabetical order by group name (e.g. SPF_* then WildR_*)
+      mean_1 = map_dbl(t_result, ~ .x$estimate[1]),
+      mean_2 = map_dbl(t_result, ~ .x$estimate[2]),
+      group_1 = map_chr(t_result, ~ { n <- names(.x$estimate); if (length(n) >= 1L) sub("^mean in group ", "", n[1]) else NA_character_ }),
+      group_2 = map_chr(t_result, ~ { n <- names(.x$estimate); if (length(n) >= 2L) sub("^mean in group ", "", n[2]) else NA_character_ })
+    ) %>%
+    mutate(
+      mean_diff = mean_1 - mean_2,
+      # log2FC for heatmaps: symmetric, standard. eps avoids log(0) / div by 0.
+      log2FC = log2((mean_1 + 1e-10) / (mean_2 + 1e-10))
+    ) %>%
+    select(supertype_name, module, group_1, group_2, statistic, p_value, mean_1, mean_2, mean_diff, log2FC)
+
+  flux_ttest_results %>% glimpse()
+  flux_ttest_results_df %<>% bind_rows(flux_ttest_results)
+
+}
+
+flux_ttest_results_df %>% glimpse()
+saveRDS(flux_ttest_results_df, glue("{data_path}/scFEA/snRNASeq_flux_ttest_results_df_2026-02-06.rds"))
+
+
+```
+
+
+Visualizing T-test results
+
+
+```{r}
+cell_label_meta <- seurat_obj@meta.data %>% 
+  as.data.frame() %>% 
+  dplyr::select(class_label, class_name, subclass_label, subclass_name,supertype_label, supertype_name) %>% 
+  distinct() %>% 
   glimpse()
 
-flux_df %>% 
-  ggplot(aes(x=M123, y=group )) +
-  geom_point() +
+# mouse_module_info
+load("/resnick/groups/MazmanianLab/jboktor/git/scFEA/input/mouse_module_info.RData")
+mouse_modules <- mouse_module_info %>% as.data.frame() %>% 
+  dplyr::rename(module = M_id) %>% 
+  glimpse()
+
+flux_ttest_results_df <- readRDS(glue("{data_path}/scFEA/snRNASeq_flux_ttest_results_df_2026-02-06.rds"))
+flux_ttest_results_df %<>% 
+  left_join(cell_label_meta) %>% 
+  left_join(mouse_modules) %>% 
+  mutate(tissue = str_after_last(group_1, "_")) %>% 
+  glimpse()
+
+flux_ttest_results_df %>% glimpse()
+p_flux_heatmap <- flux_ttest_results_df %>% 
+  filter(p_value < 0.05) %>% 
+  ggplot(aes(x = module, y = supertype_name, fill = log2FC)) +
+  geom_tile() +
   theme_bw() +
-  facet_wrap(~class_name, scales = "free")
+  facet_grid(rows = vars(tissue), cols = vars(SM_id), scales = "free", space = "free") +
+  scico::scale_fill_scico(palette = 'bam', na.value = "white") +
+  labs(x = "Module", y = "Supertype", fill = "Log2FC") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+  axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
 
-# add celltype names
-# add microbiome status of celltype
+ggsave(
+  glue("{fig_path}/scFEA/snRNASeq_flux_heatmap_2026-02-06.png"),
+  p_flux_heatmap,
+  width = 20,
+  height = 20
+)
 
-
-
+flux_ttest_results_df %>% 
+  filter(p_value < 0.05) %>% 
+  arrange(p_value) %>% 
+  write_csv(glue("{data_path}/scFEA/snRNASeq_flux_ttest_results_df_2026-02-06.csv"))
+  View()
+  glimpse()
 
 
 ```
