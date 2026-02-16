@@ -34,28 +34,30 @@ Environment setup.
 
 library(tidyverse)
 library(magrittr)
+library(glue)
 library(spdep)
 library(Voyager)
 library(SingleCellExperiment)
 library(SpatialExperiment)
 library(SpatialFeatureExperiment)
-library(batchelor)
+library(tictoc)
+# library(batchelor)
 library(scran)
 library(scater)
 library(bluster)
 library(fossil)
 library(glue)
 library(Seurat)
+library(tidyseurat)
 library(scCustomize)
 library(glmGamPoi)
 library(spatialLIBD)
-library(reticulate)
-library(SeuratDisk)
+# library(reticulate)
+# library(SeuratDisk)
 library(rhdf5)
 library(anndata)
 library(grid)
 library(biomaRt)
-library(SingleR)
 library(clusterProfiler)
 library(org.Mm.eg.db)
 library(batchtools)
@@ -83,21 +85,300 @@ library(VennDiagram)
 library(viridis)
 
 # setting paths
-homedir <- "/central/groups/mthomson/jboktor"
-wkdir <- glue("{homedir}/spatial_genomics/jess_2024-01-23")
+homedir <- "/resnick/groups/MazmanianLab/jboktor"
+wkdir <- glue("{homedir}/WILDRxSPF_brains")
 source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
 
 # 1.5 GB limit 1500*1024^2 = 1572864000
 # 12 GB limit = 12582912000 * 8  
 options(future.globals.maxSize= 12582912000)
-future::plan("multisession", workers = 24)
+future::plan("multisession", workers = 3)
 
 ```
 
+
+# Exporting data for MapMyCells Annotation
+
+Annotating SeqFISH NeuroMapper with Ensembl IDs and protein coding status
+
+```{r}
+cbg_matrix <- readr::read_csv(
+  glue("{wkdir}/data/input/SpatialAnalysis_2024-07/export_run1_roi1_block2_july2024/export_run1_roi1_block2_july2024/cell_by_gene_matrix_roi1_block2.csv"))[-1]
+
+# cbg_matrix %>% glimpse()
+cbg_matrix[1:10, 1:10]
+neuromapper_genes <- colnames(cbg_matrix)
+
+sn_genedata <- read.delim(
+  glue("{wkdir}/data/input/geneInfo.tab"),
+  skip = 1,
+  header = FALSE,
+  col.names = c("ensembl_id", "gene_symbol", "gene_type")
+)
+sn_genedata %>% glimpse()
+
+gene_logic <- neuromapper_genes %in% sn_genedata$gene_symbol
+# checking for genes that are not in the geneInfo.tab file
+neuromapper_genes[!gene_logic]
+
+# inspecting for duplicates in gene_symbol column
+sn_genedata %>% 
+  filter(gene_symbol %in% neuromapper_genes) %>% 
+  janitor::get_dupes(gene_symbol) %>% 
+  glimpse() # one of these eids has neuronal exp and the other has spermatid exp
+
+# manually adding ensemble IDs for "Fyb" "Adssl1" "Prrxl1"
+manual_adds <- tribble(
+  ~gene_symbol, ~ensembl_id, ~gene_type,
+  "Adssl1", "ENSMUSG00000011148", "protein_coding",
+  "Prrxl1", "ENSMUSG00000041730", "protein_coding",
+  "Fyb", "ENSMUSG00000022148", "protein_coding"
+)
+
+# remove one mismapped ensemble ID and add manually added ensemble IDs
+neuromapper_gene_meta <- sn_genedata %>% 
+  filter(gene_symbol %in% neuromapper_genes) %>% 
+  filter(ensembl_id != "ENSMUSG00000051401")  %>%  # primarily exp in spermatid
+  # Manually adding ensemble ID for "Fyb" "Adssl1" "Prrxl1"
+  bind_rows(manual_adds) %>% 
+  glimpse()
+
+# seqfish_genemeta %>% View
+neuromapper_gene_meta$gene_symbol %>% length()
+neuromapper_gene_meta$gene_symbol %>% unique() %>% length()
+neuromapper_gene_meta$ensembl_id %>% length()
+neuromapper_gene_meta$ensembl_id %>% unique() %>% length()
+
+write.csv(
+  neuromapper_gene_meta,
+  glue("{wkdir}/data/input/neuromapper_gene_metadata.csv"),
+  quote = FALSE
+)
+# length(neuromapper_genes)
+
+```
+
+
+Updating gene symboles to EIDs in cellxgene count matrix for MapMyCells Annotation
+
+```{r}
+neuromapper_gene_meta <- readr::read_csv(
+  glue("{wkdir}/data/input/neuromapper_gene_metadata.csv")
+)
+gene_maplist <- set_names(
+  neuromapper_gene_meta$ensembl_id, 
+  neuromapper_gene_meta$gene_symbol
+  )
+
+cbg_paths <- list.files(glue("{wkdir}/data/input/SpatialAnalysis_2024-07"), 
+  recursive = TRUE, full.names = TRUE, pattern = "cell_by_gene_matrix"
+  )
+
+# function to convert dataframe to h5ad file
+df_to_h5ad <- function(genebycell, file) {
+  require(SingleCellExperiment)
+  require(zellkonverter)
+  sce <- SingleCellExperiment::SingleCellExperiment(
+    assays = list(X = as.matrix(genebycell))
+  )
+  zellkonverter::writeH5AD(sce, file)
+}
+
+# saving new h5ad files with EIDs for MapMyCells Annotation
+for (path in cbg_paths) {
+  path_dir <- fs::path_dir(path)
+  basename <- fs::path_ext_remove(basename(path))
+  print(glue("Processing {basename}"))
+  new_basename <- glue("{basename}_eid.h5ad")
+  new_path <- glue("{path_dir}/{new_basename}")
+  print(glue("Writing to {new_path}"))
+  
+  new_df <- readr::read_csv(path)[-1] %>% 
+    dplyr::rename_all(~ gene_maplist[.]) %>%
+    as.matrix() %>% 
+    t()
+  cell_prefix <- strex::str_after_nth(basename, "_", -2)
+  colnames(new_df) <- paste0(cell_prefix, "_", seq_len(ncol(new_df)))
+  # new_df[1:10, 1:10]
+  
+  df_to_h5ad(genebycell = new_df, file = new_path)
+}
+
+```
+
+Running MapMyCells Annotation
+
+```{r}
+h5ad_eid_paths <- list.files(glue("{wkdir}/data/input/SpatialAnalysis_2024-07"), 
+  recursive = TRUE, full.names = TRUE, pattern = "_eid.h5ad"
+  )
+h5ad_eid_paths
+
+h5ad_eid_paths[-1] %>% 
+  purrr::set_names(fs::path_ext_remove(basename(.))) %>% 
+  purrr::map(~ glue(
+    "sbatch {wkdir}/notebooks/shell_scripts/slurm-map-my-cells-dynamic.sh",
+      " -i {.}",
+      " -o  {fs::path_dir(.)}") #%>% shell_do()
+  )
+
+```
+
+
 ### Loading and formatting seqFISH data into Seurat objects
+
+
 
 ```{r, eval = FALSE}
 
+# previous method - causes a mess in assays
+
+# #' Function to load and process cell-by-gene matrix and metadata
+# load_ROI_seurat_trim <- function(cbg_path, meta_path) {
+#   require(Matrix)
+#   require(Seurat)
+#   require(magrittr)
+
+#   cell_by_gene_matrix <-
+#     read.csv(cbg_path, row.names = 1) %>%
+#     dplyr::rename_all(~ toupper(.)) %>%
+#     t()
+
+#   # select for cells with at least 40 counts
+#   quality_cells_min <- colSums(cell_by_gene_matrix) >= 40
+#   quality_cells_max <- colSums(cell_by_gene_matrix) <= 3000
+#   quality_cells <- quality_cells_min & quality_cells_max
+#   perc_remain <- sum(quality_cells) / length(quality_cells) * 100
+#   message(
+#     "\n\nCells below 40 total counts: ", sum(!quality_cells_min),
+#     "\nCells above 3000 total counts: ", sum(!quality_cells_max),
+#     "\nCells remaining: ", sum(quality_cells),
+#     "\nRetaining ", round(perc_remain, 2), "% of cells\n"
+#   )
+#   cell_by_gene_matrix <- cell_by_gene_matrix[, quality_cells]
+#   cell_by_gene_matrix %<>% as("dgCMatrix")
+
+#   # load in cell-coordinates / metadata
+#   cell_attributes <- read.csv(meta_path)
+#   cell_attributes <- cell_attributes[quality_cells, ]
+
+#   # Check the dimensions and structure of your input data
+#   print(dim(cell_by_gene_matrix))
+#   print(dim(cell_attributes))
+  
+#   # Create Seurat object
+#   seur <-
+#     Seurat::CreateSeuratObject(
+#       counts = cell_by_gene_matrix,
+#       project = "SeqFISH"
+#     ) %>%
+#     Seurat::AddMetaData(metadata = cell_attributes)
+
+#   # add assay and make active
+#   seur@assays[["Spatial"]] <- CreateAssayObject(counts = cell_by_gene_matrix)
+#   seur <- UpdateSeuratObject(seur)
+#   return(seur)
+# }
+
+# roi_list <- paste0("roi", 1:4)
+# run_list <- paste0("run", 1:4)
+# data_dir <- glue("{wkdir}/data/input/SpatialAnalysis_2024-07")
+# seurat_list <- list()
+# group_list <- list(
+#   roi1_run1 = "spf",
+#   roi2_run1 = "wildr",
+#   roi3_run1 = "wildr",
+#   roi4_run1 = "spf",
+#   roi1_run2 = "wildr",
+#   roi2_run2 = "spf",
+#   roi3_run2 = "spf",
+#   roi4_run2 = "wildr",
+#   roi1_run3 = "spf",
+#   roi2_run3 = "wildr",
+#   roi3_run3 = "wildr",
+#   roi4_run3 = "spf",
+#   roi1_run4 = "spf",
+#   roi2_run4 = "wildr",
+#   roi3_run4 = "wildr",
+#   roi4_run4 = "spf"
+# )
+# bregma_list <- list(
+#   roi1_run1 = -1.85,
+#   roi2_run1 = -1.95,
+#   roi3_run1 = -2.45,
+#   roi4_run1 = -1.85,
+#   roi1_run2 = -1.65,
+#   roi2_run2 = -1.65,
+#   roi3_run2 = -2.4,
+#   roi4_run2 = -1.85,
+#   roi1_run3 = -1.85,
+#   roi2_run3 = -2.15,
+#   roi3_run3 = -1.95,
+#   roi4_run3 = -1.95,
+#   roi1_run4 = -1.35,
+#   roi2_run4 = -1.85,
+#   roi3_run4 = -1.85,
+#   roi4_run4 = -1.75
+# )
+# block_list <- list(
+#   run1 = "block2",
+#   run2 = "block3",
+#   run3 = "block1",
+#   run4 = "block4"
+# )
+
+# for (roi in roi_list) {
+#   for (run in run_list) {
+#     sample <- glue("{roi}_{run}")
+#     block_var <- block_list[[run]]
+#     sample_dir <- glue("export_{run}_{roi}_{block_var}_july2024")
+#     print(glue("Loading: {sample}"))
+
+#     cbg_path <- glue(
+#       "{data_dir}/{sample_dir}/{sample_dir}/",
+#       "cell_by_gene_matrix_{roi}_{block_var}.csv"
+#     )
+#     meta_path <- glue(
+#       "{data_dir}/{sample_dir}/{sample_dir}/",
+#       "cell_attributes_{roi}_{block_var}.csv"
+#     )
+
+#     if (!file.exists(cbg_path)) {
+#       print(glue("ERROR \n {cbg_path} \ndoes not exist!"))
+#       next
+#     }
+
+#     seurat_list[[sample]] <- load_ROI_seurat_trim(
+#       cbg_path = cbg_path,
+#       meta_path = meta_path
+#     )
+
+#     # adding metadata
+#     seurat_list[[sample]]$roi <- roi
+#     seurat_list[[sample]]$run <- run
+#     seurat_list[[sample]]$block <- block_var
+#     seurat_list[[sample]]$group <- group_list[[sample]]
+#     seurat_list[[sample]]$bregma <- bregma_list[[sample]]
+  
+#   }
+# }
+
+# merged_rois <- Merge_Seurat_List(
+#   seurat_list,
+#   add.cell.ids = names(seurat_list),
+#   merge.data = TRUE,
+#   project = "SeuratProject"
+# )
+
+# saveRDS(
+#     merged_rois,
+#     glue("{wkdir}/data/interim/merged_roi_seurat_prenorm_{Sys.Date()}.rds")
+# )
+
+```
+
+
+```{r}
 #' Function to load and process cell-by-gene matrix and metadata
 load_ROI_seurat_trim <- function(cbg_path, meta_path) {
   require(Matrix)
@@ -109,23 +390,23 @@ load_ROI_seurat_trim <- function(cbg_path, meta_path) {
     dplyr::rename_all(~ toupper(.)) %>%
     t()
 
-  # select for cells with at least 40 counts
-  quality_cells_min <- colSums(cell_by_gene_matrix) >= 40
-  quality_cells_max <- colSums(cell_by_gene_matrix) <= 3000
-  quality_cells <- quality_cells_min & quality_cells_max
-  perc_remain <- sum(quality_cells) / length(quality_cells) * 100
-  message(
-    "\n\nCells below 40 total counts: ", sum(!quality_cells_min),
-    "\nCells above 3000 total counts: ", sum(!quality_cells_max),
-    "\nCells remaining: ", sum(quality_cells),
-    "\nRetaining ", round(perc_remain, 2), "% of cells\n"
-  )
-  cell_by_gene_matrix <- cell_by_gene_matrix[, quality_cells]
+  # # select for cells with at least 40 counts
+  # quality_cells_min <- colSums(cell_by_gene_matrix) >= 40
+  # quality_cells_max <- colSums(cell_by_gene_matrix) <= 3000
+  # quality_cells <- quality_cells_min & quality_cells_max
+  # perc_remain <- sum(quality_cells) / length(quality_cells) * 100
+  # message(
+  #   "\n\nCells below 40 total counts: ", sum(!quality_cells_min),
+  #   "\nCells above 3000 total counts: ", sum(!quality_cells_max),
+  #   "\nCells remaining: ", sum(quality_cells),
+  #   "\nRetaining ", round(perc_remain, 2), "% of cells\n"
+  # )
+  # cell_by_gene_matrix <- cell_by_gene_matrix[, quality_cells]
   cell_by_gene_matrix %<>% as("dgCMatrix")
 
   # load in cell-coordinates / metadata
   cell_attributes <- read.csv(meta_path)
-  cell_attributes <- cell_attributes[quality_cells, ]
+  # cell_attributes <- cell_attributes[quality_cells, ]
 
   # Check the dimensions and structure of your input data
   print(dim(cell_by_gene_matrix))
@@ -139,12 +420,8 @@ load_ROI_seurat_trim <- function(cbg_path, meta_path) {
     ) %>%
     Seurat::AddMetaData(metadata = cell_attributes)
 
-  # add assay and make active
-  seur@assays[["Spatial"]] <-
-    CreateAssayObject(counts = cell_by_gene_matrix)
-  seur@active.assay <- "Spatial"
-  DefaultAssay(seur) <- "Spatial"
-
+  # add assay and make active; remove redundant RNA assay (Option 2)
+  seur@assays[["RNA"]] <- CreateAssayObject(counts = cell_by_gene_matrix)
   seur <- UpdateSeuratObject(seur)
 
   return(seur)
@@ -233,23 +510,32 @@ for (roi in roi_list) {
   }
 }
 
+tic()
 merged_rois <- Merge_Seurat_List(
   seurat_list,
   add.cell.ids = names(seurat_list),
   merge.data = TRUE,
   project = "SeuratProject"
 )
+toc()
+
+merged_rois@assays
+merged_rois@meta.data %>% glimpse()
 
 saveRDS(
     merged_rois,
-    glue("{wkdir}/data/interim/merged_roi_seurat_prenorm_{Sys.Date()}.rds")
+    glue("{wkdir}/data/interim/seurat/seqFISH/merged_roi_seurat_prenorm_{Sys.Date()}.rds"),
+    compress = FALSE
 )
+
+# merged_rois[["RNA"]][[]]
+
 
 ```
 
 
-```{r, eval = FALSE}
 
+```{r, eval = FALSE}
 merged_rois <- readRDS(
     glue("{wkdir}/data/interim/merged_roi_seurat_prenorm_2024-07-15.rds")
 )
@@ -470,9 +756,10 @@ ggsave(
 Examining count distribution of genes (serial and barcoded)
 
 ```{r, eval = FALSE}
-
 merged_rois <- readRDS(
-    glue("{wkdir}/data/interim/merged_roi_seurat_prenorm_2024-07-14.rds")
+    glue(
+      "{wkdir}/data/interim/seurat/seqFISH/",
+      "merged_roi_seurat_prenorm_2026-02-12.rds")
 )
 
 neuromapper_serial_genes <- read.csv(
@@ -527,6 +814,8 @@ write.csv(
 ```
 
 
+
 ```{r, eval = TRUE}
 sessionInfo()
+
 ```
