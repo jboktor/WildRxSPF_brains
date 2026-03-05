@@ -35,11 +35,11 @@ Environment setup.
 library(tidyverse)
 library(magrittr)
 library(glue)
-library(spdep)
-library(Voyager)
+# library(spdep)
+# library(Voyager)
 library(SingleCellExperiment)
 library(SpatialExperiment)
-library(SpatialFeatureExperiment)
+# library(SpatialFeatureExperiment)
 library(tictoc)
 # library(batchelor)
 library(scran)
@@ -315,7 +315,7 @@ h5ad_eid_paths[-1] %>%
 #   roi2_run3 = -2.15,
 #   roi3_run3 = -1.95,
 #   roi4_run3 = -1.95,
-#   roi1_run4 = -1.35,
+#   roi1_run4 = -1.35, ## DOUBLE CHECK THIS
 #   roi2_run4 = -1.85,
 #   roi3_run4 = -1.85,
 #   roi4_run4 = -1.75
@@ -385,42 +385,22 @@ load_ROI_seurat_trim <- function(cbg_path, meta_path) {
   require(Seurat)
   require(magrittr)
 
-  cell_by_gene_matrix <-
-    read.csv(cbg_path, row.names = 1) %>%
-    dplyr::rename_all(~ toupper(.)) %>%
-    t()
-
-  # # select for cells with at least 40 counts
-  # quality_cells_min <- colSums(cell_by_gene_matrix) >= 40
-  # quality_cells_max <- colSums(cell_by_gene_matrix) <= 3000
-  # quality_cells <- quality_cells_min & quality_cells_max
-  # perc_remain <- sum(quality_cells) / length(quality_cells) * 100
-  # message(
-  #   "\n\nCells below 40 total counts: ", sum(!quality_cells_min),
-  #   "\nCells above 3000 total counts: ", sum(!quality_cells_max),
-  #   "\nCells remaining: ", sum(quality_cells),
-  #   "\nRetaining ", round(perc_remain, 2), "% of cells\n"
-  # )
-  # cell_by_gene_matrix <- cell_by_gene_matrix[, quality_cells]
-  cell_by_gene_matrix %<>% as("dgCMatrix")
+  cell_by_gene_matrix <- read.csv(cbg_path, row.names = 1) %>% 
+    t() %>% 
+    as("dgCMatrix")
 
   # load in cell-coordinates / metadata
   cell_attributes <- read.csv(meta_path)
-  # cell_attributes <- cell_attributes[quality_cells, ]
 
   # Check the dimensions and structure of your input data
   print(dim(cell_by_gene_matrix))
   print(dim(cell_attributes))
   
   # Create Seurat object
-  seur <-
-    Seurat::CreateSeuratObject(
-      counts = cell_by_gene_matrix,
-      project = "SeqFISH"
-    ) %>%
+  seur <- Seurat::CreateSeuratObject(counts = cell_by_gene_matrix) %>%
     Seurat::AddMetaData(metadata = cell_attributes)
 
-  # add assay and make active; remove redundant RNA assay (Option 2)
+  # # add assay and make active; remove redundant RNA assay (Option 2)
   seur@assays[["RNA"]] <- CreateAssayObject(counts = cell_by_gene_matrix)
   seur <- UpdateSeuratObject(seur)
 
@@ -462,7 +442,7 @@ bregma_list <- list(
   roi2_run3 = -2.15,
   roi3_run3 = -1.95,
   roi4_run3 = -1.95,
-  roi1_run4 = -1.35,
+  roi1_run4 = -1.35, ## DOUBLE CHECK THIS
   roi2_run4 = -1.85,
   roi3_run4 = -1.85,
   roi4_run4 = -1.75
@@ -489,6 +469,10 @@ for (roi in roi_list) {
       "{data_dir}/{sample_dir}/{sample_dir}/",
       "cell_attributes_{roi}_{block_var}.csv"
     )
+    cell_annot_path <- glue(
+      "{data_dir}/{sample_dir}/{sample_dir}/",
+      "mapmycells_output.csv"
+    )
 
     if (!file.exists(cbg_path)) {
       print(glue("ERROR \n {cbg_path} \ndoes not exist!"))
@@ -506,30 +490,55 @@ for (roi in roi_list) {
     seurat_list[[sample]]$block <- block_var
     seurat_list[[sample]]$group <- group_list[[sample]]
     seurat_list[[sample]]$bregma <- bregma_list[[sample]]
+    seurat_list[[sample]]$cell_id <- glue("{sample}_{seurat_list[[sample]]$label}")
+    seurat_list[[sample]]$cell_block_id <- glue("{roi}_{block_var}_{seurat_list[[sample]]$label}")
+    
+    # Adding MapMyCells cell type annotations
+    cell_annot <- readr::read_csv(cell_annot_path, skip = 4) %>% 
+      dplyr::rename(cell_block_id = "cell_id")
+
+    seurat_list[[sample]] <- SeuratObject::AddMetaData(seurat_list[[sample]], cell_annot)
   
   }
 }
 
+
+# merging seurat objects
 tic()
-merged_rois <- Merge_Seurat_List(
+merged_rois <- scCustomize::Merge_Seurat_List(
   seurat_list,
   add.cell.ids = names(seurat_list),
-  merge.data = TRUE,
-  project = "SeuratProject"
+  merge.data = TRUE
 )
 toc()
 
-merged_rois@assays
-merged_rois@meta.data %>% glimpse()
+# adding gene-level metadata
+neuromapper_serial_genes <- read.csv(
+  glue("{wkdir}/data/input/NeuroMapper_Channel2_gene_list.csv"),
+  row.names = NULL
+)
+neuromapper_gene_meta <- read.csv(
+  glue("{wkdir}/data/input/neuromapper_gene_metadata.csv"), row.names = 1) %>% 
+  mutate(library_class = case_when(
+    gene_symbol %in% neuromapper_serial_genes$gene_name ~ "serial",
+    TRUE ~ "barcoded"
+  )) %>%
+  glimpse()
+rownames(neuromapper_gene_meta) <- neuromapper_gene_meta$gene_symbol
+
+merged_rois[["RNA"]] <- SeuratObject::AddMetaData(
+  merged_rois[["RNA"]], metadata = neuromapper_gene_meta
+  )
+
+merged_rois[["RNA"]]@meta.features %>% glimpse()
+merged_rois[["RNA"]][[]] %>% glimpse()
+
 
 saveRDS(
     merged_rois,
     glue("{wkdir}/data/interim/seurat/seqFISH/merged_roi_seurat_prenorm_{Sys.Date()}.rds"),
     compress = FALSE
 )
-
-# merged_rois[["RNA"]][[]]
-
 
 ```
 
@@ -811,6 +820,266 @@ write.csv(
   filtered_data,
   glue("{wkdir}/data/interim/seurat_data_{Sys.Date()}.csv")
 )
+```
+
+
+
+## Exporting data for Allen CCF Registration
+
+```{r}
+abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
+merged_rois <- readRDS(
+    glue(
+      "{wkdir}/data/interim/seurat/seqFISH/",
+      "merged_roi_seurat_prenorm_2026-02-16.rds")
+)
+
+meta_df <- merged_rois@meta.data %>%
+  mutate(
+    subclass_label_transfer = subclass_name,
+    spatial_modules_level_1 = "",
+    sample_id = glue("{roi}_{run}"),
+    class_color = abca_color_pal$class_colors[class_name],
+    subclass_color = abca_color_pal$subclass_colors[subclass_name],
+    supertype_color = abca_color_pal$supertype_colors[supertype_name]
+  ) %>%
+  # TODO WARNING REMOVE
+  # filter(run %in% c("run1", "run2")) %>%
+  filter(run %nin% c("roi1_run3", "roi2_run3")) %>%
+  glimpse()
+
+# write.csv(
+#   meta_df,
+#   glue("{wkdir}/data/input/allen_registration_ref/cell-metadata_{Sys.Date()}.csv"),
+#   quote = FALSE
+# )
+
+
+meta_df$sample_id %>% unique()
+
+# p_seqfish_subclass_single <- meta_df %>% 
+#   filter(sample_id == "roi4_run4") %>%
+#   sample_n(2000, replace = FALSE) %>%
+#   ggplot(aes(center_x, center_y, color = subclass_name)) +
+#   geom_point(size = 0.05, alpha = 0.9) +
+#   coord_fixed() +
+#   scale_y_reverse() +
+#   theme_bw() +
+#   scale_color_manual(values = abca_color_pal$subclass_colors) 
+
+cois <- c('01 IT-ET Glut', '02 NP-CT-L6b Glut', '04 DG-IMN Glut',
+  '07 CTX-MGE GABA', '33 Vascular','11 CNU-HYa GABA'
+  )
+
+cois_subclass <- c(
+    "001 CLA-EPd-CTX Car3 Glut",
+    "002 IT EP-CLA Glut",
+    "003 L5/6 IT TPE-ENT Glut",
+    "004 L6 IT CTX Glut",
+    "005 L5 IT CTX Glut",
+    "006 L4/5 IT CTX Glut",
+    "007 L2/3 IT CTX Glut",
+    "016 CA1-ProS Glut",
+    "017 CA3 Glut",
+    "020 L2/3 IT RSP Glut",
+    "021 L4 RSP-ACA Glut",
+    "023 SUB-ProS Glut",
+    "025 CA2-FC-IG Glut",
+    "026 NLOT Rho Glut",
+    "027 L6b EPd Glut",
+    "029 L6b CTX Glut",
+    "030 L6 CT CTX Glut",
+    "032 L5 NP CTX Glut",
+    "033 NP SUB Glut",
+    "037 DG Glut",
+    "329 ABC NN",
+    "330 VLMC NN",
+    "332 SMC NN"
+)
+
+p_seqfish_subclass_single <- meta_df %>% 
+  filter(sample_id == "roi4_run4") %>%
+  filter(subclass_name %in% cois_subclass) %>%
+  # sample_n(10000, replace = FALSE) %>%
+  ggplot(aes(center_x, center_y, color = subclass_name)) +
+  geom_point(size = 0.05, alpha = 0.9) +
+  coord_fixed() +
+  scale_y_reverse() +
+  theme_bw() +
+  guides(color = guide_legend(override.aes = list(size = 10))) +
+  scale_color_manual(values = abca_color_pal$subclass_colors) 
+
+p_seqfish_subclass_single %>% plotly::ggplotly()
+
+p_seqfish_subclass <- meta_df %>% 
+  ggplot(aes(center_x, center_y, color = subclass_name)) +
+  geom_point(size = 0.05, alpha = 0.9) +
+  coord_fixed() +
+  scale_y_reverse() +
+  theme_bw() +
+  scale_color_manual(values = abca_color_pal$subclass_colors) +
+  facet_wrap(~sample_id, ncol = 4) +
+  theme(legend.position = "none")
+
+ggsave(
+  glue("{wkdir}/figures/seqFISH_subclass_{Sys.Date()}.png"),
+  p_seqfish_subclass,
+  width = 30, height = 50,
+  limitsize = FALSE
+)
+
+meta_df %>% 
+  ggplot(aes(class_bootstrapping_probability, color = class_name)) +
+  geom_density(alpha = 0.5, position = "identity") +
+  # scale_color_manual(values = abca_color_pal$class_colors) +
+  theme_bw()
+
+subclass_headers <- c(
+  "001", "002", "003", "004", "005", "006", "007", 
+  "016", "017", "020", "021", "023", "025", "026", "027",
+  "029", "030", "032", "033", "037", "329", "330", "332"
+)
+
+# Select full subclass names where the prefix (e.g. "001") matches subclass_headers
+subclass_full_names <- unique(meta_df$subclass_name) %>%
+  purrr::keep(~ strex::str_before_first(., " ") %in% subclass_headers)
+
+subclass_full_names
+
+# Optional: filter meta_df to only these subclasses (e.g. Isocortex-related)
+meta_df_subclass_filtered <- meta_df %>%
+  filter(subclass_name %in% subclass_full_names)
+
+# # Chechking which cell types have poor mapping averages
+# meta_df %>% 
+#   group_by(class_name) %>% 
+#   summarise(
+#     mean_bootstrapping_probability = mean(class_bootstrapping_probability),
+#     n = n()
+#     ) %>% 
+#   arrange(mean_bootstrapping_probability) %>% 
+#   DT::datatable()
+
+# # visualizing spatial location of celltypes with poor mapping
+# meta_df %>% 
+#   filter(class_bootstrapping_probability < 0.3) %>%
+#   mutate(sample_id = glue("{group} {roi} {run}")) %>% 
+#   ggplot(aes(center_x, center_y, color = class_name)) +
+#   geom_point(size = 0.1, alpha = 0.5) +
+#   coord_fixed() +
+#   scale_y_reverse() +
+#   theme_bw() +
+#   facet_wrap(~sample_id, ncol = 4)
+
+
+tst <- read.csv(
+  glue("{wkdir}/data/interim/registration/cell-metadata_2024-05-10.csv")
+)
+tst %>% glimpse()
+
+```
+
+
+Testing of old Allen cell type names can be mapped onto new subclass names
+
+```{r}
+# allen_c1_ref <- readxl::read_excel(
+#   glue("{wkdir}/data/input/registration/WB3_Coronal_1_mosaic_positions_25um_final_EDITED.xlsx")) %>% 
+#   glimpse()
+
+# # Extract unique cell types from Python-style list strings
+# unique_cell_types_allen <- allen_c1_ref$cell_types %>%
+#   stringr::str_extract_all("'[^']+'") %>%  # match quoted strings
+#   unlist() %>%
+#   stringr::str_remove_all("'") %>%         # strip quotes
+#   unique() %>%
+#   sort()
+# unique_cell_types_allen
+
+# new_subclass_ids_w_num <- merged_rois@meta.data$subclass_name %>% unique()
+# new_subclass_ids <- new_subclass_ids_w_num %>% strex::str_after_first(" ")
+# # new_subclass_ids %>% length()
+
+# unique_cell_types_allen[unique_cell_types_allen %in% new_subclass_ids]
+
+
+
+# # Adjusting manually 
+# old_cell_names <- c('VLMC NN', 'Ependymal NN', 'CHOR NN', 'Tanyctye NN', 'ABC NN', 'Astroependymal NN', 'DG Glut', 'MOB Dopa-Gaba', 'MOB Trdn Gaba', 'MOB-STR-CTX Inh IMN', 'MOB-in Frmd7 Gaba', 'MOB-mi Frmd7 Gaba', 'MOB-out Frmd7 Gaba')
+# new_cell_names <- c('VLMC NN', 'Ependymal NN', 'CHOR NN', 'ABC NN', 'Astroependymal NN', 'DG Glut', 'OB Dopa-Gaba', 'OB Trdn Gaba', 'OB-STR-CTX Inh IMN', 'OB-in Frmd7 Gaba', 'OB-mi Frmd7 Gaba', 'OB-out Frmd7 Gaba')
+
+# new_cell_names %in% new_subclass_ids
+
+# new_subclass_ids_w_num[which(new_subclass_ids %in% new_cell_names)]
+
+# # final names
+# new_cell_names <- c('330 VLMC NN', 'Ependymal NN', 'CHOR NN', 'ABC NN', 'Astroependymal NN', 'DG Glut', 'OB Dopa-Gaba', 'OB Trdn Gaba', 'OB-STR-CTX Inh IMN', 'OB-in Frmd7 Gaba', 'OB-mi Frmd7 Gaba', 'OB-out Frmd7 Gaba')
+
+# ['325 CHOR NN', '043 OB-mi Frmd7 Gaba', '045 OB-STR-CTX Inh IMN', '330 VLMC NN', '323 Ependymal NN', '042 OB-out Frmd7 Gaba', '044 OB Dopa-Gaba', '041 OB-in Frmd7 Gaba', '321 Astroependymal NN', '329 ABC NN', '040 OB Trdn Gaba', '037 DG Glut']
+
+```
+
+
+This is the final set of subclass cell to include in the cell_types names 
+
+['325 CHOR NN', '043 OB-mi Frmd7 Gaba', '045 OB-STR-CTX Inh IMN', '330 VLMC NN', '323 Ependymal NN', '042 OB-out Frmd7 Gaba', '044 OB Dopa-Gaba', '041 OB-in Frmd7 Gaba', '321 Astroependymal NN', '329 ABC NN', '040 OB Trdn Gaba', '037 DG Glut', '322 Tanycyte NN']
+
+
+Reading in the results of the Allen CCF Registration
+```{r}
+reg_res <- readr::read_csv(glue("{wkdir}/data/interim/registration/ccf3d.csv"))
+# reg_res <- readr::read_csv(glue("{wkdir}/data/interim/registration/ccf2d.csv"))
+reg_res %>% glimpse()
+
+# Subsample to 1k points per sample_id and plot 3D CCF coordinates
+reg_res_plot <- reg_res %>%
+  filter(!is.na(ccfx), !is.na(ccfy), !is.na(ccfz)) %>%
+  filter(!is.na(ccfx_2), !is.na(ccfy_2), !is.na(ccfz_2)) %>%
+  group_by(sample_id) %>%
+  slice_sample(n = 10000, replace = FALSE) %>%
+  ungroup() %>%
+  mutate(annotation = as.character(annotation))
+
+reg_res_plot %>%
+  plot_ly(
+    x = ~ccfx, y = ~ccfy, z = ~ccfz,
+    type = "scatter3d",
+    mode = "markers",
+    marker = list(size = 1, opacity = 0.9, color = ~subclass_color)
+  ) %>%
+  layout(
+    scene = list(
+      xaxis = list(title = "CCF X (AP)"),
+      yaxis = list(title = "CCF Y"),
+      zaxis = list(title = "CCF Z (DV)")
+    ),
+    title = "Allen CCF registration: subsampled cells (3D)"
+  )
+
+
+table(reg_res$annotation == reg_res$annotation_2)
+table(reg_res$annotation == reg_res$annotation_2)
+
+# reg_res_plot %>%
+#   plot_ly(
+#     x = ~ccfx, y = ~ccfy, z = ~ccfz,
+#     color = "Set1",
+#     type = "scatter3d",
+#     mode = "markers",
+#     marker = list(size = 2, opacity = 0.7, color = ~annotation)
+#   ) %>%
+#   layout(
+#     scene = list(
+#       xaxis = list(title = "CCF X (AP)"),
+#       yaxis = list(title = "CCF Y"),
+#       zaxis = list(title = "CCF Z (DV)")
+#     ),
+#     title = "Allen CCF registration: 1k cells/sample"
+#   )
+
+
+
+
 ```
 
 
