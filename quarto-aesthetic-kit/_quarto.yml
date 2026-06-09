@@ -1,0 +1,68 @@
+# =============================================================================
+# Quarto Aesthetic Kit — project defaults.
+# Drop this at the root of an analysis project (or copy the `format:` block into
+# a single .qmd front-matter). Every .qmd in the project inherits this styling.
+# =============================================================================
+project:
+  type: default
+  output-dir: _output
+
+format:
+  html:
+    theme:
+      - cosmo            # light Bootstrap base
+      - theme/aesthetic.scss
+    # Load Inter + JetBrains Mono webfonts (Sass drops @import, so link here)
+    include-in-header: theme/fonts.html
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    toc-depth: 3
+    toc-expand: 2
+    number-sections: false
+    smooth-scroll: true
+    anchor-sections: true
+    link-external-icon: false
+    link-external-newwindow: true
+
+    # ---- Wide, app-like canvas. The grid widens the center column far past the
+    #      default ~800px blog measure; prose is re-capped to a readable width in
+    #      aesthetic.scss, while figures/cards/tables break out to full width.
+    page-layout: article
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+      gutter-width: 1.8rem
+    fig-align: center
+    fig-cap-location: bottom
+    tbl-cap-location: top
+
+    # ---- Code: collapsed by default, global show/hide button, copy button.
+    #      The narrative stays clean; code lives in the appendix at the bottom.
+    code-fold: true
+    code-summary: "Show code"
+    code-tools: true          # global </> toggle, top-right
+    code-copy: true
+    code-link: true
+    code-overflow: wrap
+    highlight-style: github
+
+    # ---- Self-contained: one portable .html the user can open / send anywhere
+    embed-resources: true
+
+# ---- Execution: deterministic, cached, figures written to disk for provenance
+execute:
+  echo: true          # show code (folded) — provenance requires code be present
+  warning: false
+  message: false
+  cache: true         # reproducible re-renders
+  freeze: auto
+
+# ---- Default knitr/jupyter figure quality
+knitr:
+  opts_chunk:
+    dev: "png"
+    dpi: 200
+    fig.width: 7
+    fig.height: 4.5

@@ -117,7 +117,7 @@ supertype_batchdata <-
     mutate(cell_type_column = "supertype_label")
 
 batchparams_df <- 
-    bind_rows(class_batchdata, subclass_batchdata, supertype_batchdata) %>% 
+    bind_rows(class_batchdata, subclass_batchdata, supertype_batchdata) %>%
     left_join(celltype_droplist) %>%
     filter(is.na(dropme)) %>% 
     dplyr::select(cell_type_column, celltype, tissue) %>% 

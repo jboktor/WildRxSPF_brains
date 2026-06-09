@@ -1027,6 +1027,8 @@ This is the final set of subclass cell to include in the cell_types names
 
 Reading in the results of the Allen CCF Registration
 ```{r}
+abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
+
 reg_res <- readr::read_csv(glue("{wkdir}/data/interim/registration/ccf3d.csv"))
 # reg_res <- readr::read_csv(glue("{wkdir}/data/interim/registration/ccf2d.csv"))
 reg_res %>% glimpse()
@@ -1036,13 +1038,20 @@ reg_res_plot <- reg_res %>%
   filter(!is.na(ccfx), !is.na(ccfy), !is.na(ccfz)) %>%
   filter(!is.na(ccfx_2), !is.na(ccfy_2), !is.na(ccfz_2)) %>%
   group_by(sample_id) %>%
-  slice_sample(n = 10000, replace = FALSE) %>%
+  slice_sample(n = 5000, replace = FALSE) %>%
   ungroup() %>%
-  mutate(annotation = as.character(annotation))
+  mutate(
+    annotation = as.character(annotation),
+    ccfz_2_noisy = ccfz_2 + rnorm(n(), 0, 100)
+  ) %>% 
+  arrange(sample_id, subclass_name, supertype_name) %>% 
+  glimpse()
+
+# plot(reg_res_plot$ccfz_2, reg_res_plot$ccfz_2_noisy)
 
 reg_res_plot %>%
   plot_ly(
-    x = ~ccfx, y = ~ccfy, z = ~ccfz,
+    x = ~ccfx_2, y = ~ccfy_2, z = ~ccfz_2_noisy,
     type = "scatter3d",
     mode = "markers",
     marker = list(size = 1, opacity = 0.9, color = ~subclass_color)
@@ -1056,9 +1065,6 @@ reg_res_plot %>%
     title = "Allen CCF registration: subsampled cells (3D)"
   )
 
-
-table(reg_res$annotation == reg_res$annotation_2)
-table(reg_res$annotation == reg_res$annotation_2)
 
 # reg_res_plot %>%
 #   plot_ly(
@@ -1077,8 +1083,32 @@ table(reg_res$annotation == reg_res$annotation_2)
 #     title = "Allen CCF registration: 1k cells/sample"
 #   )
 
+# names(abca_color_pal)
+# abca_color_pal$subclass_colors
 
 
+p <- plotly::plot_ly()
+for (supertype in unique(reg_res_plot$supertype_name)) {
+  sub <- reg_res_plot %>% filter(supertype_name == supertype)
+  color <- abca_color_pal$supertype_colors[supertype]  # exact mapping by name
+  if (is.na(color)) next  # skip subclasses not in palette, or use: color <- "#808080"
+  p <- p %>% add_trace(
+    data = sub,
+    x = ~ccfx_2, y = ~ccfy_2, z = ~ccfz_2_noisy,
+    type = "scatter3d",
+    mode = "markers",
+    marker = list(size = 1, opacity = 0.9, color = color),
+    name = supertype
+  )
+}
+p %>% plotly::layout(
+  scene = list(
+    xaxis = list(title = "CCF X (AP)"),
+    yaxis = list(title = "CCF Y"),
+    zaxis = list(title = "CCF Z (DV)")
+  ),
+  title = "Allen CCF registration: subsampled cells (3D)"
+)
 
 ```
 

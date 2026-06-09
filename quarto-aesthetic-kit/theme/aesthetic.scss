@@ -1,0 +1,449 @@
+/*-- scss:defaults --*/
+// =============================================================================
+// Quarto Aesthetic Kit — house design tokens
+// Typeface: Inter. Brand purple #6E4FF9. Wide, app-like canvas, soft depth.
+// =============================================================================
+
+$font-family-sans-serif: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !default;
+$font-family-monospace:  "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace !default;
+
+// ---- Brand palette --------------------------------------------------------
+$bh-purple:        #6E4FF9;   // primary brand
+$bh-purple-light:  #9D8BFF;   // hover / secondary accents
+$bh-purple-tint:   #F1F0FF;   // tinted callout / highlight backgrounds
+$bh-purple-tint-2: #F8F7FF;   // faintest wash
+$bh-ink:           #0B0B0F;   // near-black body text
+$bh-gray:          #6B6B72;   // secondary text
+$bh-gray-2:        #54545B;   // muted text
+$bh-gray-light:    #9A9AA2;   // eyebrow labels, captions
+$bh-border:        #ECECEF;   // hairline borders
+$bh-border-soft:   #F2F2F4;
+$bh-surface:       #F7F7F9;   // panel / code fill
+$bh-slate:         #27455C;   // dark accent (sparingly)
+$bh-white:         #FFFFFF;
+
+// ---- Bootstrap / Quarto variable overrides --------------------------------
+$primary:        $bh-purple !default;
+$body-color:     $bh-ink !default;
+$body-bg:        $bh-white !default;
+$link-color:     $bh-purple !default;
+$link-hover-color: $bh-purple-light !default;
+$border-color:   $bh-border !default;
+
+$font-size-root: 17px !default;
+$line-height-base: 1.72 !default;
+
+$headings-font-weight: 700 !default;
+$headings-line-height: 1.15 !default;
+$headings-color: $bh-ink !default;
+
+$h1-font-size: 3rem    !default;
+$h2-font-size: 1.95rem !default;
+$h3-font-size: 1.4rem  !default;
+$h4-font-size: 1.14rem !default;
+$h5-font-size: 1rem    !default;
+
+$border-radius:    10px !default;
+$border-radius-sm: 6px  !default;
+$border-radius-lg: 14px !default;
+
+$code-color: $bh-purple;
+$code-bg: $bh-surface;
+$toc-font-size: 0.82rem !default;
+
+$callout-color-note:      $bh-purple !default;
+$callout-color-tip:       #1F9D72   !default;
+$callout-color-important: #D97757   !default;
+$callout-color-warning:   #E0A800   !default;
+$callout-color-caution:   #C0392B   !default;
+
+/*-- scss:rules --*/
+// =============================================================================
+// Component rules
+// =============================================================================
+
+:root {
+  --bh-purple: #{$bh-purple};
+  --bh-purple-light: #{$bh-purple-light};
+  --bh-purple-tint: #{$bh-purple-tint};
+  --bh-purple-tint-2: #{$bh-purple-tint-2};
+  --bh-ink: #{$bh-ink};
+  --bh-gray: #{$bh-gray};
+  --bh-gray-2: #{$bh-gray-2};
+  --bh-gray-light: #{$bh-gray-light};
+  --bh-border: #{$bh-border};
+  --bh-border-soft: #{$bh-border-soft};
+  --bh-surface: #{$bh-surface};
+  --bh-slate: #{$bh-slate};
+  // Layered, low, modern shadows
+  --bh-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 6px 20px -10px rgba(16,24,40,0.14);
+  --bh-shadow-lift: 0 2px 6px rgba(16,24,40,0.05), 0 16px 40px -14px rgba(110,79,249,0.28);
+  --bh-measure: none;   // prose fills the full content column (see LAYOUT note)
+}
+
+html { scroll-behavior: smooth; }
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.006em;
+}
+
+// ---------------------------------------------------------------------------
+// LAYOUT: wide canvas — prose AND structural blocks fill the full column
+// ---------------------------------------------------------------------------
+// Text fills the full content width (--bh-measure: none). To restore a capped
+// reading measure for a calmer, article-like feel, set --bh-measure back to a
+// value like 74ch in the :root block above.
+main.content > section > p,
+main.content > section > ul,
+main.content > section > ol,
+main.content > p,
+main.content > ul,
+main.content > ol,
+.quarto-title-block .subtitle,
+section[data-anchor-id] > p,
+section[data-anchor-id] > ul,
+section[data-anchor-id] > ol {
+  max-width: var(--bh-measure);
+}
+// Headings fill the column width too, aligned left.
+main.content h1, main.content h2, main.content h3, main.content h4 {
+  max-width: none;
+}
+// Structural blocks always span the full content column.
+.figure-card, .panel-grid, .stat-row, .quarto-figure,
+main.content > section > table, main.content table,
+.callout, .code-appendix .cell {
+  max-width: 100% !important;
+}
+
+// ---------------------------------------------------------------------------
+// TITLE BLOCK (masthead)
+// ---------------------------------------------------------------------------
+#title-block-header.quarto-title-block { margin-bottom: 2.2rem; }
+.quarto-title .title {
+  font-weight: 800;
+  font-size: clamp(2.2rem, 4vw, 3rem);
+  line-height: 1.06;
+  letter-spacing: -0.03em;
+  max-width: 22ch;
+}
+.quarto-title .subtitle {
+  color: var(--bh-gray);
+  font-weight: 400;
+  font-size: 1.2rem;
+  line-height: 1.45;
+  margin-top: 0.7rem;
+}
+// Category pills act as the eyebrow / kicker above the title.
+.quarto-title .quarto-categories {
+  display: flex; flex-wrap: wrap; gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.quarto-title .quarto-categories .quarto-category {
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--bh-purple);
+  background: var(--bh-purple-tint);
+  border: none;
+  border-radius: 100px;
+  padding: 0.28rem 0.7rem;
+  opacity: 1;
+}
+// Metadata row: clean hairline strip, not a boxy table.
+.quarto-title-meta {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--bh-border);
+  gap: 2.5rem;
+}
+.quarto-title-meta-heading {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: var(--bh-gray-light);
+}
+.quarto-title-meta-contents { font-size: 0.92rem; color: var(--bh-gray-2); }
+
+// ---------------------------------------------------------------------------
+// HEADINGS — kill the blog underline; carry hierarchy with size + space
+// ---------------------------------------------------------------------------
+main.content h1, main.content h2, main.content h3,
+main.content h4, main.content h5,
+.anchored {
+  border-bottom: none !important;
+  padding-bottom: 0 !important;
+}
+main.content h2 {
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin-top: 3.4rem;
+  margin-bottom: 1.1rem;
+}
+main.content h2:first-of-type { margin-top: 1.5rem; }
+main.content h3 {
+  font-weight: 650;
+  letter-spacing: -0.018em;
+  margin-top: 2.2rem;
+  margin-bottom: 0.8rem;
+}
+// Optional explicit divider
+.section-rule { border: 0; border-top: 1px solid var(--bh-border); margin: 3rem 0; }
+
+// ---------------------------------------------------------------------------
+// EYEBROW label  ->  [SECTION]{.eyebrow}
+// ---------------------------------------------------------------------------
+.eyebrow {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--bh-purple);
+  margin-bottom: 0.45rem;
+}
+
+// ---------------------------------------------------------------------------
+// LINKS
+// ---------------------------------------------------------------------------
+a { text-decoration: none; transition: color 0.15s ease; }
+main.content a:not(.provenance):not(.quarto-category) {
+  background-image: linear-gradient(var(--bh-purple-light), var(--bh-purple-light));
+  background-size: 0% 1.5px; background-repeat: no-repeat;
+  background-position: 0 100%;
+  transition: background-size 0.2s ease, color 0.15s ease;
+}
+main.content a:not(.provenance):not(.quarto-category):hover {
+  color: var(--bh-purple-light);
+  background-size: 100% 1.5px;
+}
+
+// ---------------------------------------------------------------------------
+// KPI / STAT STRIP   ->  ::: {.stat-row}  ::: {.stat} ... :::  :::
+// ---------------------------------------------------------------------------
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.9rem;
+  margin: 1.8rem 0 2.2rem;
+}
+.stat {
+  position: relative;
+  background: var(--bh-white);
+  border: 1px solid var(--bh-border);
+  border-radius: 12px;
+  padding: 1.15rem 1.25rem 1.2rem;
+  box-shadow: var(--bh-shadow);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.stat::before {            // purple top-accent tick
+  content: ""; position: absolute; top: 0; left: 1.25rem;
+  width: 26px; height: 3px; border-radius: 0 0 3px 3px;
+  background: var(--bh-purple);
+}
+.stat:hover { box-shadow: var(--bh-shadow-lift); transform: translateY(-2px); }
+.stat .stat-value {
+  display: block;
+  font-size: 2.1rem;
+  font-weight: 750;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--bh-ink);
+  margin-top: 0.35rem;
+}
+.stat .stat-label {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: var(--bh-gray);
+  margin-top: 0.5rem;
+  line-height: 1.35;
+}
+
+// ---------------------------------------------------------------------------
+// FIGURE CARD + multi-panel grid
+// ---------------------------------------------------------------------------
+.figure-card {
+  background: var(--bh-white);
+  border: 1px solid var(--bh-border);
+  border-radius: 14px;
+  padding: 1.6rem 1.7rem 1.35rem;
+  margin: 2rem 0;
+  box-shadow: var(--bh-shadow);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.figure-card:hover { box-shadow: var(--bh-shadow-lift); transform: translateY(-2px); }
+.figure-card > p { margin: 0; }
+.figure-card img {
+  display: block; margin: 0 auto;
+  max-width: 100%; height: auto;
+  border-radius: 8px;
+}
+// Single-figure cards: keep a sane reading width unless .fig-wide is set
+.figure-card:not(.fig-wide) > p > img,
+.figure-card:not(.fig-wide) > img { max-width: 920px; }
+.figure-card.fig-wide img { max-width: 100%; }
+
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.1rem;
+  margin: 0.4rem 0 1rem;
+}
+.panel-grid > p, .panel-grid figure { margin: 0; }
+.panel-grid img { max-width: 100%; }
+.panel-label {
+  display: inline-block;
+  font-weight: 700; font-size: 0.8rem;
+  color: var(--bh-purple);
+  background: var(--bh-purple-tint);
+  border-radius: 6px;
+  padding: 0.1rem 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+// ---- Caption + takeaways ---------------------------------------------------
+.fig-caption {
+  font-size: 0.92rem;
+  color: var(--bh-gray-2);
+  line-height: 1.6;
+  border-top: 1px solid var(--bh-border-soft);
+  padding-top: 0.9rem;
+  margin-top: 1rem;
+  max-width: none;
+}
+.fig-caption .fig-num { font-weight: 700; color: var(--bh-ink); }
+
+.takeaways {
+  background: linear-gradient(180deg, var(--bh-purple-tint) 0%, var(--bh-purple-tint-2) 100%);
+  border: 1px solid #E4E0FF;
+  border-left: 3px solid var(--bh-purple);
+  border-radius: 0 10px 10px 0;
+  padding: 1rem 1.2rem;
+  margin: 1.1rem 0 0.2rem;
+  max-width: none;
+}
+.takeaways > p:first-child, .takeaways .takeaways-title {
+  text-transform: uppercase; letter-spacing: 0.07em;
+  font-size: 0.68rem; font-weight: 700;
+  color: var(--bh-purple);
+  margin: 0 0 0.55rem;
+}
+.takeaways ul { margin-bottom: 0; padding-left: 1.15rem; }
+.takeaways li { margin-bottom: 0.35rem; font-size: 0.95rem; line-height: 1.55; }
+.takeaways li::marker { color: var(--bh-purple); }
+
+// ---------------------------------------------------------------------------
+// PROVENANCE tag + PATH chip
+// ---------------------------------------------------------------------------
+.provenance {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-family: $font-family-monospace;
+  font-size: 0.72rem; font-weight: 500;
+  color: var(--bh-gray);
+  background: var(--bh-surface);
+  border: 1px solid var(--bh-border);
+  border-radius: 100px;
+  padding: 0.18rem 0.7rem;
+  margin-top: 0.85rem;
+  transition: all 0.15s ease;
+}
+.provenance:hover {
+  color: var(--bh-purple); border-color: var(--bh-purple-light);
+  background: var(--bh-purple-tint);
+}
+.provenance::before { content: "↳"; opacity: 0.7; }
+
+.path {
+  font-family: $font-family-monospace;
+  font-size: 0.82rem;
+  background: var(--bh-surface);
+  border: 1px solid var(--bh-border);
+  border-radius: 6px;
+  padding: 0.1rem 0.42rem;
+  color: var(--bh-slate);
+  word-break: break-all;
+}
+
+// ---------------------------------------------------------------------------
+// TABLES
+// ---------------------------------------------------------------------------
+main.content table {
+  font-size: 0.92rem;
+  border-collapse: separate; border-spacing: 0;
+  border: 1px solid var(--bh-border);
+  border-radius: 12px; overflow: hidden;
+  margin: 1.6rem 0;
+}
+main.content thead th {
+  background: var(--bh-surface);
+  border-bottom: 2px solid var(--bh-purple) !important;
+  font-weight: 600; text-align: left; color: var(--bh-ink);
+  padding: 0.7rem 0.95rem;
+}
+main.content tbody td { padding: 0.6rem 0.95rem; }
+main.content tbody tr { border-bottom: 1px solid var(--bh-border-soft); }
+main.content tbody tr:last-child { border-bottom: none; }
+main.content tbody tr:hover { background: var(--bh-purple-tint-2); }
+caption, .quarto-figure figcaption, table caption {
+  color: var(--bh-gray); font-size: 0.85rem; caption-side: top;
+  text-align: left; padding-bottom: 0.5rem;
+}
+
+// ---------------------------------------------------------------------------
+// CODE
+// ---------------------------------------------------------------------------
+div.sourceCode {
+  border: 1px solid var(--bh-border);
+  border-radius: 10px;
+  background: var(--bh-surface);
+}
+pre code { font-size: 0.84rem; line-height: 1.55; }
+code:not(.sourceCode) {
+  background: var(--bh-purple-tint); color: var(--bh-purple);
+  padding: 0.1rem 0.36rem; border-radius: 5px; font-size: 0.85em;
+}
+.cell:target {
+  outline: 2px solid var(--bh-purple-light); outline-offset: 8px;
+  border-radius: 8px;
+}
+// "Code" tools toggle + fold summary
+.code-fold > summary, details > summary {
+  color: var(--bh-gray); font-weight: 500;
+}
+.code-appendix {
+  border-top: 2px solid var(--bh-border);
+  margin-top: 4rem; padding-top: 1.2rem;
+}
+
+// ---------------------------------------------------------------------------
+// TOC (right rail)
+// ---------------------------------------------------------------------------
+#TOC, nav[role="doc-toc"] { font-size: 0.82rem; }
+nav[role="doc-toc"] > ul > li > a, nav[role="doc-toc"] ul ul > li > a {
+  color: var(--bh-gray); border-left: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  padding-left: 0.8rem;
+}
+nav[role="doc-toc"] ul > li > a:hover { color: var(--bh-ink); }
+nav[role="doc-toc"] ul > li > a.active {
+  color: var(--bh-purple) !important;
+  border-left-color: var(--bh-purple);
+  font-weight: 600;
+}
+#toc-title {
+  text-transform: uppercase; letter-spacing: 0.07em;
+  font-size: 0.7rem; font-weight: 600; color: var(--bh-gray-light);
+}
+
+// ---------------------------------------------------------------------------
+// CALLOUTS
+// ---------------------------------------------------------------------------
+.callout { border-radius: 10px; box-shadow: var(--bh-shadow); }
+.callout.callout-style-default { border-left-width: 4px; }

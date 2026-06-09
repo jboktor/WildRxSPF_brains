@@ -38,6 +38,7 @@ library(ggside)
 theme_set(theme_bw())
 
 home_dir <- "/resnick/groups/MazmanianLab/jboktor"
+
 wkdir <- glue("{home_dir}/WILDRxSPF_brains")
 data_path <- glue("{wkdir}/data/interim")
 fig_path <- glue("{wkdir}/figures")
@@ -379,6 +380,31 @@ flux_ttest_results_df %>%
   write_csv(glue("{data_path}/scFEA/snRNASeq_flux_ttest_results_df_2026-02-06.csv"))
   View()
   glimpse()
+
+
+```
+
+
+```{r}
+flux_ttest_results_df <- read_csv(glue("{data_path}/scFEA/snRNASeq_flux_ttest_results_df_2026-02-06.csv")) %>% 
+  glimpse()
+
+flux_ttest_results_df %>% 
+  filter(supertype_name == "1160 Astro-NT NN_2") %>% 
+  View()
+
+flux_ttest_results_df %>% 
+  filter(supertype_name == "1160 Astro-NT NN_2") %>% 
+  # filter(p_value < 0.001) %>% 
+  group_by(SM_id, supertype_name) %>% 
+  summarise(n = n()) %>% 
+  arrange(desc(n))
+
+flux_ttest_results_df %>% 
+  filter(supertype_name == "1160 Astro-NT NN_2") %>% 
+  filter(SM_id == "21") %>% 
+  View()
+
 
 
 ```

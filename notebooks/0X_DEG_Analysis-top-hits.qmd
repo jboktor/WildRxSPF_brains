@@ -1,0 +1,617 @@
+---
+title: "Differential Expression Analysis Visualization and Interpretation - Top Hits"
+editor: source
+author: "Joe Boktor"
+date: '2026-01-01'
+format: 
+  html:
+    self-contained: true
+    code-fold: true
+    code-tools: true
+    fig-align: right
+    fig-height: 8
+    fig-width: 14 
+---
+
+# Goal: Examine the top differentially expressed genes regardless of cell type or tissue and identify any patterns or trends.
+
+## Analysis
+
+Loading environment and libraries
+
+```{r}
+library(Seurat)
+library(Matrix)
+library(irlba)
+library(scico)
+library(tidyverse)
+library(patchwork)
+library(glue)
+library(presto)
+library(hdf5r)
+library(tidyseurat)
+library(Augur)
+library(batchtools)
+library(doParallel)
+library(foreach)
+
+
+library(tictoc)
+library(future)
+library(strex)
+library(cowplot)
+library(aplot)
+library(SingleCellExperiment)
+library(BiocParallel)
+library(ggside)
+library(rstatix)
+library(ggrepel)
+library(ggpackets)
+
+theme_set(theme_bw())
+
+home_dir <- "/resnick/groups/MazmanianLab/jboktor"
+rnk_dir <- "/resnick/groups/mthomson/jboktor"
+split_pipe_dir <- glue("{rnk_dir}/split-pipe_workflow")
+wkdir <- glue("{home_dir}/WILDRxSPF_brains")
+anndata_path <- glue("{wkdir}/data/input/parse_bio_anndata")
+data_path <- glue("{wkdir}/data/interim")
+fig_path <- glue("{wkdir}/figures")
+abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
+
+source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
+
+# Set memory limit for future
+options(future.globals.maxSize = 200000 * 1024^2)  # Set to ~200GB
+# Use more memory-efficient serialization
+options(future.serialization.progressr = FALSE)
+options(future.serialization.progressr.enable = FALSE)
+
+# future::plan(multisession, workers = 3)
+# future::plan(sequential)
+
+
+```
+
+
+Loading Seurat object
+
+```{r}
+seurat_obj <- readRDS( 
+    glue("{data_path}/seurat/snRNASeq/",
+    "seurat_obj_onlyparsefilters_celltyped_2025-12-27.rds")
+    )
+seurat_obj
+# Subset the seurat object to only keep cells that pass the QC filters
+seurat_obj <- seurat_obj %>% subset(subset = keep_cell)
+seurat_obj@meta.data %>% glimpse()
+seurat_obj@meta.data$supertype_name %>% unique()
+
+allen_annot_df <- seurat_obj@meta.data %>% 
+  select(class_name, class_label, subclass_name, 
+    subclass_label, supertype_name, supertype_label) %>% 
+  distinct() %>% 
+  glimpse()
+
+allen_annot_long <- allen_annot_df %>% 
+  pivot_longer(
+    cols = everything(),
+    names_to = c("cell_type_level", ".value"),
+    names_pattern = "(class|subclass|supertype)_(name|label)"
+  ) %>% 
+  dplyr::rename(cell_type_name = name, cell_type_label = label) %>% 
+  distinct() %>% 
+  glimpse()
+
+```
+
+
+Loading and formatting MAST analysis results
+
+```{r}
+# clean  up format of MAST results
+format_mastdf <- function(mast_df, name_col, level_col) {
+  mast_df %>% 
+    dplyr::rename(cell_type_name = {{name_col}}) %>% 
+    janitor::clean_names() %>% 
+    mutate(cell_type_level = {{level_col}}) %>% 
+    glimpse()
+}
+
+# MAST Results (signficant hits only)
+class_mast_df <- readRDS(glue("{data_path}/mast/snRNASeq/class_mast_signif_hits_2026-01-04.rds")) %>% 
+    format_mastdf(name_col = "class_name", level_col = "class")
+subclass_mast_df <- readRDS(
+  glue("{data_path}/mast/snRNASeq/subclass_mast_signif_hits_2026-01-04.rds")) %>% 
+    format_mastdf(name_col = "subclass_name", level_col = "subclass")
+supertype_mast_df <- readRDS(
+  glue("{data_path}/mast/snRNASeq/supertype_mast_signif_hits_2026-01-04.rds")) %>% 
+    format_mastdf(name_col = "supertype_name", level_col = "supertype")
+mast_df <- bind_rows(class_mast_df, subclass_mast_df, supertype_mast_df) %>% 
+  filter(p_adjust < 0.05) %>% 
+  mutate(gene = gsub("-GRCm39", "", primerid)) %>%
+  mutate(direction = if_else(coef > 0, "WildR-UP", "SPF-UP")) %>%
+  glimpse()
+
+```
+
+
+## Critical Questions to Answer
+
+1. Which cell types have the most differentially expressed genes and are the most altered?
+
+2. Which genes are altered most robustly? Are these highly significant genes altered in cell types that have the most alterations or from cell types that have just a few alterations?
+
+3. Are there any tissue-specific signals?
+
+4. Given the cell types with the largest alterations and the genes altered in these cell types, what pathways or circuits are most likely to be affected?
+
+```{r}
+celltype_droplist <- readRDS(
+  glue("{data_path}/seurat/snRNASeq/celltype_droplist_2025-12-30.rds")
+  )
+
+metadata_df <- seurat_obj@meta.data %>% glimpse()
+class_batchdata <- 
+    dplyr::select(metadata_df, celltype = class_label, tissue) %>% 
+    distinct() %>%
+    mutate(cell_type_column = "class_label")
+subclass_batchdata <- 
+    dplyr::select(metadata_df, celltype = subclass_label, tissue) %>% 
+    distinct() %>%
+    mutate(cell_type_column = "subclass_label")
+supertype_batchdata <- 
+    dplyr::select(metadata_df, celltype = supertype_label, tissue) %>% 
+    distinct() %>%
+    mutate(cell_type_column = "supertype_label")
+
+batchparams_df <- 
+    bind_rows(class_batchdata, subclass_batchdata, supertype_batchdata) %>%
+    left_join(celltype_droplist) %>%
+    filter(is.na(dropme)) %>% 
+    dplyr::select(cell_type_column, celltype, tissue) %>% 
+    glimpse()
+
+# number of supertypes tested in AMY and HYP
+n_tested_AMY_supt <- batchparams_df %>% 
+  filter(tissue == "AMY") %>% 
+  filter(cell_type_column == "supertype_label") %>% 
+  n_distinct()
+n_tested_HYP_supt <- batchparams_df %>% 
+  filter(tissue == "HYP") %>% 
+  filter(cell_type_column == "supertype_label") %>% 
+  n_distinct()
+
+# number of supertypes with at least 1 DEG in AMY and HYP
+mast_df %>% glimpse()
+mast_df %>%
+  filter(p_adjust < 0.05, abs(coef) > 0.25) %>% 
+  filter(cell_type_level == "supertype") %>% 
+  group_by(tissue, cell_type_name) %>% 
+  tally() %>% 
+  filter(n > 0) %>% 
+  group_by(tissue) %>% 
+  tally()
+
+mast_df %>%
+  filter(p_adjust < 0.05, abs(coef) > 0.25) %>% 
+  filter(cell_type_level == "supertype") %>% 
+  group_by(tissue, cell_type_name) %>% 
+  tally() %>% 
+  filter(n > 9) %>% 
+  group_by(tissue) %>% 
+  tally()
+
+```
+
+
+164 tested supertypes in AMY, 225 tested supertypes in HYP.
+
+- Cell types with 1 or more DEGs in **AMY**: 51 (51/164 = 31%)
+
+- Cell types with 1 or more DEGs in **HYP**: 124 (124/225 = 55%)
+
+- Cell types with 10 or more DEGs in **AMY**: 26 (26/164 = 16%)
+
+- Cell types with 10 or more DEGs in **HYP**: 9 (9/225 = 4%)
+
+
+
+Do the most significant DEGs appear in the most altered cell types?
+
+```{r}
+most_significant_degs <- mast_df %>% 
+  filter(p_adjust < 0.05) %>% 
+  filter(abs(coef) > 0.25) %>% 
+  arrange(p_adjust) %>% 
+  pull(gene) %>% 
+  unique() %>% 
+  head(75)
+
+most_sig_supt <- mast_df %>%
+  filter(p_adjust < 0.05, abs(coef) > 0.25) %>% 
+  filter(cell_type_level == "supertype") %>% 
+  group_by(celltype_tissue) %>% 
+  tally() %>% 
+  filter(n > 9) %>% 
+  pull(celltype_tissue)
+
+
+
+
+```
+
+
+
+## Conclusions / Key Findings
+
+1. Which cell types have the most differentially expressed genes and are the most altered?
+
+- Out of 225 supertypes tested in the HYP, 124 or (55%) have at least 1 DEG, and 9 or (4%) have at least 10 DEGs.
+
+- Out of 164 supertypes tested in the AMY, 51 or (31%) have at least 1 DEG, and 26 or (16%) have at least 10 DEGs.
+
+- A greater fraction of tested cells have at least 1 DEG in the HYP tissue than the AMY tissue; however, the fraction of cells with 10 or more DEGs is lower in the HYP tissue (4% vs 16%).
+
+
+
+2. Which genes are altered most robustly? Are these highly significant genes altered in cell types that have the most alterations or from cell types that have just a few alterations?
+
+- When we look at the top 75 DEGs, they are within X% of the most altered cell types. .. Here is important, are the highest DEGs also outside of these critical cell types?
+
+
+3. Are there any tissue-specific signals?
+
+- Yes, there are tissue-specific signals.
+
+- X tissue has more cell types with robust alterations than Y tissue, 
+
+- Some DEGs that sweep across multiple cell types in a tissue
+
+
+4. Given the cell types with the largest alterations and the genes altered in these cell types, what pathways or circuits are most likely to be affected?
+
+
+
+
+
+
+Visualizing a Datatable of top gene hits
+
+```{r}
+mast_df %>% 
+  filter(cell_type_level == "supertype") %>% 
+  arrange(p_adjust) %>% 
+  dplyr::relocate(cell_type_name, 1) %>% 
+  dplyr::relocate(gene, 1) %>% 
+  select(-c(primerid, pr_chisq, ci_hi, ci_lo)) %>% 
+  head(200) %>% 
+  DT::datatable()
+
+# visualizing the most significant p-value for each gene across all supertypes to identify top hits regardless of cell type or tissue
+mast_df %>% 
+  filter(cell_type_level == "supertype") %>%
+  group_by(gene, direction, tissue) %>%
+  summarize(min_p = min(p_adjust), n_signif = n()) %>% 
+  arrange(min_p) %>% 
+  mutate(min_p = formatC(min_p, format = "e", digits = 2)) %>% 
+  head(200) %>%
+  DT::datatable()
+
+```
+
+
+```{r}
+# Top 100 supertype hits: prepare for dot-plot heatmap
+top_mast_df <- mast_df %>% 
+  filter(cell_type_level == "supertype") %>% 
+  arrange(p_adjust) %>% 
+  head(200) %>% 
+  dplyr::mutate(
+    gene = gsub("-GRCm39", "", primerid),
+    neglog10_p = -log10(p_adjust)
+  )
+
+n_genes <- n_distinct(top_mast_df$gene)
+n_supertypes <- n_distinct(top_mast_df$cell_type_name)
+message(glue("Top 200 rows: {n_genes} unique genes across {n_supertypes} supertypes"))
+
+# selecting the top 75 unique most significant genes for visualization
+top_75_genes <- mast_df %>% 
+  filter(cell_type_level == "supertype") %>% 
+  arrange(p_adjust) %>% 
+  pull(primerid) %>% 
+  gsub("-GRCm39", "", .) %>% 
+  unique() %>% 
+  head(75)
+
+# identifying cell types that have significance for any of these top 75 genes
+significant_celltypes <- mast_df %>% 
+  filter(cell_type_level == "supertype") %>% 
+  filter(gsub("-GRCm39", "", primerid) %in% top_75_genes) %>% 
+  group_by(cell_type_name) %>%
+  tally() %>% 
+  filter(n > 1) %>%
+  pull(cell_type_name) %>% 
+  unique()
+
+message(glue("Top 75 unique genes are significant in {length(significant_celltypes)} supertypes"))
+
+```
+
+```{r}
+# Dot-plot heatmap: genes vs supertypes
+# Dots colored by coefficient (direction), sized by significance
+p_dotplot_tophits <- mast_df %>% 
+  filter(primerid %in% paste0(top_75_genes, "-GRCm39")) %>%
+  filter(cell_type_name %in% significant_celltypes) %>% 
+  dplyr::mutate(
+    gene = gsub("-GRCm39", "", primerid),
+    neglog10_p = -log10(p_adjust)
+  ) %>% 
+  ggplot(aes(
+    x = fct_reorder(cell_type_name, cell_type_name, .fun = length),
+    y = fct_reorder(gene, -neglog10_p, .fun = max),
+    size = neglog10_p
+  )) +
+  geom_point(alpha = 0.9, shape = 21, aes(fill = coef)) +
+  scale_fill_scico(
+    palette = "cork",
+    midpoint = 0,
+    limits = c(-max(abs(top_mast_df$coef)), max(abs(top_mast_df$coef)))
+  ) +
+  scale_size_continuous(
+    range = c(2, 8),
+    name = expression(-log[10](p[adj]))
+  ) +
+  facet_grid(~ tissue, scales = "free", space = "free") +
+  labs(
+    x = "Supertype",
+    y = "Gene",
+    fill = "log2 FC",
+    title = glue("Top 75 DEG hits: {length(top_75_genes)} genes × {length(significant_celltypes)} supertypes")
+  ) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+    axis.text.y = element_text(size = 7, face = "italic"),
+    panel.grid.major = element_line(linewidth = 0.2, color = "grey90"),
+    legend.position = "right",
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 9, color = "grey30")
+  )
+
+ggsave(
+    glue("{fig_path}/DEG/snRNASeq/top_hits/dotplot_top200_hits_{Sys.Date()}.png"),
+    p_dotplot_tophits,
+    width = 20,
+    height = 10
+)
+
+```
+
+
+```{r}
+library(seriation)  # optional but has better dist handling for sparse matrices
+
+# --- 1. Build the plotting dataframe first ---
+plot_df <- mast_df %>%
+  filter(primerid %in% paste0(top_75_genes, "-GRCm39")) %>%
+  filter(cell_type_name %in% significant_celltypes) %>%
+  dplyr::mutate(
+    gene        = gsub("-GRCm39", "", primerid),
+    neglog10_p  = -log10(p_adjust)
+  )
+
+# --- 2. Pivot to matrix for clustering (genes x celltypes) ---
+# Use coef as the value; fill missing combos with 0
+mast_df %>% glimpse()
+clust_mat <- plot_df %>%
+  dplyr::select(gene, celltype_tissue, coef) %>%
+  tidyr::pivot_wider(
+    names_from  = celltype_tissue,
+    values_from = coef,
+    values_fill = 0
+  ) %>%
+  tibble::column_to_rownames("gene") %>%
+  as.matrix()
+
+# --- 3. Cluster rows (genes) and columns (cell types) ---
+row_order <- hclust(dist(clust_mat),            method = "ward.D2")$order
+col_order <- hclust(dist(t(clust_mat)),         method = "ward.D2")$order
+
+gene_levels     <- rownames(clust_mat)[row_order]
+celltype_levels <- colnames(clust_mat)[col_order]
+# --- 4. Apply clustered factor levels ---
+plot_df <- plot_df %>%
+  mutate(
+    gene            = factor(gene,            levels = gene_levels),
+    celltype_tissue = factor(celltype_tissue, levels = celltype_levels)
+  )
+
+# --- 4b. Build the label lookup (celltype_tissue -> cell_type_name) ---
+ct_labels <- plot_df %>%
+  distinct(celltype_tissue, cell_type_name) %>%
+  deframe()  # named vector: names = celltype_tissue, values = cell_type_name
+
+# --- 5. Plot ---
+p_dotplot_tophits <- plot_df %>%
+  ggplot(aes(
+    x    = celltype_tissue,
+    y    = gene,
+    size = neglog10_p
+  )) +
+  geom_point(alpha = 0.9, shape = 21, aes(fill = coef)) +
+  scale_x_discrete(labels = ct_labels) +          # <-- swap display labels here
+  scale_fill_scico(
+    palette  = "cork",
+    midpoint = 0,
+    limits   = c(-max(abs(top_mast_df$coef)), max(abs(top_mast_df$coef)))
+  ) +
+  scale_size_continuous(
+    range = c(2, 8),
+    name  = expression(-log[10](p[adj]))
+  ) +
+  facet_grid(~ tissue, scales = "free", space = "free") +
+  labs(
+    x     = "Supertype",
+    y     = "Gene",
+    fill  = "log2 FC",
+    title = glue("Top 75 DEG hits: {length(top_75_genes)} genes × {length(significant_celltypes)} supertypes")
+  ) +
+  theme_bw() +
+  theme(
+    axis.text.x   = element_text(angle = 45, hjust = 1, size = 8),
+    axis.text.y   = element_text(size = 7, face = "italic"),
+    panel.grid.major = element_line(linewidth = 0.2, color = "grey90"),
+    legend.position  = "right",
+    plot.title    = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 9, color = "grey30")
+  )
+
+ggsave(
+    glue("{fig_path}/DEG/snRNASeq/top_hits/dotplot_top200_hits_{Sys.Date()}.png"),
+    p_dotplot_tophits,
+    width = 18,
+    height = 10
+)
+
+```
+
+
+Looking at P-value distribution of top hits
+
+```{r}
+
+mast_df %>% 
+  filter(primerid %in% paste0(top_75_genes, "-GRCm39")) %>%
+  filter(cell_type_name %in% significant_celltypes) %>% 
+  dplyr::mutate(
+    gene = gsub("-GRCm39", "", primerid),
+    neglog10_p = -log10(p_adjust)
+  ) %>% 
+  filter(gene %in% c("Cmss1", "Cntn6") ) %>% 
+  ggplot(aes(x=neglog10_p)) +
+  # geom_density(alpha = 0.5, aes(fill = gene))
+  geom_histogram(position = "identity", alpha = 0.6, bins = 30, aes(fill = gene))
+
+```
+
+
+
+Plot violin plots for top hits
+
+```{r}
+# Hits to plot: top 300 most significant OR genes in cell-type+tissue combos with >= 5 hits
+# Output: {cell_type_level}/{tissue}/{WildR_UP|SPF_UP}/{gene}_{tissue}_{celltype}_{date}.png
+cell_type_level <- "supertype"
+celltype_column <- "supertype_name"
+top_n <- 300
+min_hits_per_celltype_tissue <- 5
+
+supertype_mast <- mast_df %>%
+  filter(cell_type_level == !!cell_type_level) %>%
+  filter(p_adjust <= 0.05) %>%
+  filter(abs(coef) > 0.25)
+
+# Cell-type+tissue combos with >= min_hits_per_celltype_tissue hits
+high_hit_combos <- supertype_mast %>%
+  group_by(cell_type_name, tissue) %>%
+  tally() %>%
+  filter(n >= min_hits_per_celltype_tissue) %>%
+  select(cell_type_name, tissue)
+
+# Top top_n by p_adjust
+top_by_p <- supertype_mast %>%
+  arrange(p_adjust) %>%
+  head(top_n) %>%
+  select(gene, cell_type_name, tissue, direction)
+
+# Genes in high-hit cell types (all their hits, not just top 300)
+high_hit_genes <- supertype_mast %>%
+  semi_join(high_hit_combos, by = c("cell_type_name", "tissue")) %>%
+  select(gene, cell_type_name, tissue, direction)
+
+# Union: plot if in top 300 OR in a high-hit cell type
+violin_hits <- bind_rows(top_by_p, high_hit_genes) %>%
+  distinct(gene, cell_type_name, tissue, direction) %>% 
+  mutate(cell_type_name_clean = gsub("/", "-", cell_type_name) %>% gsub(" ", "_", .)) %>% 
+  glimpse()
+
+message(glue("Plotting {nrow(violin_hits)} violin plots"))
+
+```
+
+
+```{r}
+# Fetch expression once per (celltype, tissue), then loop through plots
+violin_out_base <- glue("{fig_path}/DEG/snRNASeq/top_hits/{cell_type_level}")
+
+violin_hits_grouped <- violin_hits %>%
+    # temporarily fix for Pakap-2 issue
+    filter(gene %nin% c("Pakap-2")) %>% 
+    group_by(cell_type_name, cell_type_name_clean, tissue) %>%
+    summarise(genes = list(tibble(gene, direction)), .groups = "drop")
+
+# cl <- makeCluster(parallel::detectCores() - 1)
+registerDoParallel(7)
+
+for (g in seq_len(nrow(violin_hits_grouped))) {
+  celltype_index <- violin_hits_grouped$cell_type_name[g]
+  celltype        <- violin_hits_grouped$cell_type_name_clean[g]
+  tissue          <- violin_hits_grouped$tissue[g]
+  gene_dir        <- violin_hits_grouped$genes[[g]]
+  genes           <- gene_dir$gene
+
+  multi_df <- get_gene_expression_df_multi(
+    seurat_obj,
+    celltype_column = celltype_column,
+    celltype_value  = celltype_index,
+    genes           = genes,
+    tissue          = tissue,
+    return_format   = "log2cpm"
+  ) %>% glimpse()
+
+  if (nrow(multi_df) == 0) {
+    warning(glue("No cells for {celltype} / {tissue}; skipping {length(genes)} genes"))
+    next
+  }
+
+  multi_df <- multi_df %>%
+    mutate(sample = factor(sample, levels = unique(sample[order(microbiome, sample)])))
+
+  # Capture loop-level variables for export into workers
+  .multi_df  <- multi_df
+  .gene_dir  <- gene_dir
+  .tissue    <- tissue
+  .celltype  <- celltype
+  .out_base  <- violin_out_base
+
+  foreach(
+    j = seq_len(nrow(.gene_dir)),
+    .packages  = c("ggplot2", "glue", "dplyr"),   # add any others your fns need
+    .export    = c(".multi_df", ".gene_dir", ".tissue", ".celltype", ".out_base",
+                   "plot_gene_expression")
+  ) %dopar% {
+    genename  <- .gene_dir$gene[j]
+    direction <- .gene_dir$direction[j]
+    out_dir   <- glue("{.out_base}/{.tissue}/{.celltype}")
+    fname     <- glue("{genename}_{direction}_{.tissue}_{.celltype}.png")
+    full_fig_path <- file.path(out_dir, fname)
+
+    if (file.exists(full_fig_path)) return(NULL)   # skip instead of next
+    dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+    p_combined <- plot_gene_expression(
+      .multi_df,
+      gene           = genename,
+      tissue         = .tissue,
+      celltype_value = .celltype
+    )
+    ggsave(full_fig_path, p_combined, width = 8, height = 5)
+    NULL
+  }
+}
+
+stopCluster(cl)
+```

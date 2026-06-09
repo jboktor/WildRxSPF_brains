@@ -1,0 +1,17 @@
+{
+    "terminal.integrated.defaultProfile.linux": "bash-spatialomics",
+    "terminal.integrated.profiles.linux": {
+      "bash-spatialomics": {
+        "path": "/bin/bash",
+        "args": [
+          "-l",
+          "-c",
+          "mamba activate spatialomics && exec bash -i"
+        ]
+      }
+    },
+    "r.rterm.linux": "/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/R",
+    "r.rpath.linux": "/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/R",
+    "quarto.path": "/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/quarto"
+  }
+  
