@@ -11,6 +11,8 @@ notebooks/.vdoc.*.r
 notebooks/*.html
 notebooks/shell_scripts/slurm_download_aws_singlenuclei.sh
 .env
+# quarto temp files
+output
 # misc registration files
 notebooks/TransformParameters*
 notebooks/outputpoints.txt

@@ -1,0 +1,46 @@
+---
+description: Always run R and Quarto via the Mamba env paths from .vscode/settings.json
+alwaysApply: true
+---
+
+# Mamba / R / Quarto environment (WILDRxSPF_brains)
+
+Project tooling is configured in `.vscode/settings.json`. **Never use bare `R`, `Rscript`, or `quarto` from PATH** when testing, rendering, or debugging in this repo.
+
+## R and Quarto (spatialomics)
+
+Use the **spatialomics** conda env binaries directly:
+
+```bash
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript script.R
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/quarto render notebooks/foo.qmd
+```
+
+Equivalent activation (interactive shells only):
+
+```bash
+eval "$(/resnick/groups/MazmanianLab/jboktor/software/miniforge3/bin/mamba shell hook -s bash)"
+mamba activate spatialomics
+```
+
+## Integrated terminal default (spatialomics)
+
+VS Code/Cursor’s default terminal profile (`.vscode/settings.json`) runs `mamba activate spatialomics`. Use that env for all interactive work in this repo.
+
+## Agent shell commands on this cluster
+
+If R or Quarto fails with Landlock/sandbox errors, re-run with `required_permissions: ["all"]`.
+
+## Analysis notebooks — never submit SLURM on render
+
+Notebooks with `sbatch`, `shell_do("sbatch …")`, or `batchtools` SLURM backends must gate those chunks on `run_analysis` (default `FALSE`), same as `0X_DEG_Analysis-top-hits.qmd` and `0X_FluxAnalysis.qmd`.
+
+- **Render/preview:** only `setup-display` (and display-only chunks) may run.
+- **Re-run pipeline:** set `run_analysis <- TRUE` in the notebook, execute intentionally, then set back to `FALSE`.
+
+Never add ungated `sbatch` calls to `.qmd` files.
+
+
+1. Use `spatialomics` paths from this rule (or re-read `.vscode/settings.json` if they change).
+2. Run from the correct working directory (often `notebooks/` for `.qmd` renders).
+3. Report the exact command and env used in the summary.

@@ -1,25 +1,710 @@
 ---
-title: "Differential Expression Analysis Visualization and Interpretation - Top Hits"
-editor: source
+title: "Top Differential Expression Hits Across Brain Supertypes"
+subtitle: "snRNA-seq, WildR vs SPF — AMY and HYP"
+date: "2026-01-01"
 author: "Joe Boktor"
-date: '2026-01-01'
-format: 
+categories: [snRNA-seq, Differential Expression, Tri-Modal]
+format:
   html:
-    self-contained: true
+    theme:
+      - cosmo
+      - ../quarto-aesthetic-kit/theme/aesthetic.scss
+    include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    page-layout: article
     code-fold: true
     code-tools: true
-    fig-align: right
-    fig-height: 8
-    fig-width: 14 
+    code-copy: true
+    embed-resources: true
+    fig-cap-location: bottom
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: auto
 ---
 
-# Goal: Examine the top differentially expressed genes regardless of cell type or tissue and identify any patterns or trends.
+```{r}
+#| label: setup-display
+#| include: false
 
-## Analysis
+# Lightweight, render-time setup. This is the ONLY chunk that runs on a normal
+# render: it loads a few small packages so the on-disk tables/figure can be
+# displayed, and sets the master switch below.
+#
+# All heavy chunks in the appendix (loading the Seurat object, MAST results,
+# clustering, plotting) are gated on `run_analysis` and are SKIPPED on render.
+# The Results section embeds the saved PNG and reads the saved CSVs from
+# `output/DEG-top-hits/`. To (re)generate those artifacts, set the flag to TRUE
+# once (or run the appendix chunks interactively), render, then set it back.
+run_analysis <- FALSE
+embed_violins <- TRUE   # TRUE = single self-contained HTML; FALSE = sidecar *-violin/ folder
 
-Loading environment and libraries
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(readr)
+  library(knitr)
+  library(jsonlite)
+  library(purrr)
+  library(htmltools)
+})
+
+# --- Violin explorer helpers (render-time; scans on-disk PNGs) ----------------
+extract_document_genes <- function(qmd_path) {
+  lines <- readLines(qmd_path, warn = FALSE)
+  cut <- which(grepl("^# Code & Provenance", lines))
+  if (length(cut)) lines <- lines[seq_len(cut[1] - 1)]
+  txt <- paste(lines, collapse = "\n")
+
+  genes <- character()
+  for (pat in c(
+    "\\*\\*([A-Za-z][A-Za-z0-9]+)\\*\\*",
+    "\\*([A-Za-z][A-Za-z0-9]+)\\*",
+    "\\| \\*([A-Za-z][A-Za-z0-9]+)\\* \\|"
+  )) {
+    m <- regmatches(txt, gregexpr(pat, txt, perl = TRUE))[[1]]
+    if (length(m)) genes <- c(genes, gsub("\\*+|\\|", "", m))
+  }
+  if (grepl("ENSMUSG00000095041", txt)) genes <- c(genes, "ENSMUSG00000095041")
+
+  pairs <- regmatches(txt, gregexpr("([A-Z][A-Za-z0-9]+)/([A-Z][A-Za-z0-9]+)", txt, perl = TRUE))[[1]]
+  if (length(pairs)) {
+    split_pairs <- strsplit(pairs, "/", fixed = TRUE)
+    genes <- c(genes, unlist(split_pairs))
+  }
+
+  exclude <- c(
+    "AMY", "HYP", "BLA", "CeA", "MEA", "LA", "BST", "COA", "ENT", "SUM", "MPN",
+    "AVPV", "POA", "ZI", "AHN", "LHA", "VMH", "ARH", "PVH", "CRH", "TRH", "GnRH",
+    "SCFA", "SCFAs", "ASD", "GWAS", "LTP", "LTD", "CICR", "ERK", "Akt", "PTEN",
+    "PP2A", "PLZF", "Dec1", "SK2", "Kv", "HDAC", "NCoR", "CaMKII", "ISH", "IHC",
+    "FISH", "SeqFISH", "CellChat", "gProfiler", "scFEA", "Augur", "EdgeR", "DESeq2",
+    "MAST", "mTORC1", "AMPK", "WildR", "SPF", "GABA", "Robo", "cork", "GTP", "Ras",
+    "MAPK", "PI3K", "RNA", "ncRNA", "ATAC", "Cre", "Zeitgeber", "IP3", "MM", "SDMN",
+    "KO", "TrkB", "Calcium", "Ca2", "region", "level", "dissociation", "Mechanistic",
+    "Functional", "Behavioral", "Reading", "Source", "Key", "Figure", "How",
+    "gene", "tissue", "systemic", "Kv2"
+  )
+
+  genes <- unique(trimws(genes))
+  genes <- genes[nzchar(genes) & !genes %in% exclude]
+  sort(genes)
+}
+
+scan_violin_catalog <- function(violin_root, fig_base = "../figures/DEG/snRNASeq/top_hits/supertype") {
+  if (!dir.exists(violin_root)) return(tibble())
+
+  files <- list.files(violin_root, pattern = "\\.png$", recursive = TRUE, full.names = TRUE)
+  if (!length(files)) return(tibble())
+
+  parsed <- lapply(files, function(f) {
+    parts <- strsplit(normalizePath(f), .Platform$file.sep, fixed = TRUE)[[1]]
+    idx <- which(parts == "supertype")
+    if (!length(idx) || length(parts) < idx + 3) return(NULL)
+
+    tissue <- parts[idx + 1]
+    celltype_clean <- parts[idx + 2]
+    fname <- parts[idx + 3]
+    m <- regexec("^(.+)_(WildR-UP|SPF-UP)_([A-Z]+)_(.+)\\.png$", fname)
+    reg <- regmatches(fname, m)[[1]]
+    if (length(reg) < 5) return(NULL)
+
+    tibble(
+      gene = reg[2],
+      direction = reg[3],
+      tissue = reg[4],
+      celltype_clean = reg[5],
+      celltype_label = gsub("_", " ", reg[5]),
+      rel_path = file.path(fig_base, tissue, celltype_clean, fname)
+    )
+  })
+
+  parsed <- purrr::compact(parsed)
+  bind_rows(parsed)
+}
+
+png_data_uri <- function(path) {
+  paste0(
+    "data:image/png;base64,",
+    jsonlite::base64_enc(readBin(path, "raw", n = file.info(path)$size))
+  )
+}
+
+knitr_input_dir <- function() {
+  input <- knitr::current_input()
+  if (!is.null(input) && nzchar(input)) {
+    return(dirname(normalizePath(input, mustWork = FALSE)))
+  }
+  root <- knitr::opts_knit$get("root.dir")
+  if (!is.null(root) && nzchar(root)) return(normalizePath(root, mustWork = FALSE))
+  getwd()
+}
+
+violin_asset_paths <- function(qmd_path = NULL) {
+  input <- knitr::current_input()
+  if (!is.null(input) && nzchar(input)) {
+    stem <- tools::file_path_sans_ext(basename(input))
+    input_dir <- knitr_input_dir()
+  } else if (!is.null(qmd_path) && nzchar(qmd_path)) {
+    stem <- tools::file_path_sans_ext(basename(qmd_path))
+    input_dir <- knitr_input_dir()
+    if (!file.exists(file.path(input_dir, qmd_path))) {
+      candidate <- normalizePath(qmd_path, mustWork = FALSE)
+      if (file.exists(candidate)) {
+        stem <- tools::file_path_sans_ext(basename(candidate))
+        input_dir <- dirname(candidate)
+      }
+    }
+  } else {
+    stem <- "0X_DEG_Analysis-top-hits"
+    input_dir <- knitr_input_dir()
+  }
+  # Outside *_files so embed-resources does not delete violin assets after render.
+  asset_abs <- file.path(input_dir, paste0(stem, "-violin"))
+  asset_rel <- paste0(stem, "-violin")
+  list(abs = asset_abs, rel = asset_rel, input_dir = input_dir)
+}
+
+ensure_violin_symlink <- function(violin_root, qmd_path = NULL) {
+  paths <- violin_asset_paths(qmd_path = qmd_path)
+  dir.create(dirname(paths$abs), recursive = TRUE, showWarnings = FALSE)
+  target <- normalizePath(violin_root, mustWork = FALSE)
+
+  if (dir.exists(paths$abs)) {
+    link_target <- tryCatch(Sys.readlink(paths$abs), error = function(e) "")
+    if (link_target == target) return(paths)
+    unlink(paths$abs, recursive = TRUE)
+  }
+
+  ok <- file.symlink(target, paths$abs)
+  if (!ok) {
+    warning("Could not symlink violin assets; falling back to relative figures path.")
+    paths$rel <- file.path("..", "figures", "DEG", "snRNASeq", "top_hits", "supertype")
+    paths$abs <- normalizePath(
+      file.path(paths$input_dir, paths$rel),
+      mustWork = FALSE
+    )
+  }
+  paths
+}
+
+render_violin_explorer <- function(
+  catalog, doc_genes, violin_root,
+  qmd_path = NULL, embed_violins = TRUE,
+  qmd_label = "display-violin-explorer"
+) {
+  if (!nrow(catalog)) {
+    return('<p class="violin-explorer-empty">Violin plot directory not found. Run appendix chunk <code>cell-violin-plots</code> to generate PNGs.</p>')
+  }
+
+  fig_base <- if (embed_violins) "" else ensure_violin_symlink(violin_root, qmd_path = qmd_path)$rel
+  catalog <- scan_violin_catalog(violin_root, fig_base = fig_base)
+
+  hits <- catalog %>%
+    filter(gene %in% doc_genes) %>%
+    arrange(gene, tissue, celltype_label, direction)
+
+  hits <- hits %>%
+    mutate(
+      fname = paste0(gene, "_", direction, "_", tissue, "_", celltype_clean, ".png"),
+      src_abs = file.path(violin_root, tissue, celltype_clean, fname)
+    ) %>%
+    filter(file.exists(src_abs))
+
+  if (!nrow(hits)) {
+    return('<p class="violin-explorer-empty">No violin plots match genes named in this report.</p>')
+  }
+
+  hits <- hits %>%
+    mutate(path = if (embed_violins) vapply(src_abs, png_data_uri, character(1)) else rel_path)
+
+  genes_avail <- hits %>%
+    count(gene, name = "n_hits") %>%
+    arrange(gene)
+
+  payload <- list(
+    genes = genes_avail$gene,
+    counts = setNames(as.list(genes_avail$n_hits), genes_avail$gene),
+    entries = hits %>%
+      transmute(
+        gene, direction, tissue,
+        celltype = celltype_label,
+        key = paste(gene, tissue, celltype_clean, direction, sep = "|"),
+        path = .data$path
+      ) %>%
+      split(.$gene, drop = TRUE) %>%
+      lapply(function(df) df[, c("key", "tissue", "celltype", "direction", "path")])
+  )
+
+  json_txt <- jsonlite::toJSON(payload, auto_unbox = TRUE, null = "null")
+
+  paste0(
+    '
+<style>
+.violin-explorer {
+  --ve-orange: var(--bh-orange, #FF6C0C);
+  --ve-surface: var(--bh-surface, #F7F7F9);
+  --ve-border: var(--bh-border, #ECECEF);
+  font-family: inherit;
+}
+.violin-explorer-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .violin-explorer-grid { grid-template-columns: 1fr; }
+}
+.violin-explorer-controls {
+  background: var(--ve-surface);
+  border: 1px solid var(--ve-border);
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+  box-shadow: var(--bh-shadow, 0 1px 2px rgba(16,24,40,0.04));
+}
+.violin-explorer-controls label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bh-gray-light, #9A9AA2);
+  margin: 0 0 0.35rem;
+}
+.violin-explorer-controls select {
+  width: 100%;
+  font-size: 0.92rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--ve-border);
+  border-radius: 8px;
+  background: #fff;
+  margin-bottom: 0.85rem;
+}
+.violin-explorer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.25rem;
+}
+.violin-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--ve-border);
+  background: #fff;
+}
+.violin-badge.hits { color: var(--ve-orange); border-color: rgba(255,108,12,0.25); background: var(--bh-orange-tint, #FFF3EB); }
+.violin-badge.wildr { color: #27455C; }
+.violin-badge.spf { color: #6B6B72; }
+.violin-explorer-stage {
+  border: 1px solid var(--ve-border);
+  border-radius: 12px;
+  background: #fff;
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  box-shadow: var(--bh-shadow, 0 1px 2px rgba(16,24,40,0.04));
+}
+.violin-explorer-stage img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+.violin-explorer-empty {
+  color: var(--bh-gray, #6B6B72);
+  font-style: italic;
+}
+</style>
+<div id="violin-explorer" class="violin-explorer" data-source="', qmd_label, '">
+  <div class="violin-explorer-grid">
+    <div class="violin-explorer-controls">
+      <label for="ve-gene">Gene</label>
+      <select id="ve-gene" aria-label="Select gene"></select>
+      <label for="ve-tissue">Tissue</label>
+      <select id="ve-tissue" aria-label="Filter by tissue">
+        <option value="all">All tissues</option>
+        <option value="AMY">AMY only</option>
+        <option value="HYP">HYP only</option>
+      </select>
+      <label for="ve-celltype">Supertype</label>
+      <select id="ve-celltype" aria-label="Select supertype"></select>
+      <div class="violin-explorer-meta">
+        <span class="violin-badge hits" id="ve-hit-count"></span>
+        <span class="violin-badge" id="ve-direction"></span>
+      </div>
+    </div>
+    <div class="violin-explorer-stage">
+      <img id="ve-plot" alt="Violin plot for selected gene and supertype" />
+    </div>
+  </div>
+</div>
+<script type="application/json" id="ve-catalog">', json_txt, '</script>
+<script>
+(function () {
+  const catalog = JSON.parse(document.getElementById("ve-catalog").textContent);
+  const geneSel = document.getElementById("ve-gene");
+  const tissueSel = document.getElementById("ve-tissue");
+  const cellSel = document.getElementById("ve-celltype");
+  const plotImg = document.getElementById("ve-plot");
+  const hitCount = document.getElementById("ve-hit-count");
+  const dirBadge = document.getElementById("ve-direction");
+
+  function populateGenes() {
+    geneSel.innerHTML = "";
+    catalog.genes.forEach((g) => {
+      const opt = document.createElement("option");
+      opt.value = g;
+      opt.textContent = `${g} (${catalog.counts[g]} supertypes)`;
+      geneSel.appendChild(opt);
+    });
+  }
+
+  function filteredEntries() {
+    const gene = geneSel.value;
+    const tissue = tissueSel.value;
+    let rows = catalog.entries[gene] || [];
+    if (tissue !== "all") rows = rows.filter((r) => r.tissue === tissue);
+    return rows;
+  }
+
+  function populateCelltypes() {
+    const rows = filteredEntries();
+    cellSel.innerHTML = "";
+    rows.forEach((r) => {
+      const opt = document.createElement("option");
+      opt.value = r.key;
+      opt.textContent = `[${r.tissue}] ${r.celltype}`;
+      cellSel.appendChild(opt);
+    });
+    hitCount.textContent = `${rows.length} significant supertype${rows.length === 1 ? "" : "s"}`;
+    if (rows.length) {
+      plotImg.src = rows[0].path;
+      dirBadge.textContent = rows[0].direction;
+      dirBadge.className = "violin-badge " + (rows[0].direction === "WildR-UP" ? "wildr" : "spf");
+    } else {
+      plotImg.removeAttribute("src");
+      dirBadge.textContent = "No hits in filter";
+      dirBadge.className = "violin-badge";
+    }
+  }
+
+  function syncPlot() {
+    const gene = geneSel.value;
+    const tissue = tissueSel.value;
+    let rows = catalog.entries[gene] || [];
+    if (tissue !== "all") rows = rows.filter((r) => r.tissue === tissue);
+    const row = rows.find((r) => r.key === cellSel.value);
+    if (row) {
+      plotImg.src = row.path;
+      dirBadge.textContent = row.direction;
+      dirBadge.className = "violin-badge " + (row.direction === "WildR-UP" ? "wildr" : "spf");
+    }
+  }
+
+  populateGenes();
+  populateCelltypes();
+  geneSel.addEventListener("change", () => { populateCelltypes(); });
+  tissueSel.addEventListener("change", () => { populateCelltypes(); });
+  cellSel.addEventListener("change", syncPlot);
+})();
+</script>
+'
+  )
+}
+```
+
+## Overview
+
+This report presents cell-type-resolved differential expression between WildR (naturalistic microbiome) and SPF (specific pathogen-free) mice across Allen Brain Atlas supertypes in amygdala (AMY) and hypothalamus (HYP). The top 75 DEGs, visualized in the clustered dot-plot heatmap below, reveal a striking **region-level dissociation**: hypothalamic hits are often pan-regional (dense rows spanning many supertypes), while amygdalar hits are supertype-restricted. Five convergent biological storylines emerge from the heatmap — pan-hypothalamic translational hyperactivation in SPF (Cmss1/Lars2), amygdalar synaptic remodeling, calcium excitability shifts, epigenetic reprogramming, and hypothalamic vesicular-trafficking modulation (Hap1) — all converging on **mTORC1** as a central metabolic integrator. This notebook is the transcriptional anchor for tri-modal follow-up (Augur, scFEA, pseudobulk).
+
+::: {.stat-row}
+::: {.stat}
+[75]{.stat-value}
+[Top genes visualized]{.stat-label}
+:::
+::: {.stat}
+[164 / 225]{.stat-value}
+[Supertypes tested (AMY / HYP)]{.stat-label}
+:::
+::: {.stat}
+[31% / 55%]{.stat-value}
+[AMY / HYP with ≥1 DEG]{.stat-label}
+:::
+::: {.stat}
+[16% / 4%]{.stat-value}
+[AMY / HYP with ≥10 DEGs]{.stat-label}
+:::
+:::
+
+## Background
+
+WildR and SPF mice differ in lifetime microbiome exposure. WildR animals are more socially affiliative; the molecular question is whether the microbiome sculpts limbic gene expression along **region-specific** and **cell-type-specific** axes rather than uniformly.
+
+**Data and statistics.** DEGs come from snRNA-seq MAST testing across Allen MapMyCells supertypes (class, subclass, and supertype levels screened; this notebook focuses on supertype). Each gene in the summary table reports minimum adjusted p-value across supertypes, effect direction (WildR-UP vs SPF-UP), tissue of the strongest hit, and count of significant supertypes (`n_signif`). For visualization we take the 75 most significant unique genes (padj \< 0.05, \|log2 FC\| \> 0.25), map them onto recurrently significant supertypes, and hierarchically cluster rows and columns on log2 fold-change. Source narrative: [interpretations/WildR_vs_SPF_DEG_Report.docx]{.path}.
+
+## Results
+
+::: {.figure-card .fig-wide}
+![](../figures/DEG/snRNASeq/top_hits/dotplot_top200_hits_2026-03-12.png)
+
+::: {.fig-caption}
+[**Figure 1.**]{.fig-num} Clustered dot-plot heatmap of the top 75 DEGs across supertypes with recurrent significance. Rows (genes) and columns (supertypes) are hierarchically clustered on log2 fold-change; dot size encodes −log₁₀(padj) and fill encodes log2 FC (WildR-up vs SPF-up, scico *cork* palette). Columns are faceted by tissue (AMY, HYP).
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **Structural dissociation in the heatmap:** Cmss1 and Lars2 produce dense SPF-UP rows across nearly every hypothalamic supertype; amygdalar hits are comparatively supertype-restricted — implying different mechanisms of microbiome influence in AMY vs HYP.
+- **Five convergent storylines:** (1) pan-hypothalamic translational hyperactivation in SPF (Cmss1/Lars2 → mitochondrial translation, mTORC1/AMPK); (2) amygdalar synaptic remodeling (contactins, protocadherins, actin regulators); (3) opposing calcium-signaling programs (Calm1/Ryr3 WildR-UP vs Trpm3/Camk1d SPF-UP); (4) epigenetic/splicing reprogramming (Zbtb16, Hdac9, Srrm2); (5) hypothalamic vesicular trafficking (Hap1 SPF-UP across 17 supertypes).
+- **mTORC1 is the integrator:** Cmss1/Lars2 (translational output), Prex2 (PI3K/Akt input), Hap1 (trafficking), and Mid1 (PP2A–mTOR axis) converge on metabolic translational control in both regions.
+- **Breadth vs depth by tissue:** HYP — 55% of supertypes with ≥1 DEG but only 4% with ≥10; AMY — 31% with ≥1 but 16% with ≥10 — consistent with pan-hypothalamic metabolic shifts vs focal amygdalar circuit remodeling.
+- **Behavioral circuits:** AMY modules map to SDMN, hippocampal output, and claustrum salience ("memory, meaning, mood"); HYP modules map to Papez context, MPN affiliation, SUM novelty, and ZI/AHN defensive brakes ("defense to connection").
+:::
+
+[Source: cell `cell-fig-heatmap`](#cell-fig-heatmap){.provenance}
+:::
+
+Figure saved to [figures/DEG/snRNASeq/top_hits/dotplot_top200_hits_2026-03-12.png]{.path} (project figures directory; embedded above).
 
 ```{r}
+#| label: display-violin-explorer
+#| echo: false
+#| results: asis
+#| freeze: false
+
+qmd_path <- "0X_DEG_Analysis-top-hits.qmd"
+violin_root <- normalizePath("../figures/DEG/snRNASeq/top_hits/supertype", mustWork = FALSE)
+doc_genes <- extract_document_genes(qmd_path)
+catalog <- scan_violin_catalog(violin_root)
+explorer_html <- render_violin_explorer(
+  catalog, doc_genes, violin_root,
+  qmd_path = qmd_path, embed_violins = embed_violins
+)
+knitr::asis_output(
+  paste0('<div class="figure-card fig-wide">', explorer_html, "</div>")
+)
+```
+
+::: {.fig-caption}
+[**Figure 2.**]{.fig-num} Interactive violin plot explorer for genes named in this report. Select a **gene**, optionally filter by **tissue**, then choose a **significant supertype** to view pre-computed WildR vs SPF expression (log₂ CPM). Direction badge reflects MAST effect (WildR-UP or SPF-UP).
+:::
+
+::: {.takeaways}
+**How to use:** Pick a gene, filter by tissue if needed, then choose a supertype. The report HTML is self-contained (heatmap and violin plots embedded at render; no sidecar folder).
+:::
+
+[Source: cell `cell-violin-plots`](#cell-violin-plots){.provenance}
+
+:::: {.section-rule}
+::::
+
+### Supertype hit burden by tissue
+
+At supertype resolution (padj \< 0.05, \|coef\| \> 0.25), **164** supertypes were tested in AMY and **225** in HYP. AMY shows fewer supertypes with any DEG but a larger share with deep alteration; HYP shows broader low-level involvement.
+
+| Tissue | Tested | ≥1 DEG | ≥10 DEGs |
+|--------|-------:|-------:|---------:|
+| AMY | 164 | 51 (31%) | 26 (16%) |
+| HYP | 225 | 124 (55%) | 9 (4%) |
+
+: Table 1. Supertype DEG burden by tissue. {#tbl-burden}
+
+[Source: cell `cell-tbl-celltype-burden`](#cell-tbl-celltype-burden){.provenance}
+
+### Top supertype-level hits
+
+The table below shows the 15 strongest supertype-level rows (gene × supertype × tissue). The full ranked set is at [output/DEG-top-hits/tables/top_supertype_hits.csv]{.path}.
+
+```{r}
+#| echo: false
+#| tbl-cap: "Top 15 supertype-level DEG rows."
+#| label: display-tbl-top-hits
+#| eval: !expr file.exists("output/DEG-top-hits/tables/top_supertype_hits.csv")
+
+if (file.exists("output/DEG-top-hits/tables/top_supertype_hits.csv")) {
+  readr::read_csv(
+    "output/DEG-top-hits/tables/top_supertype_hits.csv",
+    show_col_types = FALSE
+  ) %>%
+    head(15) %>%
+    knitr::kable(digits = 3)
+}
+```
+
+[Source: cell `cell-tbl-top-hits`](#cell-tbl-top-hits){.provenance}
+
+### Strongest genes by tissue
+
+For each gene, we summarize the minimum padj and the number of significant supertypes within each tissue — useful for spotting genes that are globally strong vs tissue-restricted.
+
+```{r}
+#| echo: false
+#| tbl-cap: "Top 15 genes by minimum padj within tissue."
+#| label: display-tbl-gene-summary
+#| eval: !expr file.exists("output/DEG-top-hits/tables/top_genes_by_tissue.csv")
+
+if (file.exists("output/DEG-top-hits/tables/top_genes_by_tissue.csv")) {
+  readr::read_csv(
+    "output/DEG-top-hits/tables/top_genes_by_tissue.csv",
+    show_col_types = FALSE
+  ) %>%
+    head(15) %>%
+    knitr::kable()
+}
+```
+
+Full table: [output/DEG-top-hits/tables/top_genes_by_tissue.csv]{.path}
+
+[Source: cell `cell-tbl-gene-summary`](#cell-tbl-gene-summary){.provenance}
+
+:::: {.section-rule}
+::::
+
+### Reading the heatmap: pan-hypothalamic vs supertype-specific amygdalar effects
+
+The dot plot's most important structural feature is the contrast between **dense hypothalamic rows** (one gene, many supertypes) and **sparse amygdalar rows** (one gene, discrete populations). Cmss1 (padj = 5.43×10⁻⁷³, **123** significant supertypes) and Lars2 (padj = 1.15×10⁻²⁵, **53** supertypes) dominate — both SPF-UP, both mitochondrial translational machinery. This is not cell-type-specific noise; it is a fundamental hypothalamic metabolic shift gated by microbiome status. Amygdalar top hits, by contrast, tend to affect named circuit elements (BLA, CeA, MEA, LA) one supertype at a time.
+
+### 1. Pan-hypothalamic translational hyperactivation (Cmss1–Lars2)
+
+**Cmss1** encodes a mitochondrial tRNA 2-thiouridylase (wobble-position modification); **Lars2** encodes mitochondrial leucyl-tRNA synthetase. Together they define a mitochondrial translational hyperactivation program in SPF hypothalamic neurons.
+
+**Mechanistic model.** Microbiome-derived SCFAs (especially butyrate) act as HDAC inhibitors and AMPK activators, tonically restraining hypothalamic mTORC1 in WildR mice. In SPF mice lacking this metabolite brake, mTORC1 is derepressed → compensatory upregulation of mitochondrial translational machinery across **123** supertypes. This argues for **systemic** metabolite action on hypothalamic tissue, not narrow receptor-specific mechanisms.
+
+**Functional stakes.** Hypothalamic neurons integrate leptin, ghrelin, insulin, and glucose to coordinate feeding, autonomic output, and neuroendocrine function. Enhanced mitochondrial translation in SPF may alter neuropeptide synthesis in ARH (AgRP/POMC), stress peptides in PVH (CRH), or metabolic sensing in VMH *Nr5a1*⁺ neurons — populations previously implicated as microbiome targets.
+
+### 2. Amygdalar synaptic architecture and adhesion molecules
+
+A contactin/protocadherin/actin cluster dominates the amygdalar landscape. The amygdala gates threat detection, fear learning, and social valence: LA (fear conditioning), BLA (contextual integration), CeA (behavioral fear output), MEA (pheromonal/social processing). Differential adhesion-molecule expression implies the microbiome influences which synapses form, stabilize, or are pruned.
+
+| Gene | Direction | Tissue | Role | n_sig |
+|------|-----------|--------|------|------:|
+| *Cttnbp2* | WildR-UP | AMY | Spine morphogenesis; ASD-associated | 10 |
+| *Cntn6* | WildR-UP | HYP | Axon guidance; GABAergic synapse specificity | 3 |
+| *Pcdh7* | WildR-UP | AMY | Dendritic self-avoidance | 1 |
+| *Cdh12* | WildR-UP | AMY | Homophilic adhesion; synaptic specificity | 1 |
+| *Ncam1* | SPF-UP | AMY | Synaptic plasticity; LTP | 2 |
+| *Negr1* | SPF-UP | AMY | Growth regulator; depression/obesity GWAS | 2 |
+| *Slit2* | SPF-UP | AMY | Axon repulsion (Robo) | 2 |
+
+WildR mice show active dendritic remodeling (*Cttnbp2* across 10 supertypes, *Eps8l1* across 16 — actin dynamics). SPF mice engage alternative programs (*Ncam1*, *Cntn4*). *Cttnbp2* mutations are linked to ASD in humans, directly connecting microbiome-dependent spine remodeling to social-behavior circuits.
+
+### 3. Calcium signaling and excitability (amygdala)
+
+| Component | Direction | Implication |
+|-----------|-----------|-------------|
+| *Calm1* | WildR-UP (n=3) | Enhanced Ca²⁺-dependent plasticity (CaMKII, calcineurin) |
+| *Ryr3* | WildR-UP | Amplified ER CICR — relevant for thalamo-amygdalar LTP |
+| *Trpm3* | SPF-UP | Neurosteroid-gated Ca²⁺ influx; compensatory entry |
+| *Camk1d*, *Itpkb* | SPF-UP | Compensatory kinase/IP3 signaling |
+
+**Net picture:** WildR amygdalar neurons are primed for robust ER-mediated calcium signaling; SPF neurons shift toward non-synaptic entry and compensatory kinase activity — with direct implications for fear learning, extinction, and anxiety.
+
+### 4. Hypothalamic homeostasis: Hap1 and ion channels
+
+**Hap1** (SPF-UP, padj = 4.42×10⁻¹⁴, **17** supertypes) mediates GABA_A receptor, TrkB, and feeding-receptor trafficking. Hap1 KO mice are postnatal lethal with severe hypothalamic feeding deficits. Combined with Cmss1/Lars2 upregulation, SPF hypothalamic neurons appear to simultaneously **make more protein and traffic more aggressively** — consistent with metabolic dysregulation in the absence of microbial satiety signals.
+
+WildR hypothalamic neurons show opposing ion-channel tuning: **Kcnb2/Kv2.2** and **Kcnn2/SK2** (WildR-UP) support high-fidelity, patterned firing (relevant for pulsatile PVH CRH/TRH release). SPF neurons may fire more broadly and less precisely — affecting neuroendocrine pulsatility and circadian output.
+
+### 5. Epigenetic and transcriptional reprogramming (amygdala)
+
+- **Zbtb16/PLZF** (WildR-UP, padj = 7.67×10⁻²⁰, n=7): recruits HDAC/NCoR complexes; retinoic-acid responsive — microbial vitamin A metabolism may influence amygdalar transcription.
+- **Hdac9** (SPF-UP): class IIa HDAC shuttling with CaMKII — links aberrant calcium-to-chromatin signaling in SPF.
+- **Bhlhe40/Dec1** (WildR-UP, n=4): circadian repressor — microbiome may entrain amygdalar clock genes.
+- **Srrm2** (WildR-UP, n=11): splicing coactivator — broad RNA-processing shift across amygdalar supertypes.
+
+**Ras/MAPK tug-of-war (amygdala):** *Rasgef1a* (SPF-UP, n=5) loads Ras-GTP → higher basal ERK signaling in SPF; *Rasa1* (WildR-UP, n=4) stimulates GTP hydrolysis → Ras brake in WildR. In hypothalamus, *Prex2* (SPF-UP) suppresses PTEN and amplifies PI3K/Akt → mTORC1 (see below).
+
+### 6. High-priority enigmatic genes
+
+- **ENSMUSG00000095041** (WildR-UP, padj = 1.33×10⁻²⁷, **37** supertypes): second-most significant hit genome-wide; unannotated; widest amygdalar spread. Priority for ncRNA annotation, conservation, and chromatin context.
+- **Mid1** (WildR-UP; AMY n=21, HYP n=15): E3 ligase degrading PP2A → derepresses mTOR; mechanistic bridge to Cmss1/Lars2 story.
+- **Prex2** (SPF-UP, HYP, padj = 4.92×10⁻²⁰): Rac-GEF, PTEN suppressor → PI3K/Akt → mTORC1 activation in SPF hypothalamus.
+
+### 7. Integrated model: microbiome as limbic systems modulator
+
+::: {.callout-note}
+**Hypothalamic metabolic program (SPF vs WildR).** WildR: lower basal mitochondrial translation, Mid1-tuned PP2A/mTOR, precise neuroendocrine firing (Kv2.2, SK2), moderate Hap1 trafficking. SPF: pan-hypothalamic translational surge, aggressive Hap1-driven trafficking, Prex2-disinhibited PI3K/Akt — consistent with germ-free/SPF metabolic phenotypes (body composition, insulin sensitivity, feeding).
+:::
+
+::: {.callout-note}
+**Amygdalar connectivity program.** WildR: active spine remodeling (Cttnbp2, Eps8l1), robust ER calcium (Calm1, Ryr3), PLZF repression (Zbtb16), altered splicing (Srrm2). SPF: alternative adhesion (Ncam1, Cntn4), Trpm3 calcium entry, Hdac9 chromatin shifts — a different synaptic landscape underlying altered fear, anxiety, and social interaction.
+:::
+
+**mTORC1 convergence** is the mechanistic anchor: hypothalamus (Cmss1/Lars2 output, Prex2 input, Hap1 trafficking) and amygdala (Mid1–PP2A axis) independently tune the master integrator of metabolic state and translational capacity.
+
+:::: {.section-rule}
+::::
+
+### Circuit-level interpretation: socially annotated supertypes
+
+The gene-level modules above land on specific Allen supertypes. Tissue-specific circuit narratives ([interpretations/DEG_snRNASeq_AMY.md]{.path}, [interpretations/DEG_snRNASeq_HY.md]{.path}) connect molecular shifts to behavior.
+
+#### Amygdala — "Memory, meaning, and mood"
+
+Unlike HYP (drive and state), AMY is about **recognition and interpretation** — processing *who* and *how it feels*.
+
+1. **Social memory output (CA1–ProS, CA3):** Prosubiculum is the hippocampal output gate to BLA/MEA/BST; CA3 drives one-shot social learning. Enrichment here → faster conspecific categorization, dampened neophobia.
+2. **Pheromone-to-action bridge (MEA–BST, COA):** Core SDMN hub; MEA reads vomeronasal input, BST executes aggression/mating/parenting. WildR shift → pheromones interpreted as affiliative rather than threatening; *Sox6*/*Lhx6* GABAergic brakes on aggression.
+3. **Olfactory-limbic interface (ENT, COA, RHP):** COA mediates innate odor-driven behavior; WildR may assign reward valence to conspecific scent vs SPF "irritation" from neuroimmune activation.
+4. **Salience hub (claustrum *Car3*):** Social partner becomes a high-salience, worth-exploring stimulus.
+5. **Synthesis:** Better recognition → re-interpreted scent → higher engagement. Microbiome remodels SDMN toward **curiosity over defensiveness**.
+
+#### Hypothalamus — "Defense to connection"
+
+Focused alteration in spatial/context memory, sexual/parental behavior, and inhibitory motor control.
+
+1. **Mammillary body / Papez (MM, *Foxb1*⁺):** Contextual social memory — mapping "who" to "where"; less territorial anxiety.
+2. **Preoptic hub (MPN, AVPV):** Affiliation switch; MPN balances mating vs fighting — WildR tipped toward affiliative investigatory behavior.
+3. **Zona incerta (*Pax6*⁺ GABA):** Suppresses innate fear; allows approach without flight.
+4. **Supramammillary (SUM):** SUM–CA2 social novelty pathway — "smoking gun" for enhanced social curiosity.
+5. **Defense vs drive (AHN, LHA–MEA):** AHN brake on defensive rage; LHA–MEA wires pheromone smell to reward not threat.
+6. **Synthesis:** Threat suppressed (ZI/AHN) → context/novelty clear (MM/SUM) → affiliative drive engaged (MPN/LHA). **High-trust / low-fear** hypothalamic state.
+
+The gut microbiome emerges from this analysis as an active sculptor of limbic circuit gene expression — not via narrow receptor mechanisms but through **systemic modulation** of neuronal transcriptional programs (123 hypothalamic supertypes for Cmss1 alone). mTORC1 provides the mechanistic anchor integrating diverse gene-level findings. ENSMUSG00000095041 — entirely unannotated, pan-amygdalar — highlights discovery potential remaining in this dataset. Together, these molecular programs establish a foundation for WildR vs SPF behavioral phenotypes and position cell-type-resolved transcriptomics as a primary tool for dissecting microbiome–brain communication.
+
+## Next Steps
+
+### Completed in this notebook
+
+- Cell-type-resolved ranking of top 75 DEGs with supertype burden quantification and clustered heatmap visualization.
+- Molecular interpretation framework (translational, synaptic, calcium, epigenetic, mTORC1 convergence) tied to socially annotated circuits.
+
+### Proposed follow-up experiments (from DEG report)
+
+1. **SCFA rescue:** Administer butyrate to SPF mice; test whether Cmss1/Lars2 normalize across hypothalamic supertypes (metabolite sufficiency for translational set-point).
+2. **mTORC1 IHC:** Phospho-S6K1 and phospho-4E-BP1 in WildR vs SPF hypothalamus; co-stain *Nr5a1* (VMH), AgRP/POMC (ARH), CRH (PVH).
+3. **ENSMUSG00000095041 characterization:** ncRNA databases, ATAC-seq, neighbor-gene correlation (37-supertype breadth = top priority).
+4. **Cttnbp2 spine analysis:** Golgi or diolistic labeling in BLA/CeA to quantify spine density/morphology in WildR vs SPF.
+5. **Electrophysiology:** VMH *Nr5a1*⁺ and ARH AgRP⁺ neurons — firing frequency, spike adaptation (Kv2.2), mAHP (SK2), spontaneous synaptic currents.
+6. **Hap1 conditional KO:** *Hap1* flox × hypothalamic Cre (*Nr5a1*-Cre, AgRP-Cre) in WildR and SPF backgrounds.
+7. **Circadian profiling:** Time-resolved RNA-seq at multiple Zeitgeber times (motivated by *Bhlhe40* DE).
+
+### Computational tri-modal integration
+
+- Cut heatmap row clusters → g:Profiler per module × tissue ([0X_PathwayAnalysis.qmd]{.path}).
+- Overlay Augur AUROC on heatmap columns ([0X_Augur_SN.qmd]{.path}); pseudobulk EdgeR/DESeq2 validation ([0X_PseudoBulk_SN.qmd]{.path}).
+- scFEA flux on DEG- and Augur-prioritized strata ([0X_FluxAnalysis.qmd]{.path}).
+- SeqFISH spatial validation and CellChat ligand–receptor analysis ([01_QC_prep_SeqFISH.qmd]{.path}, [12_CellChat.qmd]{.path}).
+
+# Code & Provenance {.code-appendix}
+
+The complete, runnable analysis. Each cell is labelled so the results above link back to it. **These chunks do not run on render** — they are gated on `run_analysis` (set in the `setup-display` chunk, default `FALSE`) so a normal render only displays the saved PNG and CSV artifacts. To regenerate artifacts, set `run_analysis <- TRUE` and render once (or run the chunks interactively in RStudio, which ignores the gate), then set it back to `FALSE`.
+
+```{r}
+#| label: setup
+#| eval: !expr run_analysis
+#| include: false
+
 library(Seurat)
 library(Matrix)
 library(irlba)
@@ -34,8 +719,6 @@ library(Augur)
 library(batchtools)
 library(doParallel)
 library(foreach)
-
-
 library(tictoc)
 library(future)
 library(strex)
@@ -47,10 +730,12 @@ library(ggside)
 library(rstatix)
 library(ggrepel)
 library(ggpackets)
+library(readr)
+library(knitr)
 
 theme_set(theme_bw())
 
-home_dir <- "/resnick/groups/MazmanianLab/jboktor"
+home_dir <- "/resnick/groups/mthomson/jboktor"
 rnk_dir <- "/resnick/groups/mthomson/jboktor"
 split_pipe_dir <- glue("{rnk_dir}/split-pipe_workflow")
 wkdir <- glue("{home_dir}/WILDRxSPF_brains")
@@ -59,306 +744,249 @@ data_path <- glue("{wkdir}/data/interim")
 fig_path <- glue("{wkdir}/figures")
 abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
 
+nb_out <- "output/DEG-top-hits"
+nb_fig <- file.path(nb_out, "figures")
+nb_tbl <- file.path(nb_out, "tables")
+dir.create(nb_fig, recursive = TRUE, showWarnings = FALSE)
+dir.create(nb_tbl, recursive = TRUE, showWarnings = FALSE)
+dir.create(glue("{fig_path}/DEG/snRNASeq/top_hits"), recursive = TRUE, showWarnings = FALSE)
+
 source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
 
-# Set memory limit for future
-options(future.globals.maxSize = 200000 * 1024^2)  # Set to ~200GB
-# Use more memory-efficient serialization
+options(future.globals.maxSize = 200000 * 1024^2)
 options(future.serialization.progressr = FALSE)
 options(future.serialization.progressr.enable = FALSE)
 
-# future::plan(multisession, workers = 3)
-# future::plan(sequential)
-
-
+save_table_artifacts <- function(df, csv_path, html_path = NULL, preview_n = 20) {
+  readr::write_csv(df, csv_path)
+  if (!is.null(html_path)) {
+    preview <- utils::head(df, preview_n)
+    html_out <- paste0(
+      "<!DOCTYPE html><html><head><meta charset=\"utf-8\">",
+      "<style>table{border-collapse:collapse;font-size:12px}",
+      "td,th{border:1px solid #ddd;padding:4px 8px}</style>",
+      "</head><body>",
+      knitr::kable(preview, format = "html", escape = FALSE),
+      "</body></html>"
+    )
+    writeLines(html_out, html_path, useBytes = TRUE)
+  }
+  invisible(df)
+}
 ```
 
-
-Loading Seurat object
-
 ```{r}
-seurat_obj <- readRDS( 
-    glue("{data_path}/seurat/snRNASeq/",
-    "seurat_obj_onlyparsefilters_celltyped_2025-12-27.rds")
-    )
-seurat_obj
-# Subset the seurat object to only keep cells that pass the QC filters
+#| label: cell-load-seurat
+#| eval: !expr run_analysis
+
+seurat_obj <- readRDS(
+  glue("{data_path}/seurat/snRNASeq/",
+       "seurat_obj_onlyparsefilters_celltyped_2025-12-27.rds")
+)
 seurat_obj <- seurat_obj %>% subset(subset = keep_cell)
-seurat_obj@meta.data %>% glimpse()
-seurat_obj@meta.data$supertype_name %>% unique()
 
-allen_annot_df <- seurat_obj@meta.data %>% 
-  select(class_name, class_label, subclass_name, 
-    subclass_label, supertype_name, supertype_label) %>% 
-  distinct() %>% 
-  glimpse()
+allen_annot_df <- seurat_obj@meta.data %>%
+  select(class_name, class_label, subclass_name,
+         subclass_label, supertype_name, supertype_label) %>%
+  distinct()
 
-allen_annot_long <- allen_annot_df %>% 
+allen_annot_long <- allen_annot_df %>%
   pivot_longer(
     cols = everything(),
     names_to = c("cell_type_level", ".value"),
     names_pattern = "(class|subclass|supertype)_(name|label)"
-  ) %>% 
-  dplyr::rename(cell_type_name = name, cell_type_label = label) %>% 
-  distinct() %>% 
-  glimpse()
-
+  ) %>%
+  dplyr::rename(cell_type_name = name, cell_type_label = label) %>%
+  distinct()
 ```
 
-
-Loading and formatting MAST analysis results
-
 ```{r}
-# clean  up format of MAST results
+#| label: cell-load-mast
+#| eval: !expr run_analysis
+
 format_mastdf <- function(mast_df, name_col, level_col) {
-  mast_df %>% 
-    dplyr::rename(cell_type_name = {{name_col}}) %>% 
-    janitor::clean_names() %>% 
-    mutate(cell_type_level = {{level_col}}) %>% 
-    glimpse()
+  mast_df %>%
+    dplyr::rename(cell_type_name = {{name_col}}) %>%
+    janitor::clean_names() %>%
+    mutate(cell_type_level = {{level_col}})
 }
 
-# MAST Results (signficant hits only)
-class_mast_df <- readRDS(glue("{data_path}/mast/snRNASeq/class_mast_signif_hits_2026-01-04.rds")) %>% 
-    format_mastdf(name_col = "class_name", level_col = "class")
-subclass_mast_df <- readRDS(
-  glue("{data_path}/mast/snRNASeq/subclass_mast_signif_hits_2026-01-04.rds")) %>% 
-    format_mastdf(name_col = "subclass_name", level_col = "subclass")
-supertype_mast_df <- readRDS(
-  glue("{data_path}/mast/snRNASeq/supertype_mast_signif_hits_2026-01-04.rds")) %>% 
-    format_mastdf(name_col = "supertype_name", level_col = "supertype")
-mast_df <- bind_rows(class_mast_df, subclass_mast_df, supertype_mast_df) %>% 
-  filter(p_adjust < 0.05) %>% 
-  mutate(gene = gsub("-GRCm39", "", primerid)) %>%
-  mutate(direction = if_else(coef > 0, "WildR-UP", "SPF-UP")) %>%
-  glimpse()
+class_mast_df <- readRDS(
+  glue("{data_path}/mast/snRNASeq/class_mast_signif_hits_2026-01-04.rds")
+) %>%
+  format_mastdf(name_col = "class_name", level_col = "class")
 
+subclass_mast_df <- readRDS(
+  glue("{data_path}/mast/snRNASeq/subclass_mast_signif_hits_2026-01-04.rds")
+) %>%
+  format_mastdf(name_col = "subclass_name", level_col = "subclass")
+
+supertype_mast_df <- readRDS(
+  glue("{data_path}/mast/snRNASeq/supertype_mast_signif_hits_2026-01-04.rds")
+) %>%
+  format_mastdf(name_col = "supertype_name", level_col = "supertype")
+
+mast_df <- bind_rows(class_mast_df, subclass_mast_df, supertype_mast_df) %>%
+  filter(p_adjust < 0.05) %>%
+  mutate(
+    gene = gsub("-GRCm39", "", primerid),
+    direction = if_else(coef > 0, "WildR-UP", "SPF-UP")
+  )
 ```
 
-
-## Critical Questions to Answer
-
-1. Which cell types have the most differentially expressed genes and are the most altered?
-
-2. Which genes are altered most robustly? Are these highly significant genes altered in cell types that have the most alterations or from cell types that have just a few alterations?
-
-3. Are there any tissue-specific signals?
-
-4. Given the cell types with the largest alterations and the genes altered in these cell types, what pathways or circuits are most likely to be affected?
-
 ```{r}
+#| label: cell-stats-celltypes
+#| eval: !expr run_analysis
+
 celltype_droplist <- readRDS(
   glue("{data_path}/seurat/snRNASeq/celltype_droplist_2025-12-30.rds")
-  )
+)
 
-metadata_df <- seurat_obj@meta.data %>% glimpse()
-class_batchdata <- 
-    dplyr::select(metadata_df, celltype = class_label, tissue) %>% 
+metadata_df <- seurat_obj@meta.data
+
+batchparams_df <- bind_rows(
+  metadata_df %>%
+    dplyr::select(celltype = class_label, tissue) %>%
     distinct() %>%
-    mutate(cell_type_column = "class_label")
-subclass_batchdata <- 
-    dplyr::select(metadata_df, celltype = subclass_label, tissue) %>% 
+    mutate(cell_type_column = "class_label"),
+  metadata_df %>%
+    dplyr::select(celltype = subclass_label, tissue) %>%
     distinct() %>%
-    mutate(cell_type_column = "subclass_label")
-supertype_batchdata <- 
-    dplyr::select(metadata_df, celltype = supertype_label, tissue) %>% 
+    mutate(cell_type_column = "subclass_label"),
+  metadata_df %>%
+    dplyr::select(celltype = supertype_label, tissue) %>%
     distinct() %>%
     mutate(cell_type_column = "supertype_label")
+) %>%
+  left_join(celltype_droplist) %>%
+  filter(is.na(dropme)) %>%
+  dplyr::select(cell_type_column, celltype, tissue)
 
-batchparams_df <- 
-    bind_rows(class_batchdata, subclass_batchdata, supertype_batchdata) %>%
-    left_join(celltype_droplist) %>%
-    filter(is.na(dropme)) %>% 
-    dplyr::select(cell_type_column, celltype, tissue) %>% 
-    glimpse()
+n_tested_AMY_supt <- batchparams_df %>%
+  filter(tissue == "AMY", cell_type_column == "supertype_label") %>%
+  distinct(celltype) %>%
+  nrow()
 
-# number of supertypes tested in AMY and HYP
-n_tested_AMY_supt <- batchparams_df %>% 
-  filter(tissue == "AMY") %>% 
-  filter(cell_type_column == "supertype_label") %>% 
-  n_distinct()
-n_tested_HYP_supt <- batchparams_df %>% 
-  filter(tissue == "HYP") %>% 
-  filter(cell_type_column == "supertype_label") %>% 
-  n_distinct()
+n_tested_HYP_supt <- batchparams_df %>%
+  filter(tissue == "HYP", cell_type_column == "supertype_label") %>%
+  distinct(celltype) %>%
+  nrow()
 
-# number of supertypes with at least 1 DEG in AMY and HYP
-mast_df %>% glimpse()
-mast_df %>%
-  filter(p_adjust < 0.05, abs(coef) > 0.25) %>% 
-  filter(cell_type_level == "supertype") %>% 
-  group_by(tissue, cell_type_name) %>% 
-  tally() %>% 
-  filter(n > 0) %>% 
-  group_by(tissue) %>% 
-  tally()
+deg_burden <- mast_df %>%
+  filter(p_adjust < 0.05, abs(coef) > 0.25, cell_type_level == "supertype") %>%
+  group_by(tissue, cell_type_name) %>%
+  tally(name = "n_deg") %>%
+  group_by(tissue) %>%
+  summarise(
+    tested = dplyr::if_else(tissue == "AMY", n_tested_AMY_supt, n_tested_HYP_supt),
+    n_ge1 = sum(n_deg >= 1),
+    n_ge10 = sum(n_deg >= 10),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    pct_ge1 = round(100 * n_ge1 / tested, 1),
+    pct_ge10 = round(100 * n_ge10 / tested, 1)
+  )
+```
 
-mast_df %>%
-  filter(p_adjust < 0.05, abs(coef) > 0.25) %>% 
-  filter(cell_type_level == "supertype") %>% 
-  group_by(tissue, cell_type_name) %>% 
-  tally() %>% 
-  filter(n > 9) %>% 
-  group_by(tissue) %>% 
-  tally()
+```{r}
+#| label: cell-tbl-celltype-burden
+#| eval: !expr run_analysis
+
+burden_tbl <- deg_burden %>%
+  transmute(
+    tissue,
+    tested,
+    ge1 = glue("{n_ge1} ({pct_ge1}%)"),
+    ge10 = glue("{n_ge10} ({pct_ge10}%)")
+  )
+
+readr::write_csv(deg_burden, file.path(nb_tbl, "celltype_deg_burden.csv"))
+save_table_artifacts(
+  deg_burden,
+  csv_path = file.path(nb_tbl, "celltype_deg_burden.csv"),
+  html_path = file.path(nb_tbl, "celltype_deg_burden.html")
+)
 
 ```
 
-
-164 tested supertypes in AMY, 225 tested supertypes in HYP.
-
-- Cell types with 1 or more DEGs in **AMY**: 51 (51/164 = 31%)
-
-- Cell types with 1 or more DEGs in **HYP**: 124 (124/225 = 55%)
-
-- Cell types with 10 or more DEGs in **AMY**: 26 (26/164 = 16%)
-
-- Cell types with 10 or more DEGs in **HYP**: 9 (9/225 = 4%)
-
-
-
-Do the most significant DEGs appear in the most altered cell types?
-
 ```{r}
-most_significant_degs <- mast_df %>% 
-  filter(p_adjust < 0.05) %>% 
-  filter(abs(coef) > 0.25) %>% 
-  arrange(p_adjust) %>% 
-  pull(gene) %>% 
-  unique() %>% 
+#| label: cell-prep-heatmap
+#| eval: !expr run_analysis
+
+top_75_genes <- mast_df %>%
+  filter(cell_type_level == "supertype") %>%
+  filter(p_adjust < 0.05, abs(coef) > 0.25) %>%
+  arrange(p_adjust) %>%
+  pull(gene) %>%
+  unique() %>%
   head(75)
 
-most_sig_supt <- mast_df %>%
-  filter(p_adjust < 0.05, abs(coef) > 0.25) %>% 
-  filter(cell_type_level == "supertype") %>% 
-  group_by(celltype_tissue) %>% 
-  tally() %>% 
-  filter(n > 9) %>% 
-  pull(celltype_tissue)
-
-
-
-
-```
-
-
-
-## Conclusions / Key Findings
-
-1. Which cell types have the most differentially expressed genes and are the most altered?
-
-- Out of 225 supertypes tested in the HYP, 124 or (55%) have at least 1 DEG, and 9 or (4%) have at least 10 DEGs.
-
-- Out of 164 supertypes tested in the AMY, 51 or (31%) have at least 1 DEG, and 26 or (16%) have at least 10 DEGs.
-
-- A greater fraction of tested cells have at least 1 DEG in the HYP tissue than the AMY tissue; however, the fraction of cells with 10 or more DEGs is lower in the HYP tissue (4% vs 16%).
-
-
-
-2. Which genes are altered most robustly? Are these highly significant genes altered in cell types that have the most alterations or from cell types that have just a few alterations?
-
-- When we look at the top 75 DEGs, they are within X% of the most altered cell types. .. Here is important, are the highest DEGs also outside of these critical cell types?
-
-
-3. Are there any tissue-specific signals?
-
-- Yes, there are tissue-specific signals.
-
-- X tissue has more cell types with robust alterations than Y tissue, 
-
-- Some DEGs that sweep across multiple cell types in a tissue
-
-
-4. Given the cell types with the largest alterations and the genes altered in these cell types, what pathways or circuits are most likely to be affected?
-
-
-
-
-
-
-Visualizing a Datatable of top gene hits
-
-```{r}
-mast_df %>% 
-  filter(cell_type_level == "supertype") %>% 
-  arrange(p_adjust) %>% 
-  dplyr::relocate(cell_type_name, 1) %>% 
-  dplyr::relocate(gene, 1) %>% 
-  select(-c(primerid, pr_chisq, ci_hi, ci_lo)) %>% 
-  head(200) %>% 
-  DT::datatable()
-
-# visualizing the most significant p-value for each gene across all supertypes to identify top hits regardless of cell type or tissue
-mast_df %>% 
+significant_celltypes <- mast_df %>%
   filter(cell_type_level == "supertype") %>%
-  group_by(gene, direction, tissue) %>%
-  summarize(min_p = min(p_adjust), n_signif = n()) %>% 
-  arrange(min_p) %>% 
-  mutate(min_p = formatC(min_p, format = "e", digits = 2)) %>% 
+  filter(gene %in% top_75_genes) %>%
+  group_by(cell_type_name) %>%
+  tally() %>%
+  filter(n > 1) %>%
+  pull(cell_type_name) %>%
+  unique()
+
+top_mast_df <- mast_df %>%
+  filter(cell_type_level == "supertype") %>%
+  arrange(p_adjust) %>%
   head(200) %>%
-  DT::datatable()
+  mutate(neglog10_p = -log10(p_adjust))
 
-```
-
-
-```{r}
-# Top 100 supertype hits: prepare for dot-plot heatmap
-top_mast_df <- mast_df %>% 
-  filter(cell_type_level == "supertype") %>% 
-  arrange(p_adjust) %>% 
-  head(200) %>% 
-  dplyr::mutate(
+plot_df <- mast_df %>%
+  filter(primerid %in% paste0(top_75_genes, "-GRCm39")) %>%
+  filter(cell_type_name %in% significant_celltypes) %>%
+  mutate(
     gene = gsub("-GRCm39", "", primerid),
     neglog10_p = -log10(p_adjust)
   )
 
-n_genes <- n_distinct(top_mast_df$gene)
-n_supertypes <- n_distinct(top_mast_df$cell_type_name)
-message(glue("Top 200 rows: {n_genes} unique genes across {n_supertypes} supertypes"))
+clust_mat <- plot_df %>%
+  dplyr::select(gene, celltype_tissue, coef) %>%
+  tidyr::pivot_wider(
+    names_from = celltype_tissue,
+    values_from = coef,
+    values_fill = 0
+  ) %>%
+  tibble::column_to_rownames("gene") %>%
+  as.matrix()
 
-# selecting the top 75 unique most significant genes for visualization
-top_75_genes <- mast_df %>% 
-  filter(cell_type_level == "supertype") %>% 
-  arrange(p_adjust) %>% 
-  pull(primerid) %>% 
-  gsub("-GRCm39", "", .) %>% 
-  unique() %>% 
-  head(75)
+row_order <- hclust(dist(clust_mat), method = "ward.D2")$order
+col_order <- hclust(dist(t(clust_mat)), method = "ward.D2")$order
 
-# identifying cell types that have significance for any of these top 75 genes
-significant_celltypes <- mast_df %>% 
-  filter(cell_type_level == "supertype") %>% 
-  filter(gsub("-GRCm39", "", primerid) %in% top_75_genes) %>% 
-  group_by(cell_type_name) %>%
-  tally() %>% 
-  filter(n > 1) %>%
-  pull(cell_type_name) %>% 
-  unique()
+gene_levels <- rownames(clust_mat)[row_order]
+celltype_levels <- colnames(clust_mat)[col_order]
 
-message(glue("Top 75 unique genes are significant in {length(significant_celltypes)} supertypes"))
+plot_df <- plot_df %>%
+  mutate(
+    gene = factor(gene, levels = gene_levels),
+    celltype_tissue = factor(celltype_tissue, levels = celltype_levels)
+  )
 
+ct_labels <- plot_df %>%
+  distinct(celltype_tissue, cell_type_name) %>%
+  deframe()
 ```
 
 ```{r}
-# Dot-plot heatmap: genes vs supertypes
-# Dots colored by coefficient (direction), sized by significance
-p_dotplot_tophits <- mast_df %>% 
-  filter(primerid %in% paste0(top_75_genes, "-GRCm39")) %>%
-  filter(cell_type_name %in% significant_celltypes) %>% 
-  dplyr::mutate(
-    gene = gsub("-GRCm39", "", primerid),
-    neglog10_p = -log10(p_adjust)
-  ) %>% 
-  ggplot(aes(
-    x = fct_reorder(cell_type_name, cell_type_name, .fun = length),
-    y = fct_reorder(gene, -neglog10_p, .fun = max),
-    size = neglog10_p
-  )) +
+#| label: cell-fig-heatmap
+#| eval: !expr run_analysis
+#| fig-show: hide
+
+coef_lim <- max(abs(top_mast_df$coef), na.rm = TRUE)
+
+p_heatmap <- plot_df %>%
+  ggplot(aes(x = celltype_tissue, y = gene, size = neglog10_p)) +
   geom_point(alpha = 0.9, shape = 21, aes(fill = coef)) +
+  scale_x_discrete(labels = ct_labels) +
   scale_fill_scico(
     palette = "cork",
     midpoint = 0,
-    limits = c(-max(abs(top_mast_df$coef)), max(abs(top_mast_df$coef)))
+    limits = c(-coef_lim, coef_lim)
   ) +
   scale_size_continuous(
     range = c(2, 8),
@@ -369,7 +997,9 @@ p_dotplot_tophits <- mast_df %>%
     x = "Supertype",
     y = "Gene",
     fill = "log2 FC",
-    title = glue("Top 75 DEG hits: {length(top_75_genes)} genes × {length(significant_celltypes)} supertypes")
+    title = glue(
+      "Top 75 DEG hits: {length(top_75_genes)} genes x {length(significant_celltypes)} supertypes"
+    )
   ) +
   theme_bw() +
   theme(
@@ -377,133 +1007,83 @@ p_dotplot_tophits <- mast_df %>%
     axis.text.y = element_text(size = 7, face = "italic"),
     panel.grid.major = element_line(linewidth = 0.2, color = "grey90"),
     legend.position = "right",
-    plot.title = element_text(hjust = 0.5, face = "bold"),
-    plot.subtitle = element_text(hjust = 0.5, size = 9, color = "grey30")
+    plot.title = element_text(hjust = 0.5, face = "bold")
   )
 
-ggsave(
-    glue("{fig_path}/DEG/snRNASeq/top_hits/dotplot_top200_hits_{Sys.Date()}.png"),
-    p_dotplot_tophits,
-    width = 20,
-    height = 10
-)
+heatmap_nb <- file.path(nb_fig, "heatmap_top75_deg.png")
+heatmap_proj <- glue("{fig_path}/DEG/snRNASeq/top_hits/dotplot_top75_hits_{Sys.Date()}.png")
 
+ggsave(heatmap_nb, p_heatmap, width = 18, height = 10, dpi = 200)
+ggsave(heatmap_proj, p_heatmap, width = 18, height = 10, dpi = 200)
 ```
 
+```{r}
+#| label: cell-tbl-top-hits
+#| eval: !expr run_analysis
+
+top_hits_tbl <- mast_df %>%
+  filter(cell_type_level == "supertype") %>%
+  arrange(p_adjust) %>%
+  dplyr::relocate(gene, cell_type_name) %>%
+  select(-c(primerid, pr_chisq, ci_hi, ci_lo)) %>%
+  head(200)
+
+save_table_artifacts(
+  top_hits_tbl,
+  csv_path = file.path(nb_tbl, "top_supertype_hits.csv"),
+  html_path = file.path(nb_tbl, "top_supertype_hits.html"),
+  preview_n = 20
+)
+```
 
 ```{r}
-library(seriation)  # optional but has better dist handling for sparse matrices
+#| label: cell-tbl-gene-summary
+#| eval: !expr run_analysis
 
-# --- 1. Build the plotting dataframe first ---
-plot_df <- mast_df %>%
+gene_summary_tbl <- mast_df %>%
+  filter(cell_type_level == "supertype") %>%
+  group_by(gene, direction, tissue) %>%
+  summarise(
+    min_p = min(p_adjust),
+    n_signif = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(min_p) %>%
+  mutate(min_p_fmt = formatC(min_p, format = "e", digits = 2))
+
+save_table_artifacts(
+  gene_summary_tbl,
+  csv_path = file.path(nb_tbl, "top_genes_by_tissue.csv"),
+  html_path = file.path(nb_tbl, "top_genes_by_tissue.html"),
+  preview_n = 20
+)
+```
+
+```{r}
+#| label: cell-fig-pvalue-dist
+#| fig-show: hide
+#| eval: false
+
+# Exploratory: p-value distribution for selected genes (e.g. Cmss1, Cntn6)
+p_pval <- mast_df %>%
   filter(primerid %in% paste0(top_75_genes, "-GRCm39")) %>%
   filter(cell_type_name %in% significant_celltypes) %>%
-  dplyr::mutate(
-    gene        = gsub("-GRCm39", "", primerid),
-    neglog10_p  = -log10(p_adjust)
-  )
-
-# --- 2. Pivot to matrix for clustering (genes x celltypes) ---
-# Use coef as the value; fill missing combos with 0
-mast_df %>% glimpse()
-clust_mat <- plot_df %>%
-  dplyr::select(gene, celltype_tissue, coef) %>%
-  tidyr::pivot_wider(
-    names_from  = celltype_tissue,
-    values_from = coef,
-    values_fill = 0
-  ) %>%
-  tibble::column_to_rownames("gene") %>%
-  as.matrix()
-
-# --- 3. Cluster rows (genes) and columns (cell types) ---
-row_order <- hclust(dist(clust_mat),            method = "ward.D2")$order
-col_order <- hclust(dist(t(clust_mat)),         method = "ward.D2")$order
-
-gene_levels     <- rownames(clust_mat)[row_order]
-celltype_levels <- colnames(clust_mat)[col_order]
-# --- 4. Apply clustered factor levels ---
-plot_df <- plot_df %>%
   mutate(
-    gene            = factor(gene,            levels = gene_levels),
-    celltype_tissue = factor(celltype_tissue, levels = celltype_levels)
-  )
-
-# --- 4b. Build the label lookup (celltype_tissue -> cell_type_name) ---
-ct_labels <- plot_df %>%
-  distinct(celltype_tissue, cell_type_name) %>%
-  deframe()  # named vector: names = celltype_tissue, values = cell_type_name
-
-# --- 5. Plot ---
-p_dotplot_tophits <- plot_df %>%
-  ggplot(aes(
-    x    = celltype_tissue,
-    y    = gene,
-    size = neglog10_p
-  )) +
-  geom_point(alpha = 0.9, shape = 21, aes(fill = coef)) +
-  scale_x_discrete(labels = ct_labels) +          # <-- swap display labels here
-  scale_fill_scico(
-    palette  = "cork",
-    midpoint = 0,
-    limits   = c(-max(abs(top_mast_df$coef)), max(abs(top_mast_df$coef)))
-  ) +
-  scale_size_continuous(
-    range = c(2, 8),
-    name  = expression(-log[10](p[adj]))
-  ) +
-  facet_grid(~ tissue, scales = "free", space = "free") +
-  labs(
-    x     = "Supertype",
-    y     = "Gene",
-    fill  = "log2 FC",
-    title = glue("Top 75 DEG hits: {length(top_75_genes)} genes × {length(significant_celltypes)} supertypes")
-  ) +
-  theme_bw() +
-  theme(
-    axis.text.x   = element_text(angle = 45, hjust = 1, size = 8),
-    axis.text.y   = element_text(size = 7, face = "italic"),
-    panel.grid.major = element_line(linewidth = 0.2, color = "grey90"),
-    legend.position  = "right",
-    plot.title    = element_text(hjust = 0.5, face = "bold"),
-    plot.subtitle = element_text(hjust = 0.5, size = 9, color = "grey30")
-  )
-
-ggsave(
-    glue("{fig_path}/DEG/snRNASeq/top_hits/dotplot_top200_hits_{Sys.Date()}.png"),
-    p_dotplot_tophits,
-    width = 18,
-    height = 10
-)
-
-```
-
-
-Looking at P-value distribution of top hits
-
-```{r}
-
-mast_df %>% 
-  filter(primerid %in% paste0(top_75_genes, "-GRCm39")) %>%
-  filter(cell_type_name %in% significant_celltypes) %>% 
-  dplyr::mutate(
     gene = gsub("-GRCm39", "", primerid),
     neglog10_p = -log10(p_adjust)
-  ) %>% 
-  filter(gene %in% c("Cmss1", "Cntn6") ) %>% 
-  ggplot(aes(x=neglog10_p)) +
-  # geom_density(alpha = 0.5, aes(fill = gene))
-  geom_histogram(position = "identity", alpha = 0.6, bins = 30, aes(fill = gene))
+  ) %>%
+  filter(gene %in% c("Cmss1", "Cntn6")) %>%
+  ggplot(aes(x = neglog10_p)) +
+  geom_histogram(position = "identity", alpha = 0.6, bins = 30, aes(fill = gene)) +
+  labs(title = "P-value distribution for selected top hits")
 
+ggsave(file.path(nb_fig, "pvalue_dist_selected.png"), p_pval, width = 8, height = 5, dpi = 200)
 ```
 
-
-
-Plot violin plots for top hits
-
 ```{r}
-# Hits to plot: top 300 most significant OR genes in cell-type+tissue combos with >= 5 hits
-# Output: {cell_type_level}/{tissue}/{WildR_UP|SPF_UP}/{gene}_{tissue}_{celltype}_{date}.png
+#| label: cell-violin-prep
+#| eval: !expr run_analysis
+
 cell_type_level <- "supertype"
 celltype_column <- "supertype_name"
 top_n <- 300
@@ -514,63 +1094,58 @@ supertype_mast <- mast_df %>%
   filter(p_adjust <= 0.05) %>%
   filter(abs(coef) > 0.25)
 
-# Cell-type+tissue combos with >= min_hits_per_celltype_tissue hits
 high_hit_combos <- supertype_mast %>%
   group_by(cell_type_name, tissue) %>%
   tally() %>%
   filter(n >= min_hits_per_celltype_tissue) %>%
   select(cell_type_name, tissue)
 
-# Top top_n by p_adjust
 top_by_p <- supertype_mast %>%
   arrange(p_adjust) %>%
   head(top_n) %>%
   select(gene, cell_type_name, tissue, direction)
 
-# Genes in high-hit cell types (all their hits, not just top 300)
 high_hit_genes <- supertype_mast %>%
   semi_join(high_hit_combos, by = c("cell_type_name", "tissue")) %>%
   select(gene, cell_type_name, tissue, direction)
 
-# Union: plot if in top 300 OR in a high-hit cell type
 violin_hits <- bind_rows(top_by_p, high_hit_genes) %>%
-  distinct(gene, cell_type_name, tissue, direction) %>% 
-  mutate(cell_type_name_clean = gsub("/", "-", cell_type_name) %>% gsub(" ", "_", .)) %>% 
-  glimpse()
-
-message(glue("Plotting {nrow(violin_hits)} violin plots"))
-
-```
-
-
-```{r}
-# Fetch expression once per (celltype, tissue), then loop through plots
-violin_out_base <- glue("{fig_path}/DEG/snRNASeq/top_hits/{cell_type_level}")
+  distinct(gene, cell_type_name, tissue, direction) %>%
+  mutate(
+    cell_type_name_clean = gsub("/", "-", cell_type_name) %>% gsub(" ", "_", .)
+  )
 
 violin_hits_grouped <- violin_hits %>%
-    # temporarily fix for Pakap-2 issue
-    filter(gene %nin% c("Pakap-2")) %>% 
-    group_by(cell_type_name, cell_type_name_clean, tissue) %>%
-    summarise(genes = list(tibble(gene, direction)), .groups = "drop")
+  filter(gene %nin% c("Pakap-2")) %>%
+  group_by(cell_type_name, cell_type_name_clean, tissue) %>%
+  summarise(genes = list(tibble(gene, direction)), .groups = "drop")
+```
 
-# cl <- makeCluster(parallel::detectCores() - 1)
+```{r}
+#| label: cell-violin-plots
+#| eval: false
+
+# Heavy export loop — set eval: true to regenerate violin plots.
+# Outputs: figures/DEG/snRNASeq/top_hits/supertype/{tissue}/{celltype}/{gene}_{direction}_{tissue}_{celltype}.png
+
+violin_out_base <- glue("{fig_path}/DEG/snRNASeq/top_hits/{cell_type_level}")
 registerDoParallel(7)
 
 for (g in seq_len(nrow(violin_hits_grouped))) {
   celltype_index <- violin_hits_grouped$cell_type_name[g]
-  celltype        <- violin_hits_grouped$cell_type_name_clean[g]
-  tissue          <- violin_hits_grouped$tissue[g]
-  gene_dir        <- violin_hits_grouped$genes[[g]]
-  genes           <- gene_dir$gene
+  celltype <- violin_hits_grouped$cell_type_name_clean[g]
+  tissue <- violin_hits_grouped$tissue[g]
+  gene_dir <- violin_hits_grouped$genes[[g]]
+  genes <- gene_dir$gene
 
   multi_df <- get_gene_expression_df_multi(
     seurat_obj,
     celltype_column = celltype_column,
-    celltype_value  = celltype_index,
-    genes           = genes,
-    tissue          = tissue,
-    return_format   = "log2cpm"
-  ) %>% glimpse()
+    celltype_value = celltype_index,
+    genes = genes,
+    tissue = tissue,
+    return_format = "log2cpm"
+  )
 
   if (nrow(multi_df) == 0) {
     warning(glue("No cells for {celltype} / {tissue}; skipping {length(genes)} genes"))
@@ -580,38 +1155,96 @@ for (g in seq_len(nrow(violin_hits_grouped))) {
   multi_df <- multi_df %>%
     mutate(sample = factor(sample, levels = unique(sample[order(microbiome, sample)])))
 
-  # Capture loop-level variables for export into workers
-  .multi_df  <- multi_df
-  .gene_dir  <- gene_dir
-  .tissue    <- tissue
-  .celltype  <- celltype
-  .out_base  <- violin_out_base
+  .multi_df <- multi_df
+  .gene_dir <- gene_dir
+  .tissue <- tissue
+  .celltype <- celltype
+  .out_base <- violin_out_base
 
   foreach(
     j = seq_len(nrow(.gene_dir)),
-    .packages  = c("ggplot2", "glue", "dplyr"),   # add any others your fns need
-    .export    = c(".multi_df", ".gene_dir", ".tissue", ".celltype", ".out_base",
-                   "plot_gene_expression")
+    .packages = c("ggplot2", "glue", "dplyr"),
+    .export = c(
+      ".multi_df", ".gene_dir", ".tissue", ".celltype", ".out_base",
+      "plot_gene_expression"
+    )
   ) %dopar% {
-    genename  <- .gene_dir$gene[j]
+    genename <- .gene_dir$gene[j]
     direction <- .gene_dir$direction[j]
-    out_dir   <- glue("{.out_base}/{.tissue}/{.celltype}")
-    fname     <- glue("{genename}_{direction}_{.tissue}_{.celltype}.png")
+    out_dir <- glue("{.out_base}/{.tissue}/{.celltype}")
+    fname <- glue("{genename}_{direction}_{.tissue}_{.celltype}.png")
     full_fig_path <- file.path(out_dir, fname)
 
-    if (file.exists(full_fig_path)) return(NULL)   # skip instead of next
+    if (file.exists(full_fig_path)) return(NULL)
     dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
     p_combined <- plot_gene_expression(
       .multi_df,
-      gene           = genename,
-      tissue         = .tissue,
+      gene = genename,
+      tissue = .tissue,
       celltype_value = .celltype
     )
     ggsave(full_fig_path, p_combined, width = 8, height = 5)
     NULL
   }
 }
+```
 
-stopCluster(cl)
+
+```{r}
+#| label: cell-get-gene-expression
+#| eval: false
+
+# Get gene expression vectors for Lars 2 and CMS1 from each cell type where they are significant in the hypothalamus.
+mast_df %>% glimpse()
+cmss1_lars_sig_hyp_supert <- mast_df %>% 
+  filter(gene %in% c("Cmss1")) %>% 
+  filter(tissue == "HYP") %>%
+  filter(cell_type_level == "supertype") %>%
+  slice_min(p_adjust, n = 20) %>%
+  pull(cell_type_name) %>%
+  unique()
+  
+
+cmss1_lars2_expression_df <- tibble()
+for (celltype in cmss1_lars_sig_hyp_supert) {
+  print(glue("Getting expression for {celltype}"))
+  gene_df <- get_gene_expression_df_multi(
+    seurat_obj,
+    celltype_column = "supertype_name",
+    celltype_value = celltype,
+    gene = c("Lars2", "Cmss1"),
+    tissue = "HYP",
+    return_format = "log2cpm")
+  cmss1_lars2_expression_df <- bind_rows(cmss1_lars2_expression_df, gene_df)
+}
+
+cmss1_lars2_expression_df %>% glimpse()
+
+p_cmss1_lars2_cor <- cmss1_lars2_expression_df %>% 
+  ggplot(aes(x = Cmss1_log2cpm, y = Lars2_log2cpm)) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "lm") +
+  ggpubr::stat_cor(method = "pearson") +
+  ggpubr::stat_regline_equation(label.x.npc = 0.05, label.y.npc = 0.91) +
+  facet_wrap(~ supertype_name) +
+  theme_bw() +
+  coord_fixed() +
+  labs(x = "Cmss1 Expression", y = "Lars2 Expression") 
+
+ggsave(
+  glue("{fig_path}/DEG/snRNASeq/misc/cmss1_lars2_cor_{Sys.Date()}.png"),
+  p_cmss1_lars2_cor,
+  width = 12,
+  height = 12,
+  dpi = 300
+)
+
+
+
+
+# flux_paths <- list.files(glue("{scFEA_output_path}"), full.names = TRUE) %>% 
+#   keep(~ grepl("flux", .) & grepl("_CLAS_", .))
+
+
 ```

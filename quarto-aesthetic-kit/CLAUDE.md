@@ -58,7 +58,7 @@ component classes (§5).
    §6). A reader can always answer "what code produced this?".
 4. **Fixed section order:** Overview → Background → Results → Next Steps →
    Code & Provenance. Always. (§2)
-5. **The aesthetic is fixed.** Inter typeface, the house purple palette, soft
+5. **The aesthetic is fixed.** Inter typeface, the Caltech orange palette, soft
    white cards. Use the component classes; don't invent new ones.
 
 ---
@@ -112,7 +112,7 @@ The full, runnable notebook. Every executable chunk lives here, in order, each
 
 If not using the project `_quarto.yml`, every notebook starts with:
 
-`categories` render as the purple **eyebrow pills** above the title — use them
+`categories` render as the orange **eyebrow pills** above the title — use them
 as the kicker (analysis type, data modality, project).
 
 ```yaml
@@ -257,7 +257,7 @@ width — wide bar charts, time series, heatmaps. Multi-panel grids already fill
 the column.
 
 **Eyebrow / kicker** — two options: the document-level kicker is the front-matter
-`categories:` list (renders as purple pills above the title). For an inline
+`categories:` list (renders as orange pills above the title). For an inline
 section kicker, put `[METHOD]{.eyebrow}` immediately above a heading.
 
 **Key takeaways** — see §4. Always a `.takeaways` block with a bold
@@ -274,7 +274,7 @@ Processed object written to [data/processed/cells.h5ad]{.path}.
 ```
 
 **Data table** — author as a normal Markdown/`knitr::kable()`/`gt` table; the
-theme styles it (purple header rule, hover rows). Give it a caption with
+theme styles it (orange header rule, hover rows). Give it a caption with
 `: My caption {#tbl-id}` so it can be cross-referenced and traced.
 
 **Section divider**:
@@ -347,9 +347,9 @@ they define the look and must not drift.
 
 | Token | Hex | Use |
 |---|---|---|
-| `--bh-purple` | `#6E4FF9` | primary brand: links, accents, table rule, takeaway marker |
-| `--bh-purple-light` | `#9D8BFF` | hover states, secondary accents |
-| `--bh-purple-tint` | `#F1F0FF` | takeaway / highlight / inline-code backgrounds |
+| `--bh-orange` | `#FF6C0C` | primary brand: links, accents, table rule, takeaway marker |
+| `--bh-orange-light` | `#FF9240` | hover states, secondary accents |
+| `--bh-orange-tint` | `#FFF3EB` | takeaway / highlight / inline-code backgrounds |
 | ink | `#0A0A0A` | body text |
 | `--bh-gray` | `#767676` | secondary text |
 | muted | `#555555` | captions |
@@ -365,11 +365,11 @@ letter-spacing (−0.015em); eyebrow labels use +0.06em uppercase.
 
 **Shape & depth:** card radius 8px, small radius 4px, pills 20px. Shadows are
 soft and low: resting `0 2px 10px -3px rgba(120,120,120,.35)`; figure-card hover
-lifts 2px with a faint purple glow. Borders are 1px hairlines, never heavy.
+lifts 2px with a faint orange glow. Borders are 1px hairlines, never heavy.
 
 **Motion / reactivity:** links and cards transition on hover (~0.15–0.2s ease);
 figure cards lift on hover; provenance jumps use `scroll-behavior: smooth`; the
-active TOC item is marked in purple with a left rule. Keep motion subtle — this
+active TOC item is marked in orange with a left rule. Keep motion subtle — this
 is a research document, not a marketing page.
 
 **Layout (wide canvas, not a blog column):** the content column is widened to

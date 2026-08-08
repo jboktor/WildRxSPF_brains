@@ -11,7 +11,7 @@ that made it.
 |------|------------|
 | `CLAUDE.md` | **The guide.** Authoritative spec for structure, aesthetic, and provenance. Claude reads this when generating any `.qmd`. |
 | `_quarto.yml` | Project styling defaults — every `.qmd` in the folder inherits the theme. |
-| `theme/aesthetic.scss` | The visual theme (Inter, house purple palette, cards, takeaways, provenance tags). |
+| `theme/aesthetic.scss` | The visual theme (Inter, Caltech orange palette, cards, takeaways, provenance tags). |
 | `templates/analysis-template.qmd` | A fully worked, runnable example to copy when starting a new notebook. |
 
 ## Quick start

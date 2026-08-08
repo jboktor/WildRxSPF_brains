@@ -145,7 +145,7 @@ os.makedirs("tables", exist_ok=True)
 os.makedirs("data/processed", exist_ok=True)
 
 # Brand styling for all plots
-PURPLE, PURPLE_LT, GRAY, INK = "#6E4FF9", "#9D8BFF", "#767676", "#0A0A0A"
+ORANGE, ORANGE_LT, GRAY, INK = "#FF6C0C", "#FF9240", "#767676", "#0A0A0A"
 plt.rcParams.update({
     "figure.dpi": 200, "savefig.dpi": 200, "font.size": 11,
     "axes.edgecolor": "#E5E5E5", "axes.linewidth": 1.0,
@@ -179,7 +179,7 @@ cpm.assign(group=groups).to_csv("data/processed/cpm_matrix.csv", index=False)
 #| label: cell-fig-qc
 #| fig-show: hide
 depth = mat.sum(axis=1).values
-colors = [PURPLE if g == "Responder" else PURPLE_LT for g in groups]
+colors = [ORANGE if g == "Responder" else ORANGE_LT for g in groups]
 fig, ax = plt.subplots(figsize=(13, 3.6))
 ax.bar(range(n_samples), depth, color=colors, width=0.82)
 ax.axhline(np.median(depth), ls="--", lw=1, color=GRAY)
@@ -206,7 +206,7 @@ sig = (de.FDR < 0.05) & (de.log2FC.abs() > 1)
 # Panel A: volcano
 fig, ax = plt.subplots(figsize=(5.8, 4.6))
 ax.scatter(de.log2FC, -np.log10(de.FDR + 1e-300), s=6,
-           c=np.where(sig, PURPLE, "#D9D9D9"))
+           c=np.where(sig, ORANGE, "#D9D9D9"))
 ax.axvline(1, ls="--", lw=0.8, color=GRAY); ax.axvline(-1, ls="--", lw=0.8, color=GRAY)
 ax.axhline(-np.log10(0.05), ls="--", lw=0.8, color=GRAY)
 ax.set_xlabel("log2 fold-change"); ax.set_ylabel("−log10 FDR")
@@ -218,7 +218,7 @@ top = de[de.log2FC > 0].head(10).iloc[::-1]
 err = rng.uniform(0.1, 0.25, len(top))
 fig, ax = plt.subplots(figsize=(5.8, 4.6))
 ax.errorbar(top.log2FC, range(len(top)), xerr=err, fmt="o",
-            color=PURPLE, ecolor=PURPLE_LT, capsize=3)
+            color=ORANGE, ecolor=ORANGE_LT, capsize=3)
 ax.set_yticks(range(len(top))); ax.set_yticklabels(top.gene, fontsize=8)
 ax.set_xlabel("log2 fold-change"); ax.set_title("Top 10 up in responders")
 fig.tight_layout(); fig.savefig("figures/topgenes.png"); plt.close(fig)

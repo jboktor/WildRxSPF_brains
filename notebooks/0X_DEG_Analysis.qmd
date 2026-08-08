@@ -41,7 +41,7 @@ library(ggpackets)
 
 theme_set(theme_bw())
 
-home_dir <- "/resnick/groups/MazmanianLab/jboktor"
+home_dir <- "/resnick/groups/mthomson/jboktor"
 rnk_dir <- "/resnick/groups/mthomson/jboktor"
 split_pipe_dir <- glue("{rnk_dir}/split-pipe_workflow")
 wkdir <- glue("{home_dir}/WILDRxSPF_brains")
@@ -121,6 +121,8 @@ supertype_mast_df <- readRDS(
 mast_df <- bind_rows(class_mast_df, subclass_mast_df, supertype_mast_df) %>% 
   filter(p_adjust < 0.1) %>% 
     glimpse()
+
+write_csv(mast_df, glue("{data_path}/mast/snRNASeq/mast_signif_hits_2026-08-05_p_adjust_0.1.csv"))
 
 # Augur Results
 format_augurdf <- function(augur_df, name_col, level_col) {
