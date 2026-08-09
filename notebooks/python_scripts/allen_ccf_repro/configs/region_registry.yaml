@@ -1,0 +1,320 @@
+# Frozen region registry for the Allen CCF registration rebuild.
+#
+# Every entry maps exact `subclass_label_transfer` values from the cell table to
+# Allen annotation ids, and assigns a safety role:
+#
+#   hard      cell class is anatomically restricted to the structure; usable as a
+#             fitting landmark and as an acceptance gate.
+#   soft      usable as a landmark when the eligibility minimums are met, but the
+#             correspondence is looser; never gates acceptance on its own.
+#   mask_only used for masks, diagnostics, and metrics; never contributes points.
+#   unsafe    never used for landmarks; listed so the exclusion is explicit and
+#             reproducible.
+#
+# `landmark` selects the point-construction strategy in landmarks.py:
+#   ladder     quantile ladder along the mediolateral axis with upper/lower edges
+#              plus dedicated medial-crest tip anchors (used for DG)
+#   ribbon     medians of a thin cell ribbon in mediolateral bins
+#   lattice    2D quantile grid plus dorsal/ventral silhouette stations (caudoputamen)
+#   centroid   single robust centroid per connected structure
+#   components centroid per connected atlas component, matched by proximity
+#   bins       medians in mediolateral bins over a filled structure
+#   none       no points
+version: 4
+created: 2026-08-08
+notes: >-
+  Ids were resolved against annotation_25.nrrd and allen_name_to_annots.pkl and
+  then checked for presence in the volume. This annotation is mixed granularity:
+  the dentate gyrus is layer-resolved (granule layer 632) while the CA fields and
+  the subiculum are not, so CA1/CA2/CA3 use the whole-field ids 382/423/463.
+  Every id listed below was verified to occur in annotation_25.nrrd.
+  v4: DG ladder covers the medial crest with dedicated tip anchors; caudoputamen
+  uses a 2D lattice plus silhouette stations instead of four ML medians.
+
+regions:
+  DG_granule:
+    description: Dentate gyrus granule cell layer
+    role: hard
+    landmark: ladder
+    cell_classes: ["037 DG Glut"]
+    allen_ids: [632]
+    min_cells: 80
+    min_atlas_pixels: 100
+    max_points: 15
+    holdout_priority: 0
+    gate: true
+
+  CA1:
+    description: Field CA1 (not layer-resolved in this annotation volume)
+    role: hard
+    landmark: ribbon
+    cell_classes: ["016 CA1-ProS Glut"]
+    allen_ids: [382]
+    min_cells: 60
+    min_atlas_pixels: 120
+    holdout_priority: 2
+    gate: true
+
+  CA3:
+    description: Field CA3 (not layer-resolved in this annotation volume)
+    role: hard
+    landmark: ribbon
+    cell_classes: ["017 CA3 Glut"]
+    allen_ids: [463]
+    min_cells: 60
+    min_atlas_pixels: 120
+    holdout_priority: 1
+    gate: true
+
+  CA2:
+    description: Field CA2 (not layer-resolved in this annotation volume)
+    role: soft
+    landmark: centroid
+    cell_classes: ["025 CA2-FC-IG Glut"]
+    allen_ids: [423]
+    min_cells: 40
+    min_atlas_pixels: 15
+    holdout_priority: 3
+
+  subiculum:
+    description: Subiculum and prosubiculum
+    role: soft
+    landmark: centroid
+    cell_classes: ["023 SUB-ProS Glut", "033 NP SUB Glut", "031 CT SUB Glut"]
+    allen_ids: [502, 484682470]
+    min_cells: 40
+    min_atlas_pixels: 60
+
+  MH:
+    description: Medial habenula
+    role: hard
+    landmark: centroid
+    cell_classes: ["145 MH Tac2 Glut"]
+    allen_ids: [483]
+    min_cells: 20
+    min_atlas_pixels: 20
+    protected: true
+    gate: true
+
+  LH:
+    description: Lateral habenula
+    role: hard
+    landmark: centroid
+    cell_classes: ["146 LH Pou4f1 Sox1 Glut"]
+    allen_ids: [186]
+    min_cells: 20
+    min_atlas_pixels: 20
+    protected: true
+    gate: true
+
+  choroid_plexus:
+    description: Choroid plexus
+    role: soft
+    landmark: components
+    cell_classes: ["325 CHOR NN"]
+    allen_ids: [108]
+    min_cells: 40
+    min_atlas_pixels: 30
+
+  ventricle_walls:
+    description: Lateral and third ventricle walls, partitioned per component
+    role: soft
+    landmark: components
+    cell_classes: ["323 Ependymal NN"]
+    allen_ids: [81, 98, 129]
+    min_cells: 60
+    min_atlas_pixels: 40
+    component_min_pixels: 25
+    component_max_pair_distance_25um: 18
+
+  caudoputamen:
+    description: Caudoputamen
+    role: hard
+    landmark: lattice
+    cell_classes: ["061 STR D1 Gaba", "062 STR D2 Gaba", "063 STR D1 Sema5a Gaba"]
+    allen_ids: [672]
+    min_cells: 200
+    min_atlas_pixels: 400
+    max_allen_slice: 300
+    lattice_nx: 3
+    lattice_ny: 2
+    max_points: 8
+    holdout_priority: 4
+    gate: true
+
+  accumbens:
+    description: Nucleus accumbens
+    role: soft
+    landmark: centroid
+    cell_classes: ["081 ACB-BST-FS D1 Gaba"]
+    allen_ids: [56]
+    min_cells: 40
+    min_atlas_pixels: 80
+
+  olfactory_tubercle:
+    description: Olfactory tubercle
+    role: soft
+    landmark: centroid
+    cell_classes: ["060 OT D3 Folh1 Gaba"]
+    allen_ids: [754]
+    min_cells: 40
+    min_atlas_pixels: 80
+
+  GPe:
+    description: Globus pallidus, external segment
+    role: soft
+    landmark: centroid
+    cell_classes: ["059 GPe-SI Sox6 Cyp26b1 Gaba"]
+    allen_ids: [1022]
+    min_cells: 25
+    min_atlas_pixels: 60
+
+  LSX:
+    description: Lateral septal complex
+    role: soft
+    landmark: centroid
+    cell_classes:
+      - "067 LSX Sall3 Pax6 Gaba"
+      - "068 LSX Otx2 Gaba"
+      - "069 LSX Nkx2-1 Gaba"
+      - "070 LSX Prdm12 Slit2 Gaba"
+      - "071 LSX Prdm12 Zeb2 Gaba"
+      - "072 LSX Sall3 Lmo1 Gaba"
+    allen_names: ["Lateral septal complex"]
+    min_cells: 30
+    min_atlas_pixels: 80
+
+  VMH:
+    description: Ventromedial hypothalamic nucleus
+    role: hard
+    landmark: centroid
+    cell_classes: ["128 VMH Fezf1 Glut", "129 VMH Nr5a1 Glut"]
+    allen_ids: [693]
+    min_cells: 60
+    min_atlas_pixels: 60
+    holdout_priority: 5
+    gate: true
+
+  RT:
+    description: Reticular nucleus of the thalamus
+    role: soft
+    landmark: centroid
+    cell_classes: ["093 RT-ZI Gnb3 Gaba"]
+    allen_ids: [262]
+    min_cells: 60
+    min_atlas_pixels: 60
+    note: >-
+      The cell class also covers zona incerta, so points are only built from the
+      density-filtered dorsal component and the region never gates acceptance.
+
+  amygdala_deep:
+    description: Lateral, basolateral, basomedial, and posterior amygdalar nuclei
+    role: soft
+    landmark: centroid
+    cell_classes: ["014 LA-BLA-BMA-PA Glut"]
+    allen_names:
+      - "Lateral amygdalar nucleus"
+      - "Basolateral amygdalar nucleus"
+      - "Basomedial amygdalar nucleus"
+      - "Posterior amygdalar nucleus"
+    min_cells: 80
+    min_atlas_pixels: 120
+
+  cortex_L23:
+    description: Isocortex layer 2/3
+    role: soft
+    landmark: ribbon
+    cell_classes: ["007 L2/3 IT CTX Glut"]
+    allen_name_regex: "[Ll]ayer 2/3$"
+    allen_name_scope: "Isocortex"
+    min_cells: 150
+    min_atlas_pixels: 300
+    holdout_priority: 6
+
+  cortex_L45:
+    description: Isocortex layer 4 and layer 5 intratelencephalic band
+    role: soft
+    landmark: ribbon
+    cell_classes: ["006 L4/5 IT CTX Glut"]
+    allen_name_regex: "[Ll]ayer (4|5)$"
+    allen_name_scope: "Isocortex"
+    min_cells: 150
+    min_atlas_pixels: 300
+
+  cortex_L6:
+    description: Isocortex layer 6a
+    role: soft
+    landmark: ribbon
+    cell_classes: ["030 L6 CT CTX Glut"]
+    allen_name_regex: "[Ll]ayer 6a$"
+    allen_name_scope: "Isocortex"
+    min_cells: 150
+    min_atlas_pixels: 300
+
+  isocortex:
+    description: Isocortex used for thickness diagnostics only
+    role: mask_only
+    landmark: none
+    cell_classes: []
+    allen_names: ["Isocortex"]
+
+  corpus_callosum:
+    description: Corpus callosum used for flattening diagnostics only
+    role: mask_only
+    landmark: none
+    cell_classes: []
+    allen_names: ["corpus callosum"]
+
+  ventricle_system_all:
+    description: Full ventricular system used for AP scoring only
+    role: mask_only
+    landmark: none
+    cell_classes: []
+    allen_ids: [81, 98, 108, 129, 140, 145, 153, 164]
+
+unsafe_cell_classes:
+  - class: "318 Astro-NT NN"
+    reason: astrocytes are ubiquitous and carry no regional boundary information
+  - class: "319 Astro-TE NN"
+    reason: astrocytes are ubiquitous and carry no regional boundary information
+  - class: "317 Astro-CB NN"
+    reason: astrocytes are ubiquitous and carry no regional boundary information
+  - class: "320 Astro-OLF NN"
+    reason: astrocytes are ubiquitous and carry no regional boundary information
+  - class: "327 Oligo NN"
+    reason: white-matter tracts are continuous across structure boundaries
+  - class: "326 OPC NN"
+    reason: distributed glial population without a structure boundary
+  - class: "334 Microglia NN"
+    reason: distributed immune population without a structure boundary
+  - class: "333 Endo NN"
+    reason: vasculature follows no atlas structure boundary
+  - class: "331 Peri NN"
+    reason: vasculature follows no atlas structure boundary
+  - class: "332 SMC NN"
+    reason: vasculature follows no atlas structure boundary
+  - class: "330 VLMC NN"
+    reason: surface-associated, already handled by the outline term
+  - class: "335 BAM NN"
+    reason: perivascular population without a structure boundary
+  - class: "045 OB-STR-CTX Inh IMN"
+    reason: migratory immature neurons stream across structure boundaries
+  - class: "038 DG-PIR Ex IMN"
+    reason: migratory immature neurons stream across structure boundaries
+  - class: "064 STR-PAL Chst9 Gaba"
+    reason: spans striatum and pallidum, so it cannot anchor either boundary
+  - class: "058 PAL-STR Gaba-Chol"
+    reason: spans pallidum and striatum, so it cannot anchor either boundary
+  - class: "151 TH Prkcd Grin2c Glut"
+    reason: covers most of dorsal thalamus, far too broad to localise
+  - class: "323 Ependymal NN"
+    reason: >-
+      aggregate ventricular label with transfer noise scattered through cortex;
+      only usable after per-component density filtering, never as a single
+      centroid
+
+holdout:
+  # Regions rotated out of the fitting set to validate the deformation.
+  # The first eligible entry that is not required for the medial fix is used.
+  candidates: [CA3, CA1, CA2, caudoputamen, VMH, cortex_L23]
+  min_fitting_regions: 3

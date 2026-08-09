@@ -1,0 +1,317 @@
+---
+title: "Differential Expression Analysis Visualization and Interpretation (Cmss1-Lars)"
+editor: source
+author: "Joe Boktor"
+date: '2026-08-09'
+format: 
+  html:
+    self-contained: true
+    code-fold: true
+    code-tools: true
+    fig-align: right
+    fig-height: 8
+    fig-width: 14 
+---
+
+```{r}
+library(Seurat)
+library(Matrix)
+library(irlba)
+library(scico)
+library(tidyverse)
+library(patchwork)
+library(glue)
+library(presto)
+library(hdf5r)
+library(tidyseurat)
+library(Augur)
+library(batchtools)
+library(ggpubr)
+
+library(tictoc)
+library(future)
+library(strex)
+library(cowplot)
+library(aplot)
+library(SingleCellExperiment)
+library(BiocParallel)
+library(ggside)
+library(rstatix)
+library(ggrepel)
+library(ggpackets)
+
+theme_set(theme_bw())
+
+home_dir <- "/resnick/groups/mthomson/jboktor"
+rnk_dir <- "/resnick/groups/mthomson/jboktor"
+split_pipe_dir <- glue("{rnk_dir}/split-pipe_workflow")
+wkdir <- glue("{home_dir}/WILDRxSPF_brains")
+anndata_path <- glue("{wkdir}/data/input/parse_bio_anndata")
+data_path <- glue("{wkdir}/data/interim")
+fig_path <- glue("{wkdir}/figures")
+abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
+
+source(glue("{wkdir}/notebooks/R_scripts/_misc_functions.R"))
+
+# Set memory limit for future
+options(future.globals.maxSize = 200000 * 1024^2)  # Set to ~200GB
+# Use more memory-efficient serialization
+options(future.serialization.progressr = FALSE)
+options(future.serialization.progressr.enable = FALSE)
+
+# future::plan(multisession, workers = 3)
+# future::plan(sequential)
+
+```
+
+
+Loading Seurat object
+
+
+```{r}
+seurat_obj <- readRDS( 
+    glue("{data_path}/seurat/snRNASeq/",
+    "seurat_obj_onlyparsefilters_celltyped_2025-12-27.rds")
+    )
+seurat_obj
+# Subset the seurat object to only keep cells that pass the QC filters
+seurat_obj <- seurat_obj %>% subset(subset = keep_cell)
+seurat_obj@meta.data %>% glimpse()
+seurat_obj@meta.data$supertype_name %>% unique()
+
+allen_annot_df <- seurat_obj@meta.data %>% 
+  select(class_name, class_label, subclass_name, 
+    subclass_label, supertype_name, supertype_label) %>% 
+  distinct() %>% 
+  glimpse()
+
+allen_annot_long <- allen_annot_df %>% 
+  pivot_longer(
+    cols = everything(),
+    names_to = c("cell_type_level", ".value"),
+    names_pattern = "(class|subclass|supertype)_(name|label)"
+  ) %>% 
+  dplyr::rename(cell_type_name = name, cell_type_label = label) %>% 
+  distinct() %>%
+  glimpse()
+
+```
+
+
+## Does Cmss1/Lars2 expression correlate with unique UMIs per cell?
+
+Look at a handful of cell types in amygdala (AMY) and hypothalamus (HYP). One plot per
+supertype; AMY and HYP share the same plot as tissue facets, with Pearson correlation
+computed within each tissue split.
+
+
+```{r}
+#| label: cmss1-lars2-umi-cor-by-supertype
+
+supertypes_of_interest <- c(
+  "1160 Astro-NT NN_2",
+  "1179 OPC NN_1",
+  "0631 MM Foxb1 Glut_2"
+)
+genes_of_interest <- c("Cmss1", "Lars2")
+tissues_of_interest <- c("AMY", "HYP")
+
+# Confirm exact supertype strings in the object
+supt <- unique(seurat_obj@meta.data$supertype_name)
+walk(c("1160", "1179", "0631"), \(id) print(supt[grep(id, supt)]))
+
+cmss1_lars_umi_df <- map_dfr(
+  supertypes_of_interest,
+  \(stype) {
+    get_gene_expression_df_multi(
+      seurat_obj,
+      celltype_column = "supertype_name",
+      celltype_value = stype,
+      genes = genes_of_interest,
+      tissue = NULL,
+      return_format = "log2cpm"
+    ) %>%
+      as_tibble(rownames = "cell_id") %>%
+      filter(tissue %in% tissues_of_interest) %>%
+      mutate(
+        tissue = factor(tissue, levels = tissues_of_interest),
+        supertype_name = stype
+      )
+  }
+) %>% 
+  glimpse()
+
+cmss1_lars_umi_long <- cmss1_lars_umi_df %>%
+  pivot_longer(
+    cols = all_of(paste0(genes_of_interest, "_log2cpm")),
+    names_to = "gene",
+    values_to = "gene_log2cpm",
+    names_transform = list(gene = \(x) str_remove(x, "_log2cpm$"))
+  ) %>%
+  mutate(gene = factor(gene, levels = genes_of_interest)) %>% 
+  glimpse()
+
+# Stratified Pearson correlations: gene × tissue × supertype
+cmss1_lars_umi_cors <- cmss1_lars_umi_long %>%
+  group_by(supertype_name, tissue, gene) %>%
+  summarise(
+    n_cells = n(),
+    pearson_r = cor(nCount_RNA, gene_log2cpm, use = "complete.obs", method = "pearson"),
+    spearman_rho = cor(nCount_RNA, gene_log2cpm, use = "complete.obs", method = "spearman"),
+    p_pearson = tryCatch(
+      cor.test(nCount_RNA, gene_log2cpm, method = "pearson")$p.value,
+      error = \(e) NA_real_
+    ),
+    .groups = "drop"
+  ) %>%
+  arrange(supertype_name, gene, tissue) %>% 
+  glimpse()
+
+readr::write_csv(cmss1_lars_umi_long,
+  glue("{data_path}/misc/cmss1_lars2_umi_long_{Sys.Date()}.csv")
+  )
+
+print(cmss1_lars_umi_cors)
+
+# One plot per supertype; AMY / HYP as columns, Cmss1 / Lars2 as rows
+p_cmss1_lars_umi_list <- map(
+  supertypes_of_interest,
+  \(stype) {
+    df_i <- filter(cmss1_lars_umi_long, supertype_name == stype)
+    ggplot(df_i, aes(x = nCount_RNA, y = gene_log2cpm)) +
+      geom_point(aes(color = tissue), alpha = 0.25, size = 0.6) +
+      geom_smooth(method = "lm", se = TRUE, linewidth = 0.7, color = "grey20") +
+      ggpubr::stat_cor(
+        method = "pearson",
+        label.x.npc = 0.05,
+        label.y.npc = 0.97,
+        size = 3
+      ) +
+      facet_grid(gene ~ tissue, scales = "free") +
+      scale_x_log10() +
+      scale_color_manual(values = c(AMY = "#54A24B", HYP = "#B279A2")) +
+      theme_bw() +
+      theme(legend.position = "none") +
+      labs(
+        title = stype,
+        subtitle = "Cmss1 / Lars2 log2CPM vs unique UMIs (nCount_RNA), stratified by tissue",
+        x = "Unique UMIs per cell (nCount_RNA)",
+        y = "Gene expression (log2CPM)"
+      )
+  }
+)
+names(p_cmss1_lars_umi_list) <- supertypes_of_interest
+
+walk(p_cmss1_lars_umi_list, print)
+
+p_cmss1_lars_umi_all <- wrap_plots(p_cmss1_lars_umi_list, ncol = 1)
+p_cmss1_lars_umi_all
+
+dir.create(glue("{fig_path}/DEG/snRNASeq/misc"), recursive = TRUE, showWarnings = FALSE)
+ggsave(
+  glue("{fig_path}/DEG/snRNASeq/misc/cmss1_lars2_umi_cor_by_supertype_{Sys.Date()}.png"),
+  p_cmss1_lars_umi_all,
+  width = 10,
+  height = 14,
+  dpi = 300
+)
+
+```
+
+
+## Ambient / contamination gene raw counts
+
+Export raw UMI counts (not log2CPM) for classic ambient genes in the same
+supertypes × AMY/HYP cells as above. Gene inventory:
+
+- Present: `Rn18s-rs5`, `Malat1`, `Erh`, all `mt-*`, `Rpl*` / `Rps*` (excl. `Rps6k*` kinases)
+- Absent from this GRCm39 object (and source `wildrxspf_data.h5ad`): `Gm42418`, `AY036118`
+  (`Gm42418` is the mm10 alias of `Rn18s-rs5`)
+
+
+```{r}
+#| label: ambient-contam-genes-raw-counts-export
+
+feats <- rownames(seurat_obj)
+feats_clean <- strex::str_before_first(feats, "-GRCm39")
+feats_clean[is.na(feats_clean)] <- feats[is.na(feats_clean)]
+
+exact_genes <- c("Rn18s-rs5", "Gm42418", "AY036118", "Malat1", "Erh")
+exact_present <- exact_genes[exact_genes %in% feats_clean]
+exact_missing <- setdiff(exact_genes, exact_present)
+mt_genes <- sort(unique(feats_clean[startsWith(feats_clean, "mt-")]))
+rpl_rps_genes <- sort(unique(feats_clean[
+  (startsWith(feats_clean, "Rpl") | startsWith(feats_clean, "Rps")) &
+    !startsWith(feats_clean, "Rps6k")
+]))
+ambient_genes <- unique(c(exact_present, mt_genes, rpl_rps_genes))
+
+message("Ambient genes present: ", length(ambient_genes))
+message("Exact missing: ", paste(exact_missing, collapse = ", "))
+
+ambient_raw_df <- map_dfr(
+  supertypes_of_interest,
+  \(stype) {
+    get_gene_expression_df_multi(
+      seurat_obj,
+      celltype_column = "supertype_name",
+      celltype_value = stype,
+      genes = ambient_genes,
+      tissue = NULL,
+      return_format = "raw"
+    ) %>%
+      as_tibble(rownames = "cell_id") %>%
+      filter(tissue %in% tissues_of_interest) %>%
+      mutate(
+        tissue = factor(tissue, levels = tissues_of_interest),
+        supertype_name = stype
+      )
+  }
+)
+
+ambient_raw_long <- ambient_raw_df %>%
+  pivot_longer(
+    cols = all_of(paste0(ambient_genes, "_raw")),
+    names_to = "gene",
+    values_to = "gene_raw",
+    names_transform = list(gene = \(x) str_remove(x, "_raw$"))
+  ) %>%
+  mutate(gene = factor(gene, levels = ambient_genes)) %>%
+  glimpse()
+
+dir.create(glue("{data_path}/misc"), recursive = TRUE, showWarnings = FALSE)
+readr::write_csv(
+  ambient_raw_long,
+  glue("{data_path}/misc/ambient_contam_genes_raw_counts_long_{Sys.Date()}.csv")
+)
+message(
+  "Wrote ",
+  glue("{data_path}/misc/ambient_contam_genes_raw_counts_long_{Sys.Date()}.csv")
+)
+
+```
+
+
+Using s
+
+```{r}
+library(scCDC)
+
+seur_hyp <- subset(seurat_obj, subset = tissue == "HYP")
+gcgs <- ContaminationDetection(seur_hyp)
+# > gcgs <- ContaminationDetection(seur_hyp)
+# Caculating entropy...
+#   |++++++++++++++++++++++++++++++++++++++++++++++++++| 100% elapsed=12m 54s
+# Caculating expression level...
+#   |++++++++++++++++++++++++++++++++++++++++++++++++++| 100% elapsed=09m 08s
+# Calculating entropy-expression relation...
+#   |++++++++++++++++++++++++++++++++++++++++++++++++++| 100% elapsed=35s  
+# Extracting contamination degree...
+#   |++++++++++++++++++++++++++++++++++++++++++++++++++| 100% elapsed=00s  
+# Complete detection. 340 contaminated genes found
+# There were 50 or more warnings (use warnings() to see the first 50)
+# > 
+rownames(gcgs)
+
+
+```

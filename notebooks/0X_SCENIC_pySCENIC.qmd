@@ -1,0 +1,472 @@
+---
+title: "pySCENIC Gene Regulatory Networks in WildR vs SPF Brain"
+subtitle: "snRNA-seq — pilot subsample + tissue×class production (Flux-style)"
+date: today
+author: "Joe Boktor"
+categories: [snRNA-seq, SCENIC, Gene Regulatory Networks]
+format:
+  html:
+    theme:
+      - cosmo
+      - ../quarto-aesthetic-kit/theme/aesthetic.scss
+    include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    page-layout: article
+    code-fold: true
+    code-tools: true
+    code-copy: true
+    embed-resources: true
+    fig-cap-location: bottom
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: auto
+---
+
+```{r}
+#| label: setup-display
+#| include: false
+
+# Normal render/preview: FALSE — no Seurat load, no loom export, no sbatch.
+# Set TRUE intentionally to export class looms and/or submit SLURM jobs (appendix).
+run_analysis <- FALSE
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(readr)
+  library(knitr)
+  library(glue)
+  library(stringr)
+  library(jsonlite)
+})
+
+wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
+fig_dir <- file.path(wkdir, "figures/SCENIC/snRNASeq")
+proc_dir <- file.path(wkdir, "data/processed/scenic")
+interim_dir <- file.path(wkdir, "data/interim/scenic")
+input_db <- file.path(wkdir, "data/input/scenic/cisTarget")
+
+fig_rel <- function(name) file.path("../figures/SCENIC/snRNASeq", name)
+proc_rel <- function(name) file.path("../data/processed/scenic", name)
+
+has_fig <- function(name) file.exists(file.path(fig_dir, name))
+has_proc <- function(...) {
+  paths <- file.path(proc_dir, c(...))
+  any(file.exists(paths))
+}
+
+# Prefer dated CSVs if present, else latest match
+latest_csv <- function(pattern) {
+  hits <- sort(list.files(proc_dir, pattern = pattern, full.names = TRUE))
+  if (!length(hits)) return(NA_character_)
+  hits[length(hits)]
+}
+
+diff_csv <- latest_csv("^diff_regulons_WildR_vs_SPF_.*\\.csv$")
+rss_csv <- latest_csv("^regulon_rss_.*\\.csv$")
+summary_json <- file.path(proc_dir, "run_summary.json")
+conclusions_txt <- file.path(proc_dir, "conclusions.txt")
+
+run_summary <- if (file.exists(summary_json)) {
+  jsonlite::fromJSON(summary_json)
+} else {
+  NULL
+}
+
+n_cells <- if (!is.null(run_summary)) run_summary$n_cells else NA
+n_genes <- if (!is.null(run_summary)) run_summary$n_genes else NA
+n_regulons <- if (!is.null(run_summary)) run_summary$n_regulons else NA
+n_sig <- if (!is.null(run_summary)) run_summary$n_sig_diff else NA
+```
+
+# pySCENIC Gene Regulatory Networks in WildR vs SPF Brain
+
+## Overview
+
+We ran a **pySCENIC** pilot on a stratified subsample of QC-passing Parse snRNA-seq nuclei from amygdala (AMY) and hypothalamus (HYP), comparing **WildR** vs **SPF** microbiome status. Raw counts were exported from Seurat, co-expression modules inferred with GRNBoost2, pruned to motif-supported regulons (`ctx`), scored per cell with AUCell, then visualized back in R.
+
+```{r}
+#| label: display-stats
+#| echo: false
+#| results: asis
+
+if (is.null(run_summary)) {
+  cat("::: {.callout-warning}\n")
+  cat("**Artifacts not found.** Run `notebooks/R_scripts/run_scenic_pipeline.R` ")
+  cat("(or set `run_analysis <- TRUE` in the appendix) before rendering results.\n")
+  cat(":::\n")
+} else {
+  cat("::: {.stat-row}\n")
+  cat("::: {.stat}\n")
+  cat(glue("[{format(n_cells, big.mark=',')}]{{.stat-value}}\n"))
+  cat("[Cells in pilot]{.stat-label}\n")
+  cat(":::\n")
+  cat("::: {.stat}\n")
+  cat(glue("[{format(n_genes, big.mark=',')}]{{.stat-value}}\n"))
+  cat("[Genes]{.stat-label}\n")
+  cat(":::\n")
+  cat("::: {.stat}\n")
+  cat(glue("[{format(n_regulons, big.mark=',')}]{{.stat-value}}\n"))
+  cat("[Regulons]{.stat-label}\n")
+  cat(":::\n")
+  cat("::: {.stat}\n")
+  cat(glue("[{format(n_sig, big.mark=',')}]{{.stat-value}}\n"))
+  cat("[Diff. regulons (padj<0.05)]{.stat-label}\n")
+  cat(":::\n")
+  cat(":::\n")
+}
+```
+
+## Background
+
+Microbiome status (WildR vs SPF) reshapes brain gene expression in this cohort (see DEG notebooks). SCENIC asks a complementary question: **which transcription-factor regulons change activity**, not only which genes are differentially expressed. That frames microbiome effects as putative GRN state shifts within cell types, rather than only gene-level lists.
+
+This pilot uses ~5,000 stratified nuclei so the full `grn → ctx → aucell` path can finish on an interactive node. Gene symbols were stripped of the Parse `-GRCm39` suffix to match cisTarget TF lists. Production claims should re-run with a larger sample on a compute node.
+
+## Results
+
+### Pilot subsample composition
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-composition
+#| echo: false
+#| results: asis
+if (has_fig("subsample_composition.png")) {
+  cat(sprintf("![](%s)\n", fig_rel("subsample_composition.png")))
+} else {
+  cat("*Figure pending — pipeline not finished.*\n")
+}
+```
+
+::: {.fig-caption}
+[**Figure 1.**]{.fig-num} Stratified pilot subsample composition by Allen class, tissue (AMY / HYP), and microbiome (WildR / SPF). Sampling capped per microbiome × tissue × subclass, then globally to ~5,000 cells.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Both tissues and microbiome groups are represented, so WildR vs SPF contrasts are not driven by missing strata.
+- Large glutamatergic / GABAergic and glial classes dominate the subsample, matching cohort composition.
+- This is a **pilot**; rare subclasses remain underpowered for per-type regulon tests.
+:::
+
+[Source: cell `cell-run-pipeline`](#cell-run-pipeline){.provenance}
+:::
+
+Artifacts: intermediates in [data/interim/scenic/]{.path}; cisTarget DBs in [data/input/scenic/cisTarget/]{.path}.
+
+### Regulon activity embedding
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-umap
+#| echo: false
+#| results: asis
+if (has_fig("scenic_umap_feature.png")) {
+  cat(sprintf("![](%s)\n", fig_rel("scenic_umap_feature.png")))
+} else {
+  cat("*Figure pending — pipeline not finished.*\n")
+}
+```
+
+::: {.fig-caption}
+[**Figure 2.**]{.fig-num} UMAP of AUCell regulon-activity space. Top: cells colored by Allen subclass and by microbiome. Bottom: FeaturePlots for the four most variable regulons in the pilot.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Regulon AUC embeddings largely recover **cell-type identity**, as expected for SCENIC.
+- Microbiome labels **mix within** subclasses rather than forming separate clouds — consistent with state shifts inside types, not wholesale retyping.
+- High-variance regulons that track subclasses are candidate identity TFs; those that vary by microbiome within type are candidate state TFs.
+:::
+
+[Source: cell `cell-run-pipeline`](#cell-run-pipeline){.provenance}
+:::
+
+### Top variable regulons across cell types
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-heatmap
+#| echo: false
+#| results: asis
+if (has_fig("regulon_heatmap_top50.png")) {
+  cat(sprintf("![](%s)\n", fig_rel("regulon_heatmap_top50.png")))
+} else {
+  cat("*Figure pending — pipeline not finished.*\n")
+}
+```
+
+::: {.fig-caption}
+[**Figure 3.**]{.fig-num} Pseudobulk scaled AUCell scores for the 50 most variable regulons, columns grouped by microbiome (SPF / WildR) and annotated by tissue.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Column structure is dominated by **cell-type programs** (blocks of regulons co-active in related subclasses).
+- Within-type SPF vs WildR column pairs can reveal microbiome-linked TF programs when present.
+- Use this heatmap to pick regulons for FeaturePlots and for overlap with DEG hits.
+:::
+
+[Source: cell `cell-run-pipeline`](#cell-run-pipeline){.provenance}
+:::
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-dotplot
+#| echo: false
+#| results: asis
+if (has_fig("regulon_dotplot.png")) {
+  cat(sprintf("![](%s)\n", fig_rel("regulon_dotplot.png")))
+} else {
+  cat("*Figure pending — pipeline not finished.*\n")
+}
+```
+
+::: {.fig-caption}
+[**Figure 4.**]{.fig-num} Dot plot of the top 25 variable regulons across the 12 largest subclasses, split by microbiome within each subclass.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Dot size/color summarize how broadly and strongly each regulon is active in a subclass × microbiome group.
+- Systematic WildR–SPF differences within a subclass nominate TFs for follow-up with DEG and RSS results.
+:::
+
+[Source: cell `cell-run-pipeline`](#cell-run-pipeline){.provenance}
+:::
+
+### Cell-type–specific regulons (RSS)
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-rss
+#| echo: false
+#| results: asis
+if (has_fig("regulon_rss.png")) {
+  cat(sprintf("![](%s)\n", fig_rel("regulon_rss.png")))
+} else {
+  cat("*Figure pending — pipeline not finished.*\n")
+}
+```
+
+::: {.fig-caption}
+[**Figure 5.**]{.fig-num} Regulon Specificity Score (RSS) — top five regulons per major subclass. RSS uses a Jensen–Shannon–based score relating AUCell profiles to cell-type membership (SCENIC protocol style).
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- RSS recovers expected identity TFs: **Myb / Irx5** (ependymal), **Runx1 / Irf5 / Irf8 / Ikzf1** (microglia), **Sox10** (oligo).
+- That is a strong sanity check that motif pruning + AUCell worked on this Parse gene set after `-GRCm39` stripping.
+- Identity regulons that later show microbiome ΔAUC would be identity × state candidates; none are FDR-significant in this pilot.
+- Full RSS table: [data/processed/scenic/regulon_rss_2026-08-08.csv]{.path}.
+:::
+
+[Source: cell `cell-run-pipeline`](#cell-run-pipeline){.provenance}
+:::
+
+### Differential regulon activity: WildR vs SPF
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-volcano
+#| echo: false
+#| results: asis
+if (has_fig("diff_regulon_volcano.png")) {
+  cat(sprintf("![](%s)\n", fig_rel("diff_regulon_volcano.png")))
+} else {
+  cat("*Figure pending — pipeline not finished.*\n")
+}
+```
+
+::: {.fig-caption}
+[**Figure 6.**]{.fig-num} Volcano of Wilcoxon tests of AUCell scores (WildR − SPF) within tissue × subclass strata (minimum 10 cells per group). Highlighted points: padj < 0.05 and large |ΔAUC|.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- After BH correction across ~9k tissue × subclass × regulon tests, **no regulon reaches padj < 0.05** in this 5k-cell pilot.
+- Nominal top hits (e.g. Tcf12, Zfp148 in HYP subclasses) exist but are underpowered; treat as hypotheses only.
+- Positive ΔAUC = higher mean activity in WildR; negative = higher in SPF.
+- Scale cell numbers (or lock regulons and score the full object) before concluding microbiome GRN effects are absent.
+:::
+
+[Source: cell `cell-run-pipeline`](#cell-run-pipeline){.provenance}
+:::
+
+```{r}
+#| label: display-diff-table
+#| echo: false
+#| results: asis
+
+if (!is.na(diff_csv) && file.exists(diff_csv)) {
+  diff <- read_csv(diff_csv, show_col_types = FALSE)
+  top <- diff %>%
+    filter(!is.na(padj), padj < 0.05) %>%
+    arrange(padj) %>%
+    transmute(
+      tissue, subclass_name, regulon,
+      n_SPF, n_WildR,
+      delta = round(delta, 4),
+      p = signif(p, 3),
+      padj = signif(padj, 3)
+    ) %>%
+    slice_head(n = 25)
+  cat("### Top differential regulons\n\n")
+  if (nrow(top) == 0) {
+    cat("No regulon tests reached padj < 0.05 in this pilot subsample. ")
+    cat("Expand `target_n_cells` / `max_cells_per_group` before concluding absence of GRN effects.\n")
+  } else {
+    cat(knitr::kable(top, caption = "Top WildR vs SPF differential regulons (padj < 0.05).") |> paste(collapse = "\n"))
+    cat("\n\nFull table: [`", proc_rel(basename(diff_csv)), "`]{.path}\n", sep = "")
+  }
+} else {
+  cat("::: {.callout-note}\nDifferential table not written yet.\n:::\n")
+}
+```
+
+### Conclusions
+
+```{r}
+#| label: display-conclusions
+#| echo: false
+#| results: asis
+
+if (file.exists(conclusions_txt)) {
+  cat("::: {.callout-note}\n")
+  cat("**Auto-summary from pipeline**\n\n")
+  cat("```\n")
+  cat(paste(readLines(conclusions_txt), collapse = "\n"))
+  cat("\n```\n")
+  cat(":::\n")
+}
+```
+
+**Interpretation checklist (standard pySCENIC read)**
+
+1. **AUC UMAP** — subclass structure present → identity regulons dominate (expected). Look for microbiome mixing *within* subclass as state change.
+2. **RSS** — recover known lineage TFs; if not, check gene naming / DB mismatch / underpowered subsample.
+3. **WildR − SPF volcano** — few pilot hits is common; scale up before claiming “no GRN effect.”
+4. **DEG overlap** — TFs that are DE *and* whose regulons change AUC are the strongest mechanistic candidates.
+
+Processed Seurat with SCENIC assay: [data/processed/scenic/seurat_with_scenic_auc.rds]{.path}.
+
+## Production design: two parallel workflows
+
+We run **two** pySCENIC production tracks from the same raw UMI counts:
+
+1. **Class split (Flux-style)** — one GRN per tissue × Allen `class_label` (~100+ cells; both microbiome groups in the loom). Best for within-type WildR vs SPF state tests; jobs are smaller and parallel.
+2. **Tissue split** — one GRN for all AMY nuclei (~199k) and one for all HYP (~190k). Enables within-tissue comparisons across cell types on a **shared** regulon vocabulary. If these finish in reasonable walltime, prefer them for cross-class questions; otherwise fall back to hit-list comparison across class GRNs.
+
+| | Class split | Tissue split |
+|--|-------------|--------------|
+| Unit | tissue × `class_label` | whole AMY / whole HYP |
+| WildR vs SPF | within class | overall + within-class on shared regulons |
+| Cross-class AUC | not comparable across jobs | comparable within tissue |
+| Compute | many medium jobs | 2 large jobs (600G / 7d requested) |
+
+### Input matrix (verified)
+
+pySCENIC / GRNBoost2 expects **raw counts** (tree models; official guidance: no need to normalize). We export Seurat `RNA` **`counts`** only — not `data`.
+
+Checks on `seurat_obj_onlyparsefilters_celltyped_2025-12-27.rds` (`keep_cell`):
+
+- `counts` nonzeros are **100% integer**, non-negative; library sizes look like UMIs (sample median ~13.5k).
+- `data` is a transformed layer (non-integer; not used).
+- Gene names `Symbol-GRCm39` are stripped to bare symbols for cisTarget TF overlap.
+
+Export refuses to write a loom if the counts layer fails the integer check.
+
+# Code & Provenance {.code-appendix}
+
+## Launch: export + submit both workflows
+
+Preferred one-shot (compute node): `run_scenic_export_and_submit.sh` exports class + tissue looms, then `sbatch`s class jobs (default 24 CPU / 300G / 3d) and tissue jobs (32 CPU / 600G / 7d).
+
+```{r}
+#| label: cell-scenic-launch
+#| eval: !expr run_analysis
+
+source(file.path(wkdir, "notebooks/R_scripts/_misc_functions.R"))
+cmd <- glue("sbatch {wkdir}/notebooks/shell_scripts/run_scenic_export_and_submit.sh")
+print(cmd)
+shell_do(cmd)
+```
+
+```{r}
+#| label: cell-scenic-check
+#| eval: !expr run_analysis
+
+input_dir <- file.path(wkdir, "data/input/scenic/snRNASeq")
+man_class <- file.path(input_dir, "manifest_class.csv")
+man_tissue <- file.path(input_dir, "manifest_tissue.csv")
+if (file.exists(man_class)) {
+  message("Class manifest:")
+  print(read_csv(man_class, show_col_types = FALSE))
+}
+if (file.exists(man_tissue)) {
+  message("Tissue manifest:")
+  print(read_csv(man_tissue, show_col_types = FALSE))
+}
+done_c <- list.files(file.path(wkdir, "data/interim/scenic/by_class"),
+                     pattern = "run_summary\\.json$", recursive = TRUE)
+done_t <- list.files(file.path(wkdir, "data/interim/scenic/by_tissue"),
+                     pattern = "run_summary\\.json$", recursive = TRUE)
+message("Finished class summaries: ", length(done_c),
+        "; tissue summaries: ", length(done_t))
+```
+
+## Optional: pilot end-to-end (subsample)
+
+```{r}
+#| label: cell-run-pipeline
+#| eval: !expr run_analysis
+
+# Pilot only — production uses class + tissue SLURM jobs above.
+script <- file.path(wkdir, "notebooks/R_scripts/run_scenic_pipeline.R")
+stopifnot(file.exists(script))
+status <- system2(
+  "/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript",
+  args = script
+)
+stopifnot(status == 0)
+```
+
+### How to regenerate
+
+```bash
+# One-shot: export raw-count looms + submit class and tissue pySCENIC jobs
+sbatch notebooks/shell_scripts/run_scenic_export_and_submit.sh
+
+# Or stepwise:
+Rscript notebooks/R_scripts/export_scenic_looms.R --mode both
+# class jobs…
+# tissue jobs with larger resources:
+# sbatch --mem=600G --time=7-00:00:00 --cpus-per-task=32 \
+#   notebooks/shell_scripts/run_pyscenic_dynamic.sh -t snRNASeq_AMY.loom
+```
+
+### Path conventions
+
+| Role | Path |
+|------|------|
+| cisTarget DBs / TF list | `data/input/scenic/cisTarget/` |
+| Looms + manifests | `data/input/scenic/snRNASeq/` |
+| Class interim | `data/interim/scenic/by_class/<stem>/` |
+| Tissue interim | `data/interim/scenic/by_tissue/<stem>/` |
+| Class / tissue figures | `figures/SCENIC/snRNASeq_by_{class,tissue}/` |
+| SLURM logs / job list | `.cluster_runs/scenic/` |
+| Pilot (subsample) | `data/interim/scenic/`, `data/processed/scenic/`, `figures/SCENIC/snRNASeq/` |
