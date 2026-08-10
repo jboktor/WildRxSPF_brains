@@ -292,11 +292,10 @@ message(
 ```
 
 
-Using s
+Running scCDC contamination detection on HYP cells
 
-```{r}
+```{r, eval = FALSE}
 library(scCDC)
-
 seur_hyp <- subset(seurat_obj, subset = tissue == "HYP")
 gcgs <- ContaminationDetection(seur_hyp)
 # > gcgs <- ContaminationDetection(seur_hyp)
@@ -311,7 +310,47 @@ gcgs <- ContaminationDetection(seur_hyp)
 # Complete detection. 340 contaminated genes found
 # There were 50 or more warnings (use warnings() to see the first 50)
 # > 
-rownames(gcgs)
+saveRDS(gcgs, glue("{data_path}/misc/hyp_gcgs_{Sys.Date()}.rds"))
 
+seurat_obj@meta.data %>% glimpse()
 
 ```
+
+
+Searching for Cmss1 / Lars2 in the scCDC contamination detection results. 
+
+```{r}
+#| label: searching-for-cmss1-lars2-in-gcgs
+
+gcgs <- readRDS(glue("{data_path}/misc/hyp_gcgs_2026-08-09.rds"))
+gcgs %>% glimpse()
+gcgs %>% str()
+gcgs %>% View()
+
+gcgs[grepl("Cmss1", rownames(gcgs))]
+gcgs[grepl("Lars2", rownames(gcgs))]
+gcgs[grepl("95041", rownames(gcgs))]
+
+```
+
+
+Cmss1 and Lars2 are not present in the scCDC contamination detection results. 
+
+
+** Data to be convinced this is not a contaminant/artifact ** 
+
+- Does this finding hold with sample labels shuffled MannWhitney U tests? (permutation test) - Nominally
+- Is there a correlation with known ambient / contamination genes? - None
+- Look for detection of Cmss1 or Lars2 in scCDC contamination detection results. - Not present
+- Correlation between UMI counts and gene expression - None found
+
+
+Okay moving on, assuming this is a soft but possibly interesting signal - what could be driving this signature and what additional test would enlighten its role?
+
+
+Looking at correlations of Cmss1 / Lars2 expression with scFEA single cell flux modules for 
+
+```{r}
+
+```
+

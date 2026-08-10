@@ -50,21 +50,26 @@ suppressPackageStartupMessages({
 wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
 fig_dir <- file.path(wkdir, "figures/SCENIC/snRNASeq")
 proc_dir <- file.path(wkdir, "data/processed/scenic")
+agg_fig_dir <- file.path(wkdir, "figures/SCENIC/snRNASeq_by_class/_aggregate")
+agg_proc_dir <- file.path(wkdir, "data/processed/scenic_by_class")
 interim_dir <- file.path(wkdir, "data/interim/scenic")
 input_db <- file.path(wkdir, "data/input/scenic/cisTarget")
 
 fig_rel <- function(name) file.path("../figures/SCENIC/snRNASeq", name)
+agg_fig_rel <- function(name) file.path("../figures/SCENIC/snRNASeq_by_class/_aggregate", name)
 proc_rel <- function(name) file.path("../data/processed/scenic", name)
+agg_proc_rel <- function(name) file.path("../data/processed/scenic_by_class", name)
 
 has_fig <- function(name) file.exists(file.path(fig_dir, name))
+has_agg_fig <- function(name) file.exists(file.path(agg_fig_dir, name))
 has_proc <- function(...) {
   paths <- file.path(proc_dir, c(...))
   any(file.exists(paths))
 }
 
 # Prefer dated CSVs if present, else latest match
-latest_csv <- function(pattern) {
-  hits <- sort(list.files(proc_dir, pattern = pattern, full.names = TRUE))
+latest_csv <- function(pattern, dir = proc_dir) {
+  hits <- sort(list.files(dir, pattern = pattern, full.names = TRUE))
   if (!length(hits)) return(NA_character_)
   hits[length(hits)]
 }
@@ -84,53 +89,236 @@ n_cells <- if (!is.null(run_summary)) run_summary$n_cells else NA
 n_genes <- if (!is.null(run_summary)) run_summary$n_genes else NA
 n_regulons <- if (!is.null(run_summary)) run_summary$n_regulons else NA
 n_sig <- if (!is.null(run_summary)) run_summary$n_sig_diff else NA
+
+# Class-split aggregation (production)
+agg_summary_json <- file.path(agg_proc_dir, "aggregate_summary.json")
+agg_summary <- if (file.exists(agg_summary_json)) jsonlite::fromJSON(agg_summary_json) else NULL
+hit_counts_csv <- file.path(agg_proc_dir, "hit_counts_by_split.csv")
+tf_recurrence_csv <- file.path(agg_proc_dir, "tf_hit_recurrence.csv")
+top_hits_csv <- file.path(agg_proc_dir, "top_hits_padj05.csv")
+agg_concl_txt <- file.path(agg_proc_dir, "conclusions.txt")
+run_status_csv <- file.path(agg_proc_dir, "run_status.csv")
 ```
 
 # pySCENIC Gene Regulatory Networks in WildR vs SPF Brain
 
 ## Overview
 
-We ran a **pySCENIC** pilot on a stratified subsample of QC-passing Parse snRNA-seq nuclei from amygdala (AMY) and hypothalamus (HYP), comparing **WildR** vs **SPF** microbiome status. Raw counts were exported from Seurat, co-expression modules inferred with GRNBoost2, pruned to motif-supported regulons (`ctx`), scored per cell with AUCell, then visualized back in R.
+Production pySCENIC runs use **raw UMI counts** from Seurat `RNA` `counts`, one GRN per **tissue × Allen class** (Flux-style; both microbiome groups in each loom). WildR vs SPF contrasts are Wilcoxon tests on AUCell within each split. Cross-class comparisons use **TF hit lists**, not raw AUC (regulons are inferred separately per split).
+
+AMY `01 IT-ET Glut` (~87k cells) and the two whole-tissue jobs are still running and are **excluded** from the aggregation below.
 
 ```{r}
 #| label: display-stats
 #| echo: false
 #| results: asis
 
-if (is.null(run_summary)) {
+if (is.null(agg_summary)) {
   cat("::: {.callout-warning}\n")
-  cat("**Artifacts not found.** Run `notebooks/R_scripts/run_scenic_pipeline.R` ")
-  cat("(or set `run_analysis <- TRUE` in the appendix) before rendering results.\n")
+  cat("**Class-split aggregates not found.** Run ")
+  cat("`notebooks/R_scripts/aggregate_scenic_class_results.R`.\n")
   cat(":::\n")
 } else {
+  pending <- paste(agg_summary$pending_stems, collapse = ", ")
   cat("::: {.stat-row}\n")
   cat("::: {.stat}\n")
-  cat(glue("[{format(n_cells, big.mark=',')}]{{.stat-value}}\n"))
-  cat("[Cells in pilot]{.stat-label}\n")
+  cat(glue("[{agg_summary$n_completed}/{agg_summary$n_completed + agg_summary$n_pending}]{{.stat-value}}\n"))
+  cat("[Class splits done]{.stat-label}\n")
   cat(":::\n")
   cat("::: {.stat}\n")
-  cat(glue("[{format(n_genes, big.mark=',')}]{{.stat-value}}\n"))
-  cat("[Genes]{.stat-label}\n")
+  cat(glue("[{format(agg_summary$n_sig_tests, big.mark=',')}]{{.stat-value}}\n"))
+  cat("[Sig. regulon tests]{.stat-label}\n")
   cat(":::\n")
   cat("::: {.stat}\n")
-  cat(glue("[{format(n_regulons, big.mark=',')}]{{.stat-value}}\n"))
-  cat("[Regulons]{.stat-label}\n")
+  cat(glue("[{agg_summary$n_splits_with_hits}]{{.stat-value}}\n"))
+  cat("[Splits with hits]{.stat-label}\n")
   cat(":::\n")
   cat("::: {.stat}\n")
-  cat(glue("[{format(n_sig, big.mark=',')}]{{.stat-value}}\n"))
-  cat("[Diff. regulons (padj<0.05)]{.stat-label}\n")
+  cat(glue("[{agg_summary$n_pending}]{{.stat-value}}\n"))
+  cat("[Pending (excluded)]{.stat-label}\n")
   cat(":::\n")
   cat(":::\n")
+  if (nzchar(pending)) {
+    cat("::: {.callout-note}\n")
+    cat(glue("Pending / excluded from aggregation: `{pending}`.\n"))
+    cat(":::\n")
+  }
 }
 ```
 
 ## Background
 
-Microbiome status (WildR vs SPF) reshapes brain gene expression in this cohort (see DEG notebooks). SCENIC asks a complementary question: **which transcription-factor regulons change activity**, not only which genes are differentially expressed. That frames microbiome effects as putative GRN state shifts within cell types, rather than only gene-level lists.
+Microbiome status (WildR vs SPF) reshapes brain gene expression in this cohort (see DEG notebooks). SCENIC asks which **transcription-factor regulons** change activity. Gene symbols were stripped of the Parse `-GRCm39` suffix to match cisTarget TF lists. Input matrices are **raw UMIs** (not the Seurat `data` layer).
 
-This pilot uses ~5,000 stratified nuclei so the full `grn → ctx → aucell` path can finish on an interactive node. Gene symbols were stripped of the Parse `-GRCm39` suffix to match cisTarget TF lists. Production claims should re-run with a larger sample on a compute node.
+## Results — class-split production
 
-## Results
+### Run completeness
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-agg-status
+#| echo: false
+#| results: asis
+if (has_agg_fig("run_status.png")) {
+  cat(sprintf("![](%s)\n", agg_fig_rel("run_status.png")))
+} else {
+  cat("*Aggregate figure pending.*\n")
+}
+```
+
+::: {.fig-caption}
+[**Figure P1.**]{.fig-num} Class-split run status by cell count. Orange = pending (excluded from aggregation).
+:::
+:::
+
+### Significant regulons per class
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-agg-nsig
+#| echo: false
+#| results: asis
+if (has_agg_fig("n_sig_by_class.png")) {
+  cat(sprintf("![](%s)\n", agg_fig_rel("n_sig_by_class.png")))
+} else {
+  cat("*Aggregate figure pending.*\n")
+}
+```
+
+::: {.fig-caption}
+[**Figure P2.**]{.fig-num} Number of BH-significant (padj < 0.05) WildR vs SPF regulons per completed tissue × class split.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Glial classes dominate hit counts: **Astro-Epen** and **OPC-Oligo** in both tissues; HYP **CNU-LGE GABA** also high.
+- Several neuronal classes show moderate hit sets (e.g. CNU-HYa, CTX-MGE/CGE in AMY; HY GABA/Glut in HYP).
+- Small / rare classes often have **zero** significant regulons — underpowered, not necessarily null biology.
+:::
+:::
+
+```{r}
+#| label: display-hit-counts-table
+#| echo: false
+#| results: asis
+
+if (file.exists(hit_counts_csv)) {
+  hc <- read_csv(hit_counts_csv, show_col_types = FALSE) %>%
+    filter(status == "completed") %>%
+    arrange(desc(n_sig)) %>%
+    transmute(
+      tissue, class = class_name,
+      n_cells = format(n_cells, big.mark = ","),
+      n_regulons = n_regulons_tested,
+      n_sig, WildR_up = n_WildR_up, SPF_up = n_SPF_up
+    )
+  cat(knitr::kable(hc, caption = "Significant regulons per completed class split.") |> paste(collapse = "\n"))
+  cat("\n\n")
+}
+```
+
+### Direction of shifts
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-agg-direction
+#| echo: false
+#| results: asis
+if (has_agg_fig("sig_direction_by_class.png")) {
+  cat(sprintf("![](%s)\n", agg_fig_rel("sig_direction_by_class.png")))
+} else {
+  cat("*Aggregate figure pending.*\n")
+}
+```
+
+::: {.fig-caption}
+[**Figure P3.**]{.fig-num} Among significant regulons, counts higher in WildR vs higher in SPF (mean AUCell).
+:::
+:::
+
+### Combined volcano
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-agg-volcano
+#| echo: false
+#| results: asis
+if (has_agg_fig("volcano_all_splits.png")) {
+  cat(sprintf("![](%s)\n", agg_fig_rel("volcano_all_splits.png")))
+} else {
+  cat("*Aggregate figure pending.*\n")
+}
+```
+
+::: {.fig-caption}
+[**Figure P4.**]{.fig-num} All within-split WildR − SPF regulon tests from completed class GRNs (faceted by tissue).
+:::
+:::
+
+### Recurrent TFs across classes
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-agg-tf-recurrence
+#| echo: false
+#| results: asis
+if (has_agg_fig("tf_recurrence.png")) {
+  cat(sprintf("![](%s)\n", agg_fig_rel("tf_recurrence.png")))
+}
+if (has_agg_fig("tf_hit_heatmap.png")) {
+  cat(sprintf("\n![](%s)\n", agg_fig_rel("tf_hit_heatmap.png")))
+}
+```
+
+::: {.fig-caption}
+[**Figure P5.**]{.fig-num} TFs whose regulons are significant in ≥2 class splits (hit-list recurrence), and presence/direction heatmap across splits.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Most recurrent TFs include **Rfx3**, **Bclaf1**, **Klf12**, **Bptf**, **Mllt10**, **Nfia**, **Pbx1** — candidates for microbiome-linked GRN state across multiple classes.
+- **Mllt10** / **Ube2k** hits skew WildR-up across splits; others are mixed — direction is class-dependent.
+- Treat recurrence as hypothesis generation; confirm against DEG TF lists and (when finished) tissue-wide shared-regulon AUCs.
+:::
+:::
+
+```{r}
+#| label: display-top-hits-table
+#| echo: false
+#| results: asis
+
+if (file.exists(top_hits_csv)) {
+  top <- read_csv(top_hits_csv, show_col_types = FALSE) %>%
+    arrange(padj, desc(abs(delta))) %>%
+    transmute(
+      tissue, class = class_name, tf, regulon,
+      delta, padj, direction
+    ) %>%
+    slice_head(n = 40)
+  cat("### Top differential regulons (padj < 0.05)\n\n")
+  cat(knitr::kable(top, caption = "Top 40 class-split hits by padj.") |> paste(collapse = "\n"))
+  cat("\n\nFull table: [`", agg_proc_rel("top_hits_padj05.csv"), "`]{.path}\n", sep = "")
+}
+```
+
+```{r}
+#| label: display-agg-conclusions
+#| echo: false
+#| results: asis
+
+if (file.exists(agg_concl_txt)) {
+  cat("::: {.callout-note}\n")
+  cat("**Auto-summary (class aggregation)**\n\n```\n")
+  cat(paste(readLines(agg_concl_txt), collapse = "\n"))
+  cat("\n```\n:::\n")
+}
+```
+
+## Results — pilot subsample (reference)
+
+Early ~5k-cell pilot used to validate the pipeline (gene naming, RSS identity TFs). Production claims should use the class-split section above.
 
 ### Pilot subsample composition
 
@@ -451,12 +639,9 @@ stopifnot(status == 0)
 # One-shot: export raw-count looms + submit class and tissue pySCENIC jobs
 sbatch notebooks/shell_scripts/run_scenic_export_and_submit.sh
 
-# Or stepwise:
-Rscript notebooks/R_scripts/export_scenic_looms.R --mode both
-# class jobs…
-# tissue jobs with larger resources:
-# sbatch --mem=600G --time=7-00:00:00 --cpus-per-task=32 \
-#   notebooks/shell_scripts/run_pyscenic_dynamic.sh -t snRNASeq_AMY.loom
+# Aggregate completed class splits (skips pending, e.g. AMY CLAS_01)
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript \
+  notebooks/R_scripts/aggregate_scenic_class_results.R
 ```
 
 ### Path conventions
@@ -467,6 +652,8 @@ Rscript notebooks/R_scripts/export_scenic_looms.R --mode both
 | Looms + manifests | `data/input/scenic/snRNASeq/` |
 | Class interim | `data/interim/scenic/by_class/<stem>/` |
 | Tissue interim | `data/interim/scenic/by_tissue/<stem>/` |
-| Class / tissue figures | `figures/SCENIC/snRNASeq_by_{class,tissue}/` |
+| Class aggregate tables | `data/processed/scenic_by_class/` |
+| Class aggregate figures | `figures/SCENIC/snRNASeq_by_class/_aggregate/` |
+| Class / tissue per-split figures | `figures/SCENIC/snRNASeq_by_{class,tissue}/` |
 | SLURM logs / job list | `.cluster_runs/scenic/` |
 | Pilot (subsample) | `data/interim/scenic/`, `data/processed/scenic/`, `figures/SCENIC/snRNASeq/` |
