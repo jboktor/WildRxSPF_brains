@@ -1,0 +1,634 @@
+map_family,annotation,annotation_name,n_slices,n_template_pixels,n_overlay_pixels,mean_t_value,median_t_value,mean_positive_t,mean_absolute_t
+baseline_wildr_vs_spf,1,"Tuberomammillary nucleus, ventral part",3,524,0,,,,
+baseline_wildr_vs_spf,2,"Primary somatosensory area, mouth, layer 6b",7,300,11,-1.834947410988586,-1.7866618501819755,2.3236465134807256,4.1585939244693115
+baseline_wildr_vs_spf,6,internal capsule,21,10395,583,-1.4412133580416033,-5.290382856211635,5.131173660070316,5.947008678417695
+baseline_wildr_vs_spf,7,Principal sensory nucleus of the trigeminal,4,2619,122,4.574365543802545,4.596085718941823,4.574365543802543,4.574365543802545
+baseline_wildr_vs_spf,9,"Primary somatosensory area, trunk, layer 6a",8,1451,0,,,,
+baseline_wildr_vs_spf,10,"Superior colliculus, motor related, intermediate gray layer",10,7086,5,5.916092237492532,5.92695648867402,5.916092237492532,5.916092237492532
+baseline_wildr_vs_spf,12,Interfascicular nucleus raphe,5,256,3,5.383743929599653,5.492386441414527,5.383743929599653,5.383743929599653
+baseline_wildr_vs_spf,15,Parataenial nucleus,5,866,0,,,,
+baseline_wildr_vs_spf,17,"Superior colliculus, motor related, intermediate white layer",9,7733,1,5.92695648867402,5.92695648867402,5.92695648867402,5.92695648867402
+baseline_wildr_vs_spf,19,Induseum griseum,11,362,0,,,,
+baseline_wildr_vs_spf,20,"Entorhinal area, lateral part, layer 2",18,6643,57,4.012777122956974,3.971391276006302,4.012777122956974,4.012777122956974
+baseline_wildr_vs_spf,23,Anterior amygdalar area,6,1370,1,-7.001502417295887,-7.001502417295887,,7.001502417295887
+baseline_wildr_vs_spf,26,"Superior colliculus, motor related, deep gray layer",9,4854,7,5.701911285628925,5.655350209136837,5.701911285628924,5.701911285628925
+baseline_wildr_vs_spf,27,Intergeniculate leaflet of the lateral geniculate complex,6,330,6,-6.901913448132253,-6.784217393666141,,6.901913448132253
+baseline_wildr_vs_spf,28,"Entorhinal area, lateral part, layer 6a",18,4708,501,3.9824588398707235,4.786210114617851,4.073105150975386,4.018703694177278
+baseline_wildr_vs_spf,30,"Periventricular hypothalamic nucleus, anterior part",2,117,0,,,,
+baseline_wildr_vs_spf,33,"Primary visual area, layer 6a",13,4497,8,5.666214460318323,5.601028953229399,5.666214460318323,5.666214460318323
+baseline_wildr_vs_spf,35,Oculomotor nucleus,5,195,0,,,,
+baseline_wildr_vs_spf,36,"Gustatory areas, layer 1",9,355,0,,,,
+baseline_wildr_vs_spf,38,Paraventricular hypothalamic nucleus,6,755,17,-7.070762018577869,-7.015082731272747,,7.070762018577869
+baseline_wildr_vs_spf,41,"posteromedial visual area, layer 2/3",11,973,0,,,,
+baseline_wildr_vs_spf,42,"Superior colliculus, motor related, deep white layer",9,1108,0,,,,
+baseline_wildr_vs_spf,50,Precommissural nucleus,5,776,45,-6.779286446329305,-7.001502417295887,,6.779286446329305
+baseline_wildr_vs_spf,52,"Entorhinal area, lateral part, layer 3",18,5415,425,3.928209993695591,3.699784996469119,4.1206214397977075,3.9806698445506132
+baseline_wildr_vs_spf,54,medial forebrain bundle,6,231,0,,,,
+baseline_wildr_vs_spf,56,Nucleus accumbens,6,8719,431,-0.9113989765134741,0.9158206312129948,4.684678353260173,5.535331373600008
+baseline_wildr_vs_spf,58,Medial terminal nucleus of the accessory optic tract,1,44,0,,,,
+baseline_wildr_vs_spf,59,Intermediodorsal nucleus of the thalamus,11,966,41,-6.918740234473951,-7.082984301157042,,6.918740234473951
+baseline_wildr_vs_spf,62,medial longitudinal fascicle,16,380,6,4.632299889546781,4.650406974849259,4.632299889546781,4.632299889546781
+baseline_wildr_vs_spf,63,"Paraventricular hypothalamic nucleus, descending division",5,573,115,-6.548363731579147,-6.621253625943831,,6.548363731579147
+baseline_wildr_vs_spf,64,Anterodorsal nucleus,4,575,0,,,,
+baseline_wildr_vs_spf,66,Lateral terminal nucleus of the accessory optic tract,1,59,5,4.894852626432725,5.112137650062471,4.894852626432725,4.894852626432725
+baseline_wildr_vs_spf,67,Interstitial nucleus of Cajal,3,120,2,5.9812777445814564,5.9812777445814564,5.9812777445814564,5.9812777445814564
+baseline_wildr_vs_spf,72,Anterodorsal preoptic nucleus,3,356,22,-7.005336858889354,-7.245948068879352,,7.005336858889353
+baseline_wildr_vs_spf,74,"Lateral visual area, layer 6a",7,889,8,5.879425389755013,5.92695648867402,5.879425389755013,5.879425389755013
+baseline_wildr_vs_spf,75,Dorsal terminal nucleus of the accessory optic tract,1,28,0,,,,
+baseline_wildr_vs_spf,78,middle cerebellar peduncle,11,4725,399,4.197086656891112,4.731888858710415,4.248063609175071,4.2097355264595935
+baseline_wildr_vs_spf,81,lateral ventricle,28,7999,267,-1.879264080067366,-3.2669160736596226,4.170439878009981,4.836781926669313
+baseline_wildr_vs_spf,83,Inferior olivary complex,3,601,0,,,,
+baseline_wildr_vs_spf,84,"Prelimbic area, layer 6a",5,1520,55,-5.954912886812609,-5.9693985550545925,,5.954912886812609
+baseline_wildr_vs_spf,88,Anterior hypothalamic nucleus,9,2707,97,-6.473367915962638,-6.811378021619859,,6.473367915962638
+baseline_wildr_vs_spf,91,Interposed nucleus,3,1888,214,3.2817005190031487,3.5368212287468106,4.2219791349570785,4.4772800308113245
+baseline_wildr_vs_spf,93,motor root of the trigeminal nerve,7,357,61,2.839137987199154,2.613359878320388,3.0322592001290762,2.907026283727681
+baseline_wildr_vs_spf,96,Dorsal cochlear nucleus,5,1098,0,,,,
+baseline_wildr_vs_spf,97,"Temporal association areas, layer 1",17,2037,5,5.6227574555923745,5.709671465044273,5.6227574555923745,5.622757455592375
+baseline_wildr_vs_spf,98,subependymal zone,13,423,0,,,,
+baseline_wildr_vs_spf,100,Interpeduncular nucleus,3,112,22,5.602934962208607,5.6010289532294,5.602934962208608,5.602934962208607
+baseline_wildr_vs_spf,101,Ventral cochlear nucleus,4,3099,19,5.097842582718409,5.166458905969907,5.0978425827184095,5.097842582718408
+baseline_wildr_vs_spf,102,nigrostriatal tract,14,556,0,,,,
+baseline_wildr_vs_spf,105,"Superior olivary complex, medial part",2,281,0,,,,
+baseline_wildr_vs_spf,108,choroid plexus,24,4870,120,-1.6318735329139886,-3.524942039219946,5.317351283490564,5.2800079214377185
+baseline_wildr_vs_spf,113,"Primary somatosensory area, lower limb, layer 2/3",11,2511,0,,,,
+baseline_wildr_vs_spf,114,"Superior olivary complex, lateral part",2,277,0,,,,
+baseline_wildr_vs_spf,115,Trochlear nucleus,1,33,0,,,,
+baseline_wildr_vs_spf,117,optic chiasm,9,1262,0,,,,
+baseline_wildr_vs_spf,118,"Periventricular hypothalamic nucleus, intermediate part",11,1015,62,-6.429344389002273,-6.702735509804986,,6.429344389002273
+baseline_wildr_vs_spf,120,"Agranular insular area, posterior part, layer 1",18,1725,9,-1.0012670251869549,-0.9039414416861313,5.28415496043602,6.285421985622975
+baseline_wildr_vs_spf,121,"Lateral visual area, layer 6b",7,170,0,,,,
+baseline_wildr_vs_spf,122,"Superior olivary complex, periolivary region",3,762,0,,,,
+baseline_wildr_vs_spf,123,Koelliker-Fuse subnucleus,2,500,0,,,,
+baseline_wildr_vs_spf,125,optic tract,21,3302,69,-2.9439205842174143,-3.253335759682763,3.8716406364381823,4.686727937197054
+baseline_wildr_vs_spf,126,"Periventricular hypothalamic nucleus, posterior part",3,540,0,,,,
+baseline_wildr_vs_spf,128,Midbrain reticular nucleus,13,20398,1345,0.3465959915465358,4.080033787821175,4.601964754603018,5.312143710589627
+baseline_wildr_vs_spf,129,third ventricle,24,4023,67,-5.934748276162367,-7.11014492911076,3.971391276006302,6.729026531363627
+baseline_wildr_vs_spf,131,Lateral amygdalar nucleus,14,4017,182,-1.0803214836191541,-1.7866618501819753,4.6878162384442446,5.5474356826177
+baseline_wildr_vs_spf,132,"Prelimbic area, layer 6b",3,58,3,-3.742227062849692,-4.013833342386875,,3.742227062849692
+baseline_wildr_vs_spf,133,"Periventricular hypothalamic nucleus, preoptic part",5,634,20,-7.165975108793404,-7.245948068879352,,7.165975108793404
+baseline_wildr_vs_spf,136,Intermediate reticular nucleus,7,4556,11,4.781271818626266,4.949173882340161,4.781271818626265,4.781271818626266
+baseline_wildr_vs_spf,139,"Entorhinal area, lateral part, layer 5",18,6015,681,4.0357923193162515,4.297318811450921,4.1258841440157825,4.079835793712901
+baseline_wildr_vs_spf,140,cerebral aqueduct,13,536,1,-7.327429952740507,-7.327429952740507,,7.327429952740507
+baseline_wildr_vs_spf,143,"Nucleus ambiguus, ventral division",1,12,0,,,,
+baseline_wildr_vs_spf,145,fourth ventricle,7,710,4,-6.48545048617524,-6.48545048617524,,6.48545048617524
+baseline_wildr_vs_spf,146,Pontine reticular nucleus,8,10621,407,-1.2574479174933715,-5.9693985550545925,5.28800745422924,5.790025735404149
+baseline_wildr_vs_spf,147,Locus ceruleus,2,78,1,-7.43607246455538,-7.43607246455538,,7.43607246455538
+baseline_wildr_vs_spf,148,"Gustatory areas, layer 4",11,369,2,5.573868325275682,5.573868325275682,5.573868325275682,5.573868325275682
+baseline_wildr_vs_spf,149,Paraventricular nucleus of the thalamus,16,1963,105,-6.636601536343075,-6.566932370036395,,6.636601536343076
+baseline_wildr_vs_spf,153,lateral recess,6,948,7,4.99573495883225,4.949173882340161,4.99573495883225,4.99573495883225
+baseline_wildr_vs_spf,155,Lateral dorsal nucleus of thalamus,9,5754,276,-5.885220587734087,-6.295326090499212,,5.885220587734086
+baseline_wildr_vs_spf,156,"Dorsal auditory area, layer 6a",8,820,0,,,,
+baseline_wildr_vs_spf,158,posterior commissure,5,261,10,-5.703224401108153,-5.507667879841382,,5.703224401108153
+baseline_wildr_vs_spf,159,Anterior olfactory nucleus,3,5358,0,,,,
+baseline_wildr_vs_spf,162,Laterodorsal tegmental nucleus,2,339,31,-6.856061635350169,-6.729896137758704,,6.856061635350169
+baseline_wildr_vs_spf,163,"Agranular insular area, posterior part, layer 2/3",19,3486,144,-2.052134746104508,-5.7928544733554235,5.251350565634776,6.288209033996951
+baseline_wildr_vs_spf,169,Nucleus prepositus,3,402,10,5.03608789179206,5.057816394155034,5.036087891792059,5.036087891792059
+baseline_wildr_vs_spf,171,"Prelimbic area, layer 1",3,668,31,-5.867841424445038,-6.01013949698517,,5.867841424445038
+baseline_wildr_vs_spf,173,Retrochiasmatic area,4,503,0,,,,
+baseline_wildr_vs_spf,178,Ventral part of the lateral geniculate complex,10,1806,173,-5.244143509751396,-6.132362322776903,4.94917388234016,5.6307977193092205
+baseline_wildr_vs_spf,180,"Gustatory areas, layer 2/3",11,971,4,5.845474604812864,5.845474604812864,5.845474604812864,5.845474604812864
+baseline_wildr_vs_spf,181,Nucleus of reuniens,12,1855,279,-6.0326390405256225,-6.336067032429789,,6.032639040525623
+baseline_wildr_vs_spf,186,Lateral habenula,11,1792,675,-5.576413981812604,-6.078041066869465,,5.576413981812603
+baseline_wildr_vs_spf,187,"Gustatory areas, layer 5",11,1500,12,5.305657124232713,5.343002987669076,5.305657124232713,5.305657124232713
+baseline_wildr_vs_spf,189,Rhomboid nucleus,9,489,39,-6.388647222442756,-6.458289858221521,,6.388647222442756
+baseline_wildr_vs_spf,190,pyramid,9,496,0,,,,
+baseline_wildr_vs_spf,194,Lateral hypothalamic area,16,9419,568,-5.093782548598456,-6.458289858221521,5.041355407516416,6.228161397873542
+baseline_wildr_vs_spf,197,Rostral linear nucleus raphe,5,151,1,5.981277744581456,5.981277744581456,5.981277744581456,5.981277744581456
+baseline_wildr_vs_spf,201,"Primary somatosensory area, barrel field, layer 2/3",18,7368,6,-3.9764874789505127,-3.592843609104241,,3.9764874789505127
+baseline_wildr_vs_spf,202,Medial vestibular nucleus,6,3840,10,5.414299636047587,5.410904557553372,5.414299636047587,5.414299636047587
+baseline_wildr_vs_spf,203,Linear nucleus of the medulla,1,139,0,,,,
+baseline_wildr_vs_spf,206,Nucleus raphe magnus,5,246,0,,,,
+baseline_wildr_vs_spf,209,Lateral vestibular nucleus,1,227,0,,,,
+baseline_wildr_vs_spf,210,Lateral mammillary nucleus,3,339,0,,,,
+baseline_wildr_vs_spf,211,"Anterior cingulate area, dorsal part, layer 2/3",15,1692,47,-6.616400434372963,-6.621253625943831,,6.616400434372963
+baseline_wildr_vs_spf,214,Red nucleus,6,2198,195,4.935529143953573,4.949173882340161,4.935529143953573,4.935529143953573
+baseline_wildr_vs_spf,215,Anterior pretectal nucleus,6,4684,45,3.085524209393869,4.568925090988105,4.694791415651678,4.985283267463291
+baseline_wildr_vs_spf,217,Superior vestibular nucleus,3,335,0,,,,
+baseline_wildr_vs_spf,218,Lateral posterior nucleus of the thalamus,14,5415,674,-6.2368144337785845,-6.295326090499212,,6.2368144337785845
+baseline_wildr_vs_spf,222,Nucleus raphe obscurus,3,61,0,,,,
+baseline_wildr_vs_spf,223,Arcuate hypothalamic nucleus,10,1591,0,,,,
+baseline_wildr_vs_spf,225,Spinal vestibular nucleus,3,1379,0,,,,
+baseline_wildr_vs_spf,226,Lateral preoptic area,8,2448,54,-4.514814325740612,-6.729896137758704,5.078186865120323,6.538543326688582
+baseline_wildr_vs_spf,229,sensory root of the trigeminal nerve,7,3425,122,3.2978827454872945,3.1022511814873175,3.4853524941402325,3.3879115379961373
+baseline_wildr_vs_spf,230,Nucleus raphe pallidus,7,101,0,,,,
+baseline_wildr_vs_spf,231,Anterior tegmental nucleus,4,210,0,,,,
+baseline_wildr_vs_spf,233,"Anterolateral visual area, layer 5",3,527,0,,,,
+baseline_wildr_vs_spf,234,"Temporal association areas, layer 4",15,1358,93,1.6735966493885812,1.6491575859633887,2.103659031677903,1.927837325300208
+baseline_wildr_vs_spf,238,Nucleus raphe pontis,2,90,0,,,,
+baseline_wildr_vs_spf,243,"Dorsal auditory area, layer 6b",7,141,0,,,,
+baseline_wildr_vs_spf,246,"Midbrain reticular nucleus, retrorubral area",5,838,249,5.168021262502458,5.492386441414527,5.168021262502458,5.168021262502458
+baseline_wildr_vs_spf,249,"Posterior auditory area, layer 6a",3,121,0,,,,
+baseline_wildr_vs_spf,250,"Lateral septal nucleus, caudal (caudodorsal) part",8,2159,0,,,,
+baseline_wildr_vs_spf,251,"Primary auditory area, layer 2/3",8,1815,3,5.782099806254188,5.76399272095171,5.782099806254188,5.782099806254188
+baseline_wildr_vs_spf,252,"Dorsal auditory area, layer 5",8,1570,0,,,,
+baseline_wildr_vs_spf,255,Anteroventral nucleus of thalamus,6,1452,0,,,,
+baseline_wildr_vs_spf,257,"posteromedial visual area, layer 6a",8,478,0,,,,
+baseline_wildr_vs_spf,258,"Lateral septal nucleus, rostral (rostroventral) part",9,4323,85,-6.875735147883204,-6.729896137758704,,6.875735147883204
+baseline_wildr_vs_spf,260,"Nucleus of the lateral olfactory tract, molecular layer",3,54,0,,,,
+baseline_wildr_vs_spf,262,Reticular nucleus of the thalamus,13,6438,279,-3.059411106284205,-6.145942636753761,4.658706055612896,5.96971201048027
+baseline_wildr_vs_spf,263,Anteroventral preoptic nucleus,3,310,5,-5.405815525014937,-5.35828442609593,,5.405815525014938
+baseline_wildr_vs_spf,266,"Lateral septal nucleus, ventral part",6,1388,133,-6.764663286440384,-6.906440219457874,,6.764663286440383
+baseline_wildr_vs_spf,268,"Nucleus of the lateral olfactory tract, pyramidal layer",3,396,3,-7.300269324786789,-7.300269324786789,,7.300269324786789
+baseline_wildr_vs_spf,269,"Posterolateral visual area, layer 2/3",1,26,0,,,,
+baseline_wildr_vs_spf,271,Nucleus sagulum,5,465,4,-6.5940929979901135,-6.458289858221521,,6.5940929979901135
+baseline_wildr_vs_spf,272,Anteroventral periventricular nucleus,3,526,25,-6.981455287139571,-7.110144929110761,,6.981455287139571
+baseline_wildr_vs_spf,274,"Retrosplenial area, dorsal part, layer 6a",26,3370,0,,,,
+baseline_wildr_vs_spf,279,"Retrosplenial area, lateral agranular part, layer 6b",20,168,0,,,,
+baseline_wildr_vs_spf,280,Barrington's nucleus,2,66,0,,,,
+baseline_wildr_vs_spf,281,"Anteromedial visual area, layer 1",8,253,0,,,,
+baseline_wildr_vs_spf,286,Suprachiasmatic nucleus,4,246,0,,,,
+baseline_wildr_vs_spf,287,Bed nucleus of the anterior commissure,1,46,0,,,,
+baseline_wildr_vs_spf,288,"Orbital area, ventrolateral part, layer 2/3",2,78,0,,,,
+baseline_wildr_vs_spf,289,"Temporal association areas, layer 5",14,4114,383,3.0567005828992677,3.1837330653484726,3.2762756766054677,3.2211521894695685
+baseline_wildr_vs_spf,292,Bed nucleus of the accessory olfactory tract,1,36,0,,,,
+baseline_wildr_vs_spf,296,"Anterior cingulate area, ventral part, layer 2/3",14,1567,0,,,,
+baseline_wildr_vs_spf,298,Magnocellular nucleus,7,1406,0,,,,
+baseline_wildr_vs_spf,301,stria terminalis,19,1505,34,-0.582721748420156,4.025712531913739,4.9645649048472675,5.746317352019846
+baseline_wildr_vs_spf,303,"Basolateral amygdalar nucleus, anterior part",15,4398,431,-1.146381865968116,-6.186683578684338,5.023050790374275,5.7127916753992745
+baseline_wildr_vs_spf,304,"Prelimbic area, layer 2/3",3,596,52,-5.519947222563315,-5.290382856211635,,5.5199472225633155
+baseline_wildr_vs_spf,305,"Primary visual area, layer 6b",11,639,3,5.546707697321963,5.492386441414527,5.546707697321963,5.546707697321963
+baseline_wildr_vs_spf,307,Magnocellular reticular nucleus,7,1365,0,,,,
+baseline_wildr_vs_spf,310,Septofimbrial nucleus,7,1911,72,-6.910054028499334,-7.001502417295887,,6.910054028499334
+baseline_wildr_vs_spf,311,"Basolateral amygdalar nucleus, posterior part",10,3058,58,4.18673926260369,3.69978499646912,4.18673926260369,4.18673926260369
+baseline_wildr_vs_spf,313,Midbrain,20,26566,2140,1.4095752366879424,4.433121951219514,4.421118731354859,5.038240728298831
+baseline_wildr_vs_spf,314,"Agranular insular area, posterior part, layer 6a",18,2032,96,-2.3624848498194138,-6.349647346406648,5.632069670890792,6.117197963746609
+baseline_wildr_vs_spf,318,Supragenual nucleus,2,82,0,,,,
+baseline_wildr_vs_spf,320,"Primary motor area, Layer 1",15,2762,0,,,,
+baseline_wildr_vs_spf,321,Subgeniculate nucleus,3,129,11,-4.34315595632571,-4.339760877831495,,4.34315595632571
+baseline_wildr_vs_spf,325,Suprageniculate nucleus,4,456,0,,,,
+baseline_wildr_vs_spf,326,superior cerebelar peduncles,8,1221,42,-6.809869097844653,-6.974341789342169,,6.809869097844653
+baseline_wildr_vs_spf,327,"Basomedial amygdalar nucleus, anterior part",13,4004,12,-4.66930983033661,-7.028663045249606,5.401851014902133,6.830050236297462
+baseline_wildr_vs_spf,328,"Agranular insular area, dorsal part, layer 2/3",6,1578,0,,,,
+baseline_wildr_vs_spf,330,"Retrosplenial area, dorsal part, layer 6b",21,150,0,,,,
+baseline_wildr_vs_spf,332,Accessory supraoptic group,1,17,0,,,,
+baseline_wildr_vs_spf,333,Septohippocampal nucleus,1,59,0,,,,
+baseline_wildr_vs_spf,334,"Basomedial amygdalar nucleus, posterior part",9,3190,3,4.378800695312076,4.378800695312076,4.378800695312076,4.378800695312076
+baseline_wildr_vs_spf,335,"Perirhinal area, layer 6a",9,219,16,3.445682232724333,4.704728230756697,4.509322601867446,3.7692339302635793
+baseline_wildr_vs_spf,338,Subfornical organ,3,89,0,,,,
+baseline_wildr_vs_spf,342,Substantia innominata,21,8742,102,-4.813351284255266,-6.621253625943831,5.347529758994696,6.534283362628303
+baseline_wildr_vs_spf,344,"Agranular insular area, posterior part, layer 5",19,3334,128,-2.040929234877092,-5.575569449725677,5.172494601070733,5.9203001856801425
+baseline_wildr_vs_spf,347,Subparaventricular zone,6,392,0,,,,
+baseline_wildr_vs_spf,349,supraoptic commissures,9,150,0,,,,
+baseline_wildr_vs_spf,350,Subceruleus nucleus,2,117,0,,,,
+baseline_wildr_vs_spf,351,Bed nuclei of the stria terminalis,8,5394,87,-6.276898358894502,-6.906440219457874,,6.276898358894502
+baseline_wildr_vs_spf,354,Medulla,9,6196,11,2.152863777105073,2.0973079471997407,2.573853510387707,2.808822728342692
+baseline_wildr_vs_spf,355,"Agranular insular area, posterior part, layer 6b",12,115,2,-5.480507251887663,-5.480507251887663,,5.480507251887663
+baseline_wildr_vs_spf,356,Preparasubthalamic nucleus,2,78,8,-6.729896137758704,-6.784217393666141,,6.729896137758705
+baseline_wildr_vs_spf,358,Sublaterodorsal nucleus,3,231,0,,,,
+baseline_wildr_vs_spf,362,Mediodorsal nucleus of thalamus,12,7123,615,-6.463053477602967,-6.675574881851268,,6.463053477602969
+baseline_wildr_vs_spf,363,"Prelimbic area, layer 5",4,1723,147,-6.434934881803628,-6.295326090499212,,6.434934881803628
+baseline_wildr_vs_spf,364,Parasubthalamic nucleus,5,725,4,-7.245948068879352,-7.218787440925634,,7.245948068879352
+baseline_wildr_vs_spf,366,Submedial nucleus of the thalamus,7,1926,331,-6.176001951484857,-6.349647346406648,,6.176001951484857
+baseline_wildr_vs_spf,368,"Perirhinal area, layer 6b",6,52,3,5.329422673692217,5.6010289532294,5.329422673692217,5.329422673692217
+baseline_wildr_vs_spf,372,Infracerebellar nucleus,1,102,0,,,,
+baseline_wildr_vs_spf,374,"Substantia nigra, compact part",5,755,79,4.833990294255733,4.79979042859471,4.833990294255732,4.833990294255731
+baseline_wildr_vs_spf,377,"Posterolateral visual area, layer 6a",3,415,2,3.020769297626162,3.020769297626162,3.020769297626162,3.020769297626162
+baseline_wildr_vs_spf,381,"Substantia nigra, reticular part",7,4263,481,5.098007552996602,5.383743929599654,5.098007552996602,5.098007552996602
+baseline_wildr_vs_spf,382,Field CA1,18,35712,1940,-3.6872536659169604,-6.241004834591776,3.6160412527683348,5.313442971174531
+baseline_wildr_vs_spf,390,Supraoptic nucleus,5,175,0,,,,
+baseline_wildr_vs_spf,393,"Posterolateral visual area, layer 6b",2,45,0,,,,
+baseline_wildr_vs_spf,397,ventral tegmental decussation,1,54,2,4.5417644630343865,4.5417644630343865,4.5417644630343865,4.5417644630343865
+baseline_wildr_vs_spf,401,"Anteromedial visual area, layer 4",7,264,0,,,,
+baseline_wildr_vs_spf,403,Medial amygdalar nucleus,14,10203,74,-2.2994369811562794,-6.675574881851268,4.06748228550923,5.785850368735619
+baseline_wildr_vs_spf,412,"Orbital area, lateral part, layer 2/3",3,771,0,,,,
+baseline_wildr_vs_spf,413,vestibular nerve,4,980,9,5.347529758994696,5.275101417784781,5.347529758994696,5.347529758994695
+baseline_wildr_vs_spf,414,"Subparafascicular nucleus, magnocellular part",3,337,0,,,,
+baseline_wildr_vs_spf,421,"Lateral visual area, layer 1",9,713,0,,,,
+baseline_wildr_vs_spf,422,"Subparafascicular nucleus, parvicellular part",5,592,122,4.201803461976014,4.3380597533815,4.201803461976014,4.201803461976014
+baseline_wildr_vs_spf,423,Field CA2,17,2213,172,-2.151714407368815,-4.271859307947199,4.010936430374176,4.79508783826093
+baseline_wildr_vs_spf,427,Ectorhinal area/Layer 2/3,17,1892,151,3.8474909299311784,4.052873159867457,3.8936749010974956,3.8673583766417945
+baseline_wildr_vs_spf,428,medial corticohypothalamic tract,1,54,0,,,,
+baseline_wildr_vs_spf,430,"Retrosplenial area, ventral part, layer 2/3",24,4244,0,,,,
+baseline_wildr_vs_spf,433,"Anteromedial visual area, layer 5",7,1016,0,,,,
+baseline_wildr_vs_spf,434,"Retrosplenial area, dorsal part, layer 2/3",27,3842,0,,,,
+baseline_wildr_vs_spf,436,columns of the fornix,20,1070,37,-6.151917974903579,-5.9693985550545925,,6.151917974903579
+baseline_wildr_vs_spf,437,"Spinal nucleus of the trigeminal, interpolar part",2,1718,4,5.383743929599653,5.410904557553372,5.383743929599654,5.383743929599653
+baseline_wildr_vs_spf,440,"Orbital area, lateral part, layer 6a",3,1182,9,5.872635232766583,5.92695648867402,5.872635232766583,5.872635232766582
+baseline_wildr_vs_spf,441,"Anteromedial visual area, layer 6b",6,109,0,,,,
+baseline_wildr_vs_spf,442,"Retrosplenial area, dorsal part, layer 1",27,1516,0,,,,
+baseline_wildr_vs_spf,443,dorsal hippocampal commissure,24,4116,39,-3.54822257746599,-6.037300124938888,5.275101417784781,6.185773286358381
+baseline_wildr_vs_spf,445,"Spinal nucleus of the trigeminal, oral part",3,1947,0,,,,
+baseline_wildr_vs_spf,449,ventral hippocampal commissure,3,265,0,,,,
+baseline_wildr_vs_spf,450,"Primary somatosensory area, upper limb, layer 1",13,1153,0,,,,
+baseline_wildr_vs_spf,451,"Basolateral amygdalar nucleus, ventral part",9,2025,7,5.23630052070804,5.112137650062471,5.23630052070804,5.23630052070804
+baseline_wildr_vs_spf,452,Median preoptic nucleus,4,139,10,-7.155412642366958,-7.354590580694225,,7.155412642366958
+baseline_wildr_vs_spf,456,"Posterior auditory area, layer 6b",2,24,0,,,,
+baseline_wildr_vs_spf,460,Midbrain trigeminal nucleus,3,55,1,-6.186683578684338,-6.186683578684338,,6.186683578684338
+baseline_wildr_vs_spf,461,"Primary somatosensory area, trunk, layer 6b",7,190,0,,,,
+baseline_wildr_vs_spf,463,Field CA3,19,25229,3018,-1.4961631409946934,-3.5521026671736644,3.8104037710491903,4.407981003164713
+baseline_wildr_vs_spf,466,alveus,25,6159,463,-0.4870908107656194,1.9615048074311483,4.034142574774567,4.574152158233228
+baseline_wildr_vs_spf,469,"posteromedial visual area, layer 6b",5,72,0,,,,
+baseline_wildr_vs_spf,470,Subthalamic nucleus,5,847,3,-6.661994567874409,-6.661994567874409,,6.661994567874409
+baseline_wildr_vs_spf,477,Striatum,28,8515,203,-4.211310348519832,-6.295326090499212,4.883083020986113,6.048632928374741
+baseline_wildr_vs_spf,478,"Primary somatosensory area, lower limb, layer 6a",12,2131,12,-0.6640225614282858,-0.8088792438481165,5.655350209136837,6.319372770565122
+baseline_wildr_vs_spf,482,brachium of the inferior colliculus,10,894,1,5.76399272095171,5.76399272095171,5.76399272095171,5.76399272095171
+baseline_wildr_vs_spf,483,Medial habenula,13,1611,251,-6.577418145186629,-6.566932370036395,,6.577418145186629
+baseline_wildr_vs_spf,484,"Orbital area, medial part, layer 1",1,15,0,,,,
+baseline_wildr_vs_spf,488,"Orbital area, lateral part, layer 6b",3,135,0,,,,
+baseline_wildr_vs_spf,501,"posteromedial visual area, layer 4",10,308,0,,,,
+baseline_wildr_vs_spf,502,Subiculum,13,9471,871,3.769904534345069,3.265214949209628,4.178268506372659,3.921399848679903
+baseline_wildr_vs_spf,510,"Primary somatosensory area, lower limb, layer 6b",11,215,0,,,,
+baseline_wildr_vs_spf,512,Cerebellum,16,1916,163,1.8919074366911917,2.9528677277418662,3.9561558682909155,4.419997639406965
+baseline_wildr_vs_spf,515,Medial preoptic nucleus,6,1654,51,-6.322368794157893,-6.295326090499212,,6.322368794157893
+baseline_wildr_vs_spf,520,"Ventral auditory area, layer 6a",10,995,25,4.817897513897189,4.881272312455865,4.817897513897189,4.817897513897189
+baseline_wildr_vs_spf,523,Medial preoptic area,8,2096,125,-6.3422391827918085,-6.621253625943831,,6.3422391827918085
+baseline_wildr_vs_spf,525,Supramammillary nucleus,5,1118,0,,,,
+baseline_wildr_vs_spf,526,"Entorhinal area, medial part, dorsal zone, layer 1",8,2190,54,4.06205244616663,4.772629800640992,4.285262510487022,4.127638480641179
+baseline_wildr_vs_spf,527,"Dorsal auditory area, layer 1",9,433,0,,,,
+baseline_wildr_vs_spf,530,dorsal fornix,6,146,0,,,,
+baseline_wildr_vs_spf,531,Medial pretectal area,3,199,0,,,,
+baseline_wildr_vs_spf,534,Supratrigeminal nucleus,2,265,1,4.623246346895541,4.623246346895541,4.623246346895541,4.623246346895541
+baseline_wildr_vs_spf,540,"Perirhinal area, layer 1",16,846,9,5.626896217947227,5.76399272095171,5.626896217947227,5.626896217947227
+baseline_wildr_vs_spf,542,"Retrosplenial area, ventral part, layer 1",24,3880,0,,,,
+baseline_wildr_vs_spf,543,"Entorhinal area, medial part, dorsal zone, layer 2",8,2330,107,3.753099101997069,3.5639818567005275,4.323493261343911,3.9302899922799868
+baseline_wildr_vs_spf,544,"Central amygdalar nucleus, capsular part",12,1515,198,-5.752008450283725,-5.820015101309142,,5.752008450283725
+baseline_wildr_vs_spf,549,Thalamus,24,3910,244,-3.894800787324543,-5.99655918300831,4.578482482969501,5.933813955384681
+baseline_wildr_vs_spf,551,"Central amygdalar nucleus, lateral part",11,1371,92,-4.752940134239607,-4.299019935900917,,4.752940134239607
+baseline_wildr_vs_spf,553,dorsal spinocerebellar tract,3,166,0,,,,
+baseline_wildr_vs_spf,556,"Infralimbic area, layer 2/3",3,628,56,-5.366146713135166,-5.6977922755174095,,5.366146713135166
+baseline_wildr_vs_spf,558,"Primary somatosensory area, nose, layer 1",9,960,0,,,,
+baseline_wildr_vs_spf,559,"Central amygdalar nucleus, medial part",13,3817,236,-6.003574360873205,-5.8743363572165785,,6.003574360873205
+baseline_wildr_vs_spf,564,Medial septal nucleus,3,830,72,-6.297371079299821,-6.458289858221521,,6.297371079299821
+baseline_wildr_vs_spf,565,"posteromedial visual area, layer 5",10,934,0,,,,
+baseline_wildr_vs_spf,566,Postpiriform transition area,4,2002,125,4.4220589637359256,4.677567602802978,4.4220589637359256,4.4220589637359256
+baseline_wildr_vs_spf,573,"Lateral visual area, layer 4",9,801,2,5.601028953229401,5.601028953229401,5.601028953229401,5.601028953229401
+baseline_wildr_vs_spf,574,Tegmental reticular nucleus,8,3619,318,0.1915113518491225,3.7269456244228376,4.566603582980925,5.249417946560449
+baseline_wildr_vs_spf,575,Central lateral nucleus of the thalamus,9,1903,284,-5.941528565456861,-6.254585148568635,,5.941528565456861
+baseline_wildr_vs_spf,576,Accessory facial motor nucleus,2,36,0,,,,
+baseline_wildr_vs_spf,577,"Primary somatosensory area, upper limb, layer 4",14,1823,0,,,,
+baseline_wildr_vs_spf,579,external capsule,39,3462,382,1.2147239003927057,3.672624368515401,4.356124410708748,4.572991608037451
+baseline_wildr_vs_spf,580,Nucleus of the brachium of the inferior colliculus,4,577,0,,,,
+baseline_wildr_vs_spf,581,Triangular nucleus of septum,6,1365,0,,,,
+baseline_wildr_vs_spf,582,"Orbital area, medial part, layer 2/3",2,46,0,,,,
+baseline_wildr_vs_spf,583,Claustrum,15,1443,30,-1.7299640393285889,-4.461983703623227,5.4516454994839485,5.364394372317888
+baseline_wildr_vs_spf,587,Nucleus of Darkschewitsch,3,201,1,5.872635232766583,5.872635232766583,5.872635232766583,5.872635232766583
+baseline_wildr_vs_spf,588,"Anterior cingulate area, ventral part, layer 1",14,1457,0,,,,
+baseline_wildr_vs_spf,590,"Retrosplenial area, ventral part, layer 6a",23,2549,6,-7.110144929110761,-7.055823673203324,,7.110144929110761
+baseline_wildr_vs_spf,591,Central linear nucleus raphe,5,509,46,4.534835731413541,4.759049486664133,4.627580489654114,4.556765240160925
+baseline_wildr_vs_spf,593,"Primary visual area, layer 1",13,1040,1,3.2108936933021903,3.2108936933021903,3.2108936933021903,3.2108936933021903
+baseline_wildr_vs_spf,595,fasciculus retroflexus,15,757,140,-2.4997087853364546,-5.534828507795099,4.2095359272097825,5.183139354259528
+baseline_wildr_vs_spf,596,Diagonal band nucleus,10,1782,42,-5.703827970618235,-5.643471019609972,,5.703827970618235
+baseline_wildr_vs_spf,597,"Taenia tecta, dorsal part",5,2059,0,,,,
+baseline_wildr_vs_spf,598,"Ventral auditory area, layer 6b",8,156,6,4.568925090988105,4.731888858710414,4.568925090988105,4.568925090988105
+baseline_wildr_vs_spf,599,Central medial nucleus of the thalamus,12,1287,85,-6.5549404942003475,-7.015082731272746,,6.5549404942003475
+baseline_wildr_vs_spf,600,"Dorsal auditory area, layer 2/3",9,1454,0,,,,
+baseline_wildr_vs_spf,601,"Anterolateral visual area, layer 6a",3,313,0,,,,
+baseline_wildr_vs_spf,603,fimbria,20,6930,477,-4.839962258579466,-4.7200096691835505,5.872635232766583,4.906696749860904
+baseline_wildr_vs_spf,604,Nucleus incertus,2,531,0,,,,
+baseline_wildr_vs_spf,605,"Taenia tecta, ventral part",3,1408,4,-6.775163851014901,-6.811378021619859,,6.775163851014901
+baseline_wildr_vs_spf,608,"Orbital area, ventrolateral part, layer 6a",3,663,11,4.638061234870297,5.003495138247598,4.638061234870297,4.638061234870296
+baseline_wildr_vs_spf,609,Subparafascicular area,2,489,4,2.4096551686675003,5.11213765006247,5.1664589059699075,5.340033190287361
+baseline_wildr_vs_spf,610,"Retrosplenial area, dorsal part, layer 5",27,5275,0,,,,
+baseline_wildr_vs_spf,611,habenular commissure,10,255,40,-6.705753357355399,-6.526191428105817,,6.705753357355399
+baseline_wildr_vs_spf,612,Nucleus of the lateral lemniscus,7,3378,135,0.9769354605400495,-0.6323351621489484,5.173252479389525,5.535961226922435
+baseline_wildr_vs_spf,613,"Lateral visual area, layer 5",9,1356,1,5.92695648867402,5.92695648867402,5.92695648867402,5.92695648867402
+baseline_wildr_vs_spf,614,Tuberal nucleus,9,2779,3,-7.037716587900846,-7.110144929110761,,7.037716587900845
+baseline_wildr_vs_spf,616,Cuneiform nucleus,2,771,22,-5.8138422313196605,-5.6163103916562545,,5.8138422313196605
+baseline_wildr_vs_spf,620,"Orbital area, medial part, layer 5",3,317,0,,,,
+baseline_wildr_vs_spf,621,Motor nucleus of trigeminal,1,345,19,5.195049040658032,5.329422673692217,5.195049040658032,5.195049040658032
+baseline_wildr_vs_spf,622,"Retrosplenial area, ventral part, layer 6b",19,205,2,-6.431129230267803,-6.431129230267803,,6.431129230267803
+baseline_wildr_vs_spf,625,"Primary somatosensory area, upper limb, layer 5",16,2938,0,,,,
+baseline_wildr_vs_spf,628,Nucleus of the optic tract,4,799,0,,,,
+baseline_wildr_vs_spf,629,Ventral anterior-lateral complex of the thalamus,10,4267,201,-2.6143708098583907,-6.3224867184529305,5.161932134644288,6.304545052788221
+baseline_wildr_vs_spf,630,"Orbital area, lateral part, layer 5",3,2553,0,,,,
+baseline_wildr_vs_spf,632,"Dentate gyrus, granule cell layer",21,6239,685,-3.7889066195887655,-5.6977922755174095,2.1388969257687496,4.7934416838479645
+baseline_wildr_vs_spf,634,Nucleus of the posterior commissure,5,1374,17,-7.030360584496713,-7.096564615133902,,7.030360584496713
+baseline_wildr_vs_spf,638,"Gustatory areas, layer 6a",10,1060,0,,,,
+baseline_wildr_vs_spf,639,"Cortical amygdalar area, anterior part",13,3083,2,-6.920020533434733,-6.920020533434733,,6.920020533434733
+baseline_wildr_vs_spf,642,Nucleus of the trapezoid body,2,326,0,,,,
+baseline_wildr_vs_spf,643,"Posterior auditory area, layer 2/3",4,311,0,,,,
+baseline_wildr_vs_spf,648,"Primary motor area, Layer 5",17,9922,148,5.093915650554775,5.465225813460808,5.116213512010257,5.100132722007655
+baseline_wildr_vs_spf,649,"Anterolateral visual area, layer 6b",3,72,0,,,,
+baseline_wildr_vs_spf,651,Nucleus of the solitary tract,3,732,2,5.6010289532294,5.6010289532294,5.6010289532294,5.6010289532294
+baseline_wildr_vs_spf,653,Abducens nucleus,2,137,0,,,,
+baseline_wildr_vs_spf,654,"Primary somatosensory area, nose, layer 4",9,2153,13,-6.475265250692596,-6.729896137758704,,6.475265250692596
+baseline_wildr_vs_spf,655,"Cortical amygdalar area, posterior part, lateral zone",12,2971,2,4.759049486664132,4.759049486664132,4.759049486664132,4.759049486664132
+baseline_wildr_vs_spf,656,"Secondary motor area, layer 1",15,2662,0,,,,
+baseline_wildr_vs_spf,657,"Primary somatosensory area, mouth, layer 2/3",7,3311,19,2.4438775598891858,1.3368103644956282,4.274503883969799,2.842291096746158
+baseline_wildr_vs_spf,658,lateral lemniscus,8,2511,230,4.772333067088012,4.840531370525288,4.772333067088011,4.772333067088012
+baseline_wildr_vs_spf,661,Facial motor nucleus,4,3056,5,4.862259872888262,5.057816394155034,4.862259872888262,4.862259872888262
+baseline_wildr_vs_spf,662,"Gustatory areas, layer 6b",8,92,0,,,,
+baseline_wildr_vs_spf,663,"Cortical amygdalar area, posterior part, medial zone",11,4125,33,5.205898876645558,5.356583301645935,5.205898876645558,5.205898876645558
+baseline_wildr_vs_spf,664,"Entorhinal area, medial part, dorsal zone, layer 3",8,2431,197,3.750468499389149,4.6368266608724005,4.1867137512094255,3.9059767252196163
+baseline_wildr_vs_spf,665,"lateral olfactory tract, body",10,949,0,,,,
+baseline_wildr_vs_spf,670,"Primary somatosensory area, trunk, layer 2/3",9,2638,1,-5.589149763702537,-5.589149763702537,,5.589149763702537
+baseline_wildr_vs_spf,671,"Retrosplenial area, lateral agranular part, layer 1",27,776,0,,,,
+baseline_wildr_vs_spf,672,Caudoputamen,26,87293,3072,-2.4206467041778263,-5.045937204628171,4.917093412498782,5.432074620731857
+baseline_wildr_vs_spf,673,mammillary peduncle,2,48,0,,,,
+baseline_wildr_vs_spf,675,"Agranular insular area, ventral part, layer 6a",8,457,2,5.791153348905428,5.791153348905428,5.791153348905428,5.791153348905428
+baseline_wildr_vs_spf,678,"Dorsal auditory area, layer 4",8,584,0,,,,
+baseline_wildr_vs_spf,679,Superior central nucleus raphe,7,2461,101,5.2691250623829795,5.329422673692217,5.269125062382979,5.269125062382979
+baseline_wildr_vs_spf,680,"Orbital area, ventrolateral part, layer 6b",3,102,0,,,,
+baseline_wildr_vs_spf,681,mammillotegmental tract,13,267,7,4.415014865917034,4.691147916779837,4.415014865917035,4.415014865917034
+baseline_wildr_vs_spf,685,Ventral medial nucleus of the thalamus,12,4847,746,-6.421302605022177,-6.48545048617524,,6.421302605022177
+baseline_wildr_vs_spf,687,"Retrosplenial area, ventral part, layer 5",23,6659,1,-7.43607246455538,-7.43607246455538,,7.43607246455538
+baseline_wildr_vs_spf,689,Ventrolateral preoptic nucleus,3,230,0,,,,
+baseline_wildr_vs_spf,690,mammillothalamic tract,12,673,123,-5.881177954788253,-6.363227660383507,,5.881177954788254
+baseline_wildr_vs_spf,692,"Perirhinal area, layer 5",15,664,64,3.5320583501415053,4.215836927589767,3.7666833807666027,3.671903949129864
+baseline_wildr_vs_spf,693,Ventromedial hypothalamic nucleus,9,3285,23,-6.922930600715488,-6.729896137758704,,6.922930600715488
+baseline_wildr_vs_spf,694,"Agranular insular area, ventral part, layer 2/3",7,1595,0,,,,
+baseline_wildr_vs_spf,696,"Posterior auditory area, layer 1",4,197,0,,,,
+baseline_wildr_vs_spf,697,medial lemniscus,20,2235,221,4.024544603780114,4.025712531913739,4.059634975045387,4.03700769026953
+baseline_wildr_vs_spf,698,Olfactory areas,34,5481,20,2.11545198573753,4.297318811450922,4.556301865805805,4.3935506796993335
+baseline_wildr_vs_spf,699,"Agranular insular area, ventral part, layer 6b",1,9,0,,,,
+baseline_wildr_vs_spf,702,"Primary somatosensory area, nose, layer 5",8,2226,23,-5.875368778746982,-7.001502417295887,,5.875368778746984
+baseline_wildr_vs_spf,703,Cortical subplate,31,1591,33,-0.6019087920246043,1.852862295616275,3.8879693472913104,5.137873030531133
+baseline_wildr_vs_spf,704,"Agranular insular area, ventral part, layer 1",6,377,0,,,,
+baseline_wildr_vs_spf,706,Olivary pretectal nucleus,3,258,0,,,,
+baseline_wildr_vs_spf,707,"Infralimbic area, layer 1",3,610,42,-5.0368836619769315,-5.3447041121190715,,5.0368836619769315
+baseline_wildr_vs_spf,718,Ventral posterolateral nucleus of the thalamus,13,4671,218,-4.460291454647988,-6.947181161388451,4.748603091297318,6.570781717446796
+baseline_wildr_vs_spf,721,"Primary visual area, layer 4",13,3846,1,5.92695648867402,5.92695648867402,5.92695648867402,5.92695648867402
+baseline_wildr_vs_spf,725,"Ventral posterolateral nucleus of the thalamus, parvicellular part",4,477,30,5.40985991801669,5.370163615622795,5.409859918016691,5.409859918016691
+baseline_wildr_vs_spf,727,"Entorhinal area, medial part, dorsal zone, layer 5",8,3241,208,3.744947478892965,4.188676299636049,4.112029119399531,3.881057872986591
+baseline_wildr_vs_spf,728,arbor vitae,7,11464,1864,1.805841380425534,3.04792992557988,3.3735944184697866,3.440038078999091
+baseline_wildr_vs_spf,729,"Temporal association areas, layer 6a",14,2255,223,3.7319058503723204,4.677567602802978,3.771343732062805,3.7522505583324306
+baseline_wildr_vs_spf,732,"Medial mammillary nucleus, median part",3,358,0,,,,
+baseline_wildr_vs_spf,733,Ventral posteromedial nucleus of the thalamus,12,8682,1230,-5.492655969592666,-5.779274159378565,,5.492655969592666
+baseline_wildr_vs_spf,735,"Primary auditory area, layer 1",8,880,0,,,,
+baseline_wildr_vs_spf,741,"Ventral posteromedial nucleus of the thalamus, parvicellular part",4,971,1,-4.122475854201749,-4.122475854201749,,4.122475854201749
+baseline_wildr_vs_spf,743,"Entorhinal area, medial part, dorsal zone, layer 6",8,3275,229,3.8656734711331793,4.4602825791732315,4.119097296358936,3.966765803382312
+baseline_wildr_vs_spf,744,cerebellar commissure,2,120,0,,,,
+baseline_wildr_vs_spf,749,Ventral tegmental area,4,1118,0,,,,
+baseline_wildr_vs_spf,753,principal mammillary tract,5,147,0,,,,
+baseline_wildr_vs_spf,754,Olfactory tubercle,11,6585,13,-4.643701238265962,-6.403968602314086,5.546707697321963,6.492603804039949
+baseline_wildr_vs_spf,755,"Ventral auditory area, layer 2/3",11,1428,7,4.646526885141585,4.623246346895541,4.646526885141585,4.646526885141585
+baseline_wildr_vs_spf,757,Ventral tegmental nucleus,1,48,0,,,,
+baseline_wildr_vs_spf,759,"Posterior auditory area, layer 4",4,142,0,,,,
+baseline_wildr_vs_spf,763,Vascular organ of the lamina terminalis,1,16,0,,,,
+baseline_wildr_vs_spf,765,Nucleus x,3,168,0,,,,
+baseline_wildr_vs_spf,767,"Secondary motor area, layer 5",17,9203,117,-0.7341730206929228,-5.534828507795099,5.3435082076830955,5.998290337654369
+baseline_wildr_vs_spf,771,Pons,13,10148,499,-1.2215010495514642,0.9837222010972899,4.739998565093163,5.616418800066367
+baseline_wildr_vs_spf,772,"Anterior cingulate area, ventral part, layer 5",14,3021,10,-7.178046498995056,-7.055823673203324,,7.178046498995056
+baseline_wildr_vs_spf,774,"Retrosplenial area, lateral agranular part, layer 5",26,3107,0,,,,
+baseline_wildr_vs_spf,778,"Primary visual area, layer 5",13,6117,8,4.935593568363302,4.949173882340161,4.935593568363302,4.935593568363301
+baseline_wildr_vs_spf,780,Posterior amygdalar nucleus,10,3680,150,3.9621016484769256,4.786210114617852,3.990949191622599,3.9660030651925244
+baseline_wildr_vs_spf,783,"Agranular insular area, dorsal part, layer 6a",8,2146,78,4.8442719798839935,4.8133707425715695,4.8442719798839935,4.844271979883993
+baseline_wildr_vs_spf,784,corticospinal tract,6,470,34,4.644234104859779,5.112137650062471,4.644234104859779,4.644234104859779
+baseline_wildr_vs_spf,786,"Temporal association areas, layer 6b",13,335,45,4.14604381397298,4.242997555543486,4.14604381397298,4.14604381397298
+baseline_wildr_vs_spf,788,Piriform-amygdalar area,19,4085,1,6.035599000488893,6.035599000488893,6.035599000488893,6.035599000488893
+baseline_wildr_vs_spf,791,"Posterior auditory area, layer 5",4,355,0,,,,
+baseline_wildr_vs_spf,794,spinal tract of the trigeminal nerve,7,2563,11,4.319047313813896,4.582505404964964,4.319047313813896,4.319047313813896
+baseline_wildr_vs_spf,795,Periaqueductal gray,15,13192,208,-0.49221187297356517,0.16890336248574167,4.763945823278012,5.043709294152761
+baseline_wildr_vs_spf,797,Zona incerta,19,7445,534,-5.060501418018292,-6.512611114128958,5.623361025102457,6.39490988469019
+baseline_wildr_vs_spf,798,facial nerve,3,275,0,,,,
+baseline_wildr_vs_spf,800,"Agranular insular area, ventral part, layer 5",7,1946,0,,,,
+baseline_wildr_vs_spf,802,stria medullaris,13,1306,37,-5.8886467956007955,-5.915077299147156,,5.8886467956007955
+baseline_wildr_vs_spf,803,Pallidum,21,4733,93,-4.214334694427378,-7.178046498995057,5.338595341904657,6.78255022359318
+baseline_wildr_vs_spf,804,Fields of Forel,4,1050,62,4.876249751889819,4.48744320712695,4.87624975188982,4.87624975188982
+baseline_wildr_vs_spf,805,"posteromedial visual area, layer 1",8,142,0,,,,
+baseline_wildr_vs_spf,806,"Supplemental somatosensory area, layer 2/3",24,9210,3,4.80431719992033,4.677567602802978,4.80431719992033,4.80431719992033
+baseline_wildr_vs_spf,810,"Anterior cingulate area, ventral part, 6a",13,1079,4,-7.155412642366958,-7.191626812971915,,7.155412642366958
+baseline_wildr_vs_spf,811,"Inferior colliculus, central nucleus",3,3503,58,-0.5091757629795013,-4.475564017600087,5.7057913753366,6.018215711580355
+baseline_wildr_vs_spf,812,superior cerebellar peduncle decussation,4,219,0,,,,
+baseline_wildr_vs_spf,814,Dorsal peduncular area,5,1725,0,,,,
+baseline_wildr_vs_spf,816,"Primary auditory area, layer 4",7,912,21,4.457695852701449,4.568925090988105,4.457695852701449,4.457695852701449
+baseline_wildr_vs_spf,819,"Anterior cingulate area, ventral part, 6b",11,173,5,-6.838538649573577,-6.947181161388451,,6.838538649573577
+baseline_wildr_vs_spf,820,"Inferior colliculus, dorsal nucleus",5,3525,34,-7.076815953416637,-7.11014492911076,,7.076815953416638
+baseline_wildr_vs_spf,821,"Primary visual area, layer 2/3",13,6693,2,3.4824999728393733,3.4824999728393733,3.4824999728393733,3.4824999728393733
+baseline_wildr_vs_spf,827,"Infralimbic area, layer 5",4,1398,86,-4.72896987634354,-5.20890097235048,,4.728969876343541
+baseline_wildr_vs_spf,828,"Inferior colliculus, external nucleus",8,5893,78,0.15536059776411798,4.623246346895542,4.935817419692591,5.368266590157974
+baseline_wildr_vs_spf,830,Dorsomedial nucleus of the hypothalamus,8,1831,320,-5.270316275541494,-5.9693985550545925,,5.270316275541494
+baseline_wildr_vs_spf,831,"Agranular insular area, dorsal part, layer 6b",5,109,5,4.740942401361654,4.731888858710414,4.740942401361654,4.740942401361654
+baseline_wildr_vs_spf,834,"Superior colliculus, zonal layer",10,1228,0,,,,
+baseline_wildr_vs_spf,836,Ectorhinal area/Layer 1,17,1059,7,5.1897394442159515,5.275101417784781,5.189739444215952,5.189739444215952
+baseline_wildr_vs_spf,838,"Primary somatosensory area, nose, layer 2/3",8,2574,1,-7.327429952740507,-7.327429952740507,,7.327429952740507
+baseline_wildr_vs_spf,839,Dorsal motor nucleus of the vagus nerve,1,24,2,5.628189581183118,5.628189581183118,5.628189581183118,5.628189581183118
+baseline_wildr_vs_spf,841,trapezoid body,3,60,0,,,,
+baseline_wildr_vs_spf,842,"Superior colliculus, superficial gray layer",9,4480,0,,,,
+baseline_wildr_vs_spf,843,Parasubiculum,4,3093,107,4.5273422193357025,4.65040697484926,4.5273422193357025,4.5273422193357025
+baseline_wildr_vs_spf,844,"Primary motor area, Layer 6a",18,7860,113,3.512562926570166,5.220780161877344,5.249508367083163,5.520799507711033
+baseline_wildr_vs_spf,846,Dentate nucleus,2,201,0,,,,
+baseline_wildr_vs_spf,847,"Primary auditory area, layer 5",7,2796,4,3.523240914769951,3.5639818567005284,3.523240914769951,3.523240914769951
+baseline_wildr_vs_spf,848,optic nerve,2,95,0,,,,
+baseline_wildr_vs_spf,849,"Visceral area, layer 6b",16,237,5,-4.197167581074474,-4.122475854201749,,4.197167581074474
+baseline_wildr_vs_spf,850,uncinate fascicle,3,277,17,-7.391710105564307,-7.44965277853224,,7.391710105564307
+baseline_wildr_vs_spf,851,"Superior colliculus, optic layer",10,2394,0,,,,
+baseline_wildr_vs_spf,852,Parvicellular reticular nucleus,7,4755,0,,,,
+baseline_wildr_vs_spf,854,"Primary somatosensory area, upper limb, layer 2/3",13,3218,0,,,,
+baseline_wildr_vs_spf,857,"Visceral area, layer 6a",17,2699,11,-2.746337371213355,-6.974341789342169,5.872635232766583,6.661427526391077
+baseline_wildr_vs_spf,862,"Supplemental somatosensory area, layer 6a",25,9342,121,1.5044831501813423,4.786210114617851,5.184138005619782,5.548788655769965
+baseline_wildr_vs_spf,863,rubrospinal tract,16,1731,65,2.8332891112324012,3.509660600793091,3.041520592210908,3.0130400543097604
+baseline_wildr_vs_spf,866,ventral spinocerebellar tract,10,629,21,-2.9223641076181672,-6.458289858221521,4.9084329404095834,6.194652734557891
+baseline_wildr_vs_spf,867,Parabrachial nucleus,4,2100,83,-7.01490642544217,-7.028663045249606,,7.014906425442169
+baseline_wildr_vs_spf,869,"Posterolateral visual area, layer 4",2,35,0,,,,
+baseline_wildr_vs_spf,872,Dorsal nucleus raphe,3,383,0,,,,
+baseline_wildr_vs_spf,873,"Supplemental somatosensory area, layer 1",24,1893,0,,,,
+baseline_wildr_vs_spf,874,Parabigeminal nucleus,4,211,17,5.032253450198593,4.949173882340161,5.032253450198594,5.032253450198594
+baseline_wildr_vs_spf,878,"Primary somatosensory area, mouth, layer 1",7,1405,0,,,,
+baseline_wildr_vs_spf,880,Dorsal tegmental nucleus,2,369,20,-6.90100809386713,-6.920020533434732,,6.90100809386713
+baseline_wildr_vs_spf,882,"Primary motor area, Layer 6b",15,534,11,4.095877487460844,4.378800695312076,4.095877487460844,4.095877487460844
+baseline_wildr_vs_spf,884,amygdalar capsule,14,852,52,-2.5098674595845534,-6.023719810962029,5.2615211038079215,6.017548195456501
+baseline_wildr_vs_spf,888,"Perirhinal area, layer 2/3",16,1348,107,3.861939663379755,3.835588136237711,3.8619396633797556,3.8619396633797556
+baseline_wildr_vs_spf,889,"Primary somatosensory area, nose, layer 6a",8,3227,6,-6.530718199431437,-6.539771742082676,,6.530718199431436
+baseline_wildr_vs_spf,893,"Supplemental somatosensory area, layer 6b",24,947,2,-3.986672714433157,-3.986672714433157,,3.986672714433157
+baseline_wildr_vs_spf,897,"Visceral area, layer 1",18,742,0,,,,
+baseline_wildr_vs_spf,898,Pontine central gray,4,2579,50,-6.794315575854062,-6.811378021619859,,6.794315575854062
+baseline_wildr_vs_spf,900,"anterior commissure, olfactory limb",10,1333,20,1.0976459461253862,4.840531370525288,5.20154138374346,5.837742565532561
+baseline_wildr_vs_spf,902,"Posterolateral visual area, layer 5",2,294,20,4.41410951165191,4.65040697484926,4.41410951165191,4.41410951165191
+baseline_wildr_vs_spf,905,"Anterolateral visual area, layer 2/3",3,475,0,,,,
+baseline_wildr_vs_spf,906,"Retrosplenial area, lateral agranular part, layer 6a",25,1938,0,,,,
+baseline_wildr_vs_spf,907,Paracentral nucleus,9,1266,37,-6.073891526487647,-6.037300124938888,,6.073891526487647
+baseline_wildr_vs_spf,908,"anterior commissure, temporal limb",7,845,18,-7.309322867438029,-7.354590580694225,,7.309322867438027
+baseline_wildr_vs_spf,910,"Orbital area, medial part, layer 6a",3,919,16,4.874656262056883,5.003495138247597,4.874656262056883,4.874656262056883
+baseline_wildr_vs_spf,911,trochlear nerve,2,11,3,-6.4763969435240005,-6.729896137758704,,6.4763969435240005
+baseline_wildr_vs_spf,912,Lingula (I),2,125,0,,,,
+baseline_wildr_vs_spf,914,Posterodorsal preoptic nucleus,2,39,1,-7.544714976370253,-7.544714976370253,,7.544714976370253
+baseline_wildr_vs_spf,916,brachium of the superior colliculus,12,761,5,-3.905190830572002,-3.742227062849692,,3.905190830572002
+baseline_wildr_vs_spf,919,"Anterior cingulate area, dorsal part, layer 6a",17,2044,112,-5.956873353191224,-6.268165462545493,5.736832092997991,6.017580571106547
+baseline_wildr_vs_spf,924,cerebal peduncle,6,2564,237,4.011393302172789,4.433121951219514,4.040134050112581,4.020974731221798
+baseline_wildr_vs_spf,927,"Anterior cingulate area, dorsal part, layer 6b",14,69,1,-7.164466185018197,-7.164466185018197,,7.164466185018197
+baseline_wildr_vs_spf,929,"Primary somatosensory area, nose, layer 6b",7,218,6,-6.612200083292592,-6.566932370036394,,6.612200083292592
+baseline_wildr_vs_spf,930,Parafascicular nucleus,3,2479,254,-2.196279005781946,-6.132362322776902,5.358647179150017,5.924651247587156
+baseline_wildr_vs_spf,931,Pontine gray,6,5103,288,5.259120735817117,5.247940789831063,5.259120735817117,5.259120735817117
+baseline_wildr_vs_spf,935,"Anterior cingulate area, dorsal part, layer 1",15,1644,29,-6.225377027123021,-6.566932370036395,,6.225377027123021
+baseline_wildr_vs_spf,936,Declive (VI),2,1026,135,3.414140639562599,3.5096606007930915,3.539830040825515,3.454972291276679
+baseline_wildr_vs_spf,939,"Nucleus ambiguus, dorsal division",3,63,0,,,,
+baseline_wildr_vs_spf,940,cingulum bundle,33,4865,57,-5.078895276560314,-7.191626812971916,3.402447595712624,6.213044475131189
+baseline_wildr_vs_spf,943,"Primary motor area, Layer 2/3",16,10420,170,3.959093758572231,4.731888858710414,4.368131901055971,4.048360267204281
+baseline_wildr_vs_spf,945,"Primary somatosensory area, upper limb, layer 6a",17,3744,18,5.634580317172229,5.655350209136837,5.634580317172229,5.6345803171722295
+baseline_wildr_vs_spf,946,Posterior hypothalamic nucleus,7,3129,61,-2.224626975935683,-3.3619782714976365,5.8862155467434425,5.167734749307404
+baseline_wildr_vs_spf,950,"Primary somatosensory area, mouth, layer 4",8,2147,27,-6.030897976921226,-5.955818241077733,,6.030897976921225
+baseline_wildr_vs_spf,952,"Endopiriform nucleus, dorsal part",33,6872,458,0.26916661217466886,3.9442306480525837,4.617311743331557,5.3665792452497
+baseline_wildr_vs_spf,954,"Primary auditory area, layer 6a",6,1183,0,,,,
+baseline_wildr_vs_spf,955,"Lateral reticular nucleus, magnocellular part",1,33,0,,,,
+baseline_wildr_vs_spf,956,"corpus callosum, anterior forceps",5,2460,46,-4.526485074231266,-4.937294692813297,,4.526485074231265
+baseline_wildr_vs_spf,957,Uvula (IX),1,7,0,,,,
+baseline_wildr_vs_spf,959,"Ventral auditory area, layer 1",11,778,0,,,,
+baseline_wildr_vs_spf,961,Piriform area,33,43393,338,0.3393541374214793,3.713365310445979,4.928265865098041,5.539733515092226
+baseline_wildr_vs_spf,962,"Secondary motor area, layer 2/3",16,6515,71,0.34226854920548283,1.6627378999402476,4.024674037315509,4.362450010541738
+baseline_wildr_vs_spf,963,"Lateral reticular nucleus, parvicellular part",2,110,0,,,,
+baseline_wildr_vs_spf,964,"corpus callosum, extreme capsule",16,436,39,-1.568201041792328,-5.589149763702536,4.950079236605285,6.068273075069859
+baseline_wildr_vs_spf,965,"Retrosplenial area, lateral agranular part, layer 2/3",27,2508,0,,,,
+baseline_wildr_vs_spf,966,"Endopiriform nucleus, ventral part",24,4204,107,-3.5693519207154427,-6.675574881851269,4.9580806107862445,6.273759526598849
+baseline_wildr_vs_spf,968,Nodulus (X),3,2482,25,-6.902689466073788,-6.838538649573578,,6.902689466073788
+baseline_wildr_vs_spf,970,"Paragigantocellular reticular nucleus, dorsal part",3,286,9,3.2833220345121052,3.5368212287468106,3.2833220345121052,3.2833220345121052
+baseline_wildr_vs_spf,971,"corpus callosum, posterior forceps",13,5154,28,2.3500663970357065,5.247940789831062,5.461220306712078,5.841764063032411
+baseline_wildr_vs_spf,973,"Lateral visual area, layer 2/3",9,1380,3,5.981277744581456,6.035599000488893,5.981277744581456,5.981277744581456
+baseline_wildr_vs_spf,974,"Primary somatosensory area, mouth, layer 5",8,2803,96,0.727846191757364,5.492386441414527,5.625372923469399,6.022601316405914
+baseline_wildr_vs_spf,975,Edinger-Westphal nucleus,5,88,8,5.315842359715358,5.601028953229399,5.315842359715358,5.315842359715358
+baseline_wildr_vs_spf,976,Lobule II,4,5689,237,-6.003711151281525,-5.942237927100875,,6.003711151281525
+baseline_wildr_vs_spf,977,Ectorhinal area/Layer 6a,14,1629,307,4.2980982237394105,4.731888858710415,4.4159807407464795,4.341626511742352
+baseline_wildr_vs_spf,978,"Paragigantocellular reticular nucleus, lateral part",5,1386,6,4.496496749778189,4.677567602802978,4.496496749778189,4.496496749778189
+baseline_wildr_vs_spf,980,Dorsal premammillary nucleus,3,649,0,,,,
+baseline_wildr_vs_spf,981,"Primary somatosensory area, barrel field, layer 1",18,1702,0,,,,
+baseline_wildr_vs_spf,982,Fasciola cinerea,8,300,0,,,,
+baseline_wildr_vs_spf,984,Lobule III,5,4941,422,-3.8260683547957157,-6.403968602314085,4.785923517082626,6.173956165153105
+baseline_wildr_vs_spf,986,"corpus callosum, splenium",7,3242,19,-3.7354369058612633,-6.4990308001520996,5.573868325275681,6.522371068499104
+baseline_wildr_vs_spf,988,Ectorhinal area/Layer 5,15,2269,373,3.770375330619899,4.623246346895541,3.9730076153501845,3.869572044220496
+baseline_wildr_vs_spf,989,Fastigial nucleus,3,1031,6,3.2290007786046693,2.9936086696724438,3.2290007786046697,3.2290007786046693
+baseline_wildr_vs_spf,990,"Ventral auditory area, layer 4",10,757,14,4.556702808408931,4.568925090988104,4.556702808408931,4.556702808408931
+baseline_wildr_vs_spf,996,"Agranular insular area, dorsal part, layer 1",6,329,0,,,,
+baseline_wildr_vs_spf,997,root,46,12660,1461,-0.4041366927234314,1.2281678526807553,4.263741277769411,4.588855371226766
+baseline_wildr_vs_spf,998,Fundus of striatum,7,1651,0,,,,
+baseline_wildr_vs_spf,1004,Ventral premammillary nucleus,4,912,0,,,,
+baseline_wildr_vs_spf,1005,"Primary auditory area, layer 6b",6,197,2,5.4380651855070905,5.4380651855070905,5.4380651855070905,5.4380651855070905
+baseline_wildr_vs_spf,1006,"Primary somatosensory area, trunk, layer 1",9,1142,0,,,,
+baseline_wildr_vs_spf,1007,Simple lobule,7,15281,3158,2.6043169781337245,3.156572437394753,3.1635156704126906,2.8165050234451
+baseline_wildr_vs_spf,1009,fiber tracts,31,6788,213,-4.224961379717924,-5.7928544733554235,4.134153853891918,5.796242254480032
+baseline_wildr_vs_spf,1010,"Visceral area, layer 4",17,908,2,-0.537272964310934,-0.537272964310934,5.872635232766583,6.409908197077517
+baseline_wildr_vs_spf,1015,"Anterior cingulate area, dorsal part, layer 5",16,3403,177,-6.233454302365812,-6.852118963550437,5.354114153650142,6.432424760778487
+baseline_wildr_vs_spf,1020,Posterior complex of the thalamus,11,6279,656,-3.9794692894189736,-5.765693845401705,5.36473149003205,5.767713119429657
+baseline_wildr_vs_spf,1021,"Secondary motor area, layer 6a",18,7513,88,-3.6122485453843827,-7.001502417295887,5.483332898763287,6.541909760979435
+baseline_wildr_vs_spf,1022,"Globus pallidus, external segment",14,6805,320,-4.5838746704879005,-6.716315823781845,5.383743929599652,6.3784559803544525
+baseline_wildr_vs_spf,1023,"Ventral auditory area, layer 5",10,2229,84,4.833633433267201,4.976334510293879,4.833633433267201,4.833633433267201
+baseline_wildr_vs_spf,1025,Paramedian lobule,3,2343,157,4.420976116960639,4.623246346895541,4.42097611696064,4.420976116960639
+baseline_wildr_vs_spf,1026,"Primary somatosensory area, upper limb, layer 6b",16,301,4,5.505966755391386,5.465225813460808,5.505966755391386,5.505966755391386
+baseline_wildr_vs_spf,1029,Posterior limiting nucleus of the thalamus,7,616,55,3.0979507487279783,3.6047227986311055,3.513820336605823,3.64614996378583
+baseline_wildr_vs_spf,1030,"Primary somatosensory area, lower limb, layer 1",11,1100,0,,,,
+baseline_wildr_vs_spf,1031,"Globus pallidus, internal segment",8,2529,24,-7.255001611530591,-7.27310869683307,,7.255001611530591
+baseline_wildr_vs_spf,1033,Copula pyramidis,5,1234,201,3.5570816394751983,3.414598402955077,3.5570816394751983,3.5570816394751983
+baseline_wildr_vs_spf,1035,"Supplemental somatosensory area, layer 4",24,5055,25,1.6273109939136585,3.292375577163345,3.4315737954261514,3.892825276861271
+baseline_wildr_vs_spf,1037,Postsubiculum,8,5390,8,4.860901841490576,4.97633451029388,4.860901841490577,4.860901841490576
+baseline_wildr_vs_spf,1038,"Primary somatosensory area, barrel field, layer 6a",16,6716,30,-6.582021607788461,-6.8792795915041545,,6.582021607788461
+baseline_wildr_vs_spf,1041,Paraflocculus,7,6375,95,4.985120863395513,5.27510141778478,4.985120863395513,4.985120863395513
+baseline_wildr_vs_spf,1043,crossed tectospinal pathway,16,1534,37,4.267761657501287,4.48744320712695,4.293615089457233,4.276461572504498
+baseline_wildr_vs_spf,1044,Peripeduncular nucleus,2,29,0,,,,
+baseline_wildr_vs_spf,1045,Ectorhinal area/Layer 6b,14,248,65,3.4518697026142444,3.944230648052584,3.5882226526652996,3.4781370146555513
+baseline_wildr_vs_spf,1046,"Anteromedial visual area, layer 6a",7,621,0,,,,
+baseline_wildr_vs_spf,1047,"Primary somatosensory area, barrel field, layer 4",16,6402,14,-4.942953156970322,-5.303963170188494,,4.942953156970322
+baseline_wildr_vs_spf,1048,Gigantocellular reticular nucleus,7,5713,25,3.770402629148787,4.120774729751753,4.302750937041665,3.9210172469987516
+baseline_wildr_vs_spf,1049,Flocculus,4,3394,0,,,,
+baseline_wildr_vs_spf,1052,Pedunculopontine nucleus,5,3076,144,-5.132614048699571,-5.222481286327339,,5.132614048699571
+baseline_wildr_vs_spf,1054,"Infralimbic area, layer 6a",5,686,11,-2.3002446333068307,-6.566932370036395,5.424484871530231,6.24532453987427
+baseline_wildr_vs_spf,1056,Crus 1,6,9191,2448,4.009253981820607,4.161515671682331,4.127992972993091,4.0404294895877
+baseline_wildr_vs_spf,1058,"Visceral area, layer 5",17,3545,34,1.2785384717949235,5.030655766201316,5.33164490688843,5.830321404056317
+baseline_wildr_vs_spf,1060,doral tegmental decussation,3,26,0,,,,
+baseline_wildr_vs_spf,1061,Posterior pretectal nucleus,3,617,0,,,,
+baseline_wildr_vs_spf,1062,"Primary somatosensory area, barrel field, layer 6b",15,762,0,,,,
+baseline_wildr_vs_spf,1064,Crus 2,3,3533,491,4.152081000903957,4.460282579173232,4.152081000903957,4.152081000903957
+baseline_wildr_vs_spf,1066,"Anteromedial visual area, layer 2/3",8,919,0,,,,
+baseline_wildr_vs_spf,1069,Parapyramidal nucleus,4,291,0,,,,
+baseline_wildr_vs_spf,1070,"Primary somatosensory area, barrel field, layer 5",16,6124,23,-6.192115704275082,-6.037300124938888,,6.192115704275082
+baseline_wildr_vs_spf,1072,"Medial geniculate complex, dorsal part",5,414,0,,,,
+baseline_wildr_vs_spf,1074,"Anterolateral visual area, layer 1",3,206,0,,,,
+baseline_wildr_vs_spf,1077,Perireunensis nucleus,9,784,319,-5.938948283780086,-6.132362322776902,,5.938948283780086
+baseline_wildr_vs_spf,1079,"Medial geniculate complex, ventral part",6,770,1,-7.599036232277689,-7.599036232277689,,7.599036232277689
+baseline_wildr_vs_spf,1081,"Infralimbic area, layer 6b",1,5,0,,,,
+baseline_wildr_vs_spf,1084,Presubiculum,6,4645,364,2.7167928181849406,2.5861992503666693,3.3566382880221095,2.965477884322432
+baseline_wildr_vs_spf,1085,"Secondary motor area, layer 6b",16,169,4,-0.003113947887807278,-0.12986354500515906,5.92695648867402,5.930070436561827
+baseline_wildr_vs_spf,1086,"Primary somatosensory area, trunk, layer 4",9,985,0,,,,
+baseline_wildr_vs_spf,1088,"Medial geniculate complex, medial part",6,804,6,4.867691998479006,5.030655766201316,4.867691998479006,4.867691998479006
+baseline_wildr_vs_spf,1089,Hippocampal formation,27,1899,49,2.6523087659981583,3.170152751371613,4.453514807317731,4.21680418128416
+baseline_wildr_vs_spf,1090,"Supplemental somatosensory area, layer 5",24,9628,106,1.9418153750515912,4.514603835080668,5.032853503235804,5.628422942860243
+baseline_wildr_vs_spf,1091,Lobules IV-V,7,13017,1954,2.9200470842355775,3.2923755771633454,3.428443234882723,3.2685329884989076
+baseline_wildr_vs_spf,1092,external medullary lamina of the thalamus,11,579,19,-3.7735372311852293,-5.738533217447987,3.2923755771633445,5.419725019766902
+baseline_wildr_vs_spf,1093,"Pontine reticular nucleus, caudal part",4,3929,7,-6.383598131348796,-6.295326090499211,,6.383598131348796
+baseline_wildr_vs_spf,1094,"Primary somatosensory area, lower limb, layer 4",11,1053,0,,,,
+baseline_wildr_vs_spf,1096,"Anteromedial nucleus, dorsal part",4,881,26,-7.409097550297072,-7.463233092509098,,7.409097550297072
+baseline_wildr_vs_spf,1097,Hypothalamus,27,12649,578,-4.767419882400655,-6.349647346406648,5.335458368793044,6.159278587303188
+baseline_wildr_vs_spf,1101,"Agranular insular area, dorsal part, layer 5",7,3418,0,,,,
+baseline_wildr_vs_spf,1102,"Primary somatosensory area, mouth, layer 6a",7,3684,155,-2.2224613362233234,-5.453346623933944,4.5442336110301795,5.3355722223676185
+baseline_wildr_vs_spf,1104,"Anteromedial nucleus, ventral part",4,582,59,-6.591546689119452,-6.729896137758704,,6.591546689119451
+baseline_wildr_vs_spf,1105,Intercalated amygdalar nucleus,16,816,15,-6.736069007748186,-6.689155195828127,,6.736069007748186
+baseline_wildr_vs_spf,1106,"Visceral area, layer 2/3",18,2756,0,,,,
+baseline_wildr_vs_spf,1108,genu of corpus callosum,2,635,0,,,,
+baseline_wildr_vs_spf,1109,Parastrial nucleus,3,339,33,-5.159559164901226,-5.3447041121190715,,5.159559164901226
+baseline_wildr_vs_spf,1111,"Primary somatosensory area, trunk, layer 5",9,2242,0,,,,
+baseline_wildr_vs_spf,1113,Interanterodorsal nucleus of the thalamus,4,455,0,,,,
+baseline_wildr_vs_spf,1114,"Anterolateral visual area, layer 4",3,264,0,,,,
+baseline_wildr_vs_spf,1116,genu of the facial nerve,2,114,0,,,,
+baseline_wildr_vs_spf,1120,Interanteromedial nucleus of the thalamus,3,187,1,-7.707678744092563,-7.707678744092563,,7.707678744092563
+baseline_wildr_vs_spf,1121,"Entorhinal area, lateral part, layer 1",18,3126,0,,,,
+baseline_wildr_vs_spf,1123,inferior cerebellar peduncle,6,1567,4,2.939287413765007,2.7491630180889786,2.9392874137650065,2.939287413765007
+baseline_wildr_vs_spf,1125,"Orbital area, ventrolateral part, layer 5",3,509,0,,,,
+baseline_wildr_vs_spf,1126,"Tuberomammillary nucleus, dorsal part",3,184,0,,,,
+baseline_wildr_vs_spf,1127,"Temporal association areas, layer 2/3",16,3128,156,3.4034073288328286,4.025712531913738,3.5862436226746084,3.5070142763921224
+baseline_wildr_vs_spf,1128,"Primary somatosensory area, lower limb, layer 5",11,2164,0,,,,
+baseline_wildr_vs_spf,1139,"Nucleus of the lateral olfactory tract, layer 3",3,188,9,-7.186194687381172,-7.599036232277689,,7.186194687381172
+baseline_wildr_vs_spf,10671,Median eminence,9,266,0,,,,
+baseline_wildr_vs_spf,10703,"Dentate gyrus, molecular layer",23,18146,2018,-2.8875291131625884,-5.507667879841382,3.757565971937222,5.0050115429149775
+baseline_wildr_vs_spf,10704,"Dentate gyrus, polymorph layer",19,2694,383,-4.112280592578422,-5.575569449725677,2.9332186576845123,5.336973306546343
+baseline_wildr_vs_spf,182305693,"Primary somatosensory area, unassigned, layer 1",13,634,0,,,,
+baseline_wildr_vs_spf,182305697,"Primary somatosensory area, unassigned, layer 2/3",14,1382,0,,,,
+baseline_wildr_vs_spf,182305701,"Primary somatosensory area, unassigned, layer 4",15,822,0,,,,
+baseline_wildr_vs_spf,182305705,"Primary somatosensory area, unassigned, layer 5",15,1128,0,,,,
+baseline_wildr_vs_spf,182305709,"Primary somatosensory area, unassigned, layer 6a",16,1298,0,,,,
+baseline_wildr_vs_spf,182305713,"Primary somatosensory area, unassigned, layer 6b",14,115,0,,,,
+baseline_wildr_vs_spf,312782550,"Anterior area, layer 1",9,568,0,,,,
+baseline_wildr_vs_spf,312782554,"Anterior area, layer 2/3",9,1961,3,-3.334817643543918,-3.3076570155901996,,3.334817643543918
+baseline_wildr_vs_spf,312782558,"Anterior area, layer 4",8,685,19,-2.7460355864583135,-2.0039468738117217,,2.746035586458314
+baseline_wildr_vs_spf,312782562,"Anterior area, layer 5",8,1575,19,-6.818373940941271,-7.2187874409256345,,6.818373940941272
+baseline_wildr_vs_spf,312782566,"Anterior area, layer 6a",6,967,0,,,,
+baseline_wildr_vs_spf,312782570,"Anterior area, layer 6b",6,180,0,,,,
+baseline_wildr_vs_spf,312782578,"Laterointermediate area, layer 1",8,367,0,,,,
+baseline_wildr_vs_spf,312782582,"Laterointermediate area, layer 2/3",8,569,1,5.872635232766583,5.872635232766583,5.872635232766583,5.872635232766583
+baseline_wildr_vs_spf,312782586,"Laterointermediate area, layer 4",7,279,8,4.568925090988105,4.677567602802978,4.568925090988105,4.568925090988105
+baseline_wildr_vs_spf,312782590,"Laterointermediate area, layer 5",7,707,6,4.998063012656854,4.97633451029388,4.9980630126568535,4.998063012656854
+baseline_wildr_vs_spf,312782594,"Laterointermediate area, layer 6a",6,357,1,5.818313976859145,5.818313976859145,5.818313976859145,5.818313976859145
+baseline_wildr_vs_spf,312782598,"Laterointermediate area, layer 6b",5,78,0,,,,
+baseline_wildr_vs_spf,312782604,"Rostrolateral area, layer 1",8,382,0,,,,
+baseline_wildr_vs_spf,312782608,"Rostrolateral area, layer 2/3",8,1205,0,-0.8632004997555534,-0.8632004997555534,,0.8632004997555534
+baseline_wildr_vs_spf,312782612,"Rostrolateral area, layer 4",8,646,1,-1.1999922863816601,-0.8632004997555534,,1.1999922863816601
+baseline_wildr_vs_spf,312782616,"Rostrolateral area, layer 5",8,1105,0,,,,
+baseline_wildr_vs_spf,312782620,"Rostrolateral area, layer 6a",7,679,0,,,,
+baseline_wildr_vs_spf,312782624,"Rostrolateral area, layer 6b",7,124,0,,,,
+baseline_wildr_vs_spf,312782632,"Postrhinal area, layer 1",4,600,0,,,,
+baseline_wildr_vs_spf,312782636,"Postrhinal area, layer 2/3",5,1372,29,4.948203859913242,4.94917388234016,4.948203859913242,4.948203859913243
+baseline_wildr_vs_spf,312782640,"Postrhinal area, layer 4",5,304,20,2.6551454597876467,2.776323646042698,2.6551454597876467,2.655145459787647
+baseline_wildr_vs_spf,312782644,"Postrhinal area, layer 5",7,1769,129,3.8546515816794047,4.107194415774893,3.871867440243037,3.8561190157039444
+baseline_wildr_vs_spf,312782648,"Postrhinal area, layer 6a",6,916,95,4.097326265323333,4.949173882340161,4.097326265323334,4.097326265323333
+baseline_wildr_vs_spf,312782652,"Postrhinal area, layer 6b",5,162,9,4.204196658466745,4.161515671682331,4.204196658466745,4.204196658466745
+baseline_wildr_vs_spf,484682470,Prosubiculum,8,7964,1092,2.1363517700523826,1.4182922483567824,3.176214665541645,2.564494486780802
+baseline_wildr_vs_spf,484682508,Area prostriata,4,1090,0,,,,
+baseline_wildr_vs_spf,484682512,supra-callosal cerebral white matter,37,4156,61,-2.7755872782404363,-5.915077299147155,4.573128521504752,5.956469872177907
+baseline_wildr_vs_spf,484682516,"corpus callosum, body",19,12311,360,-3.5642087171681878,-6.376807974360366,4.007353959315393,5.799295904759239
+baseline_wildr_vs_spf,484682520,optic radiation,21,8362,603,0.46384195057806216,3.2923755771633454,4.302358843765942,4.9141066041293655
+baseline_wildr_vs_spf,484682524,auditory radiation,14,1710,85,-1.1321950199841297,-3.5249420392199458,4.792461370257993,5.556005515606892
+baseline_wildr_vs_spf,484682528,commissural branch of stria terminalis,9,186,17,-6.406005649410614,-6.295326090499212,,6.406005649410614
+baseline_wildr_vs_spf,496345664,"Dorsal part of the lateral geniculate complex, shell",7,954,69,-4.587280439745953,-4.394082133738932,,4.587280439745953
+baseline_wildr_vs_spf,496345668,"Dorsal part of the lateral geniculate complex, core",10,1849,84,-4.342407210058467,-4.58420652941496,,4.342407210058467
+baseline_wildr_vs_spf,496345672,"Dorsal part of the lateral geniculate complex, ipsilateral zone",6,419,31,-4.888146889849426,-4.869393122929001,,4.888146889849426
+baseline_wildr_vs_spf,526157196,"Frontal pole, layer 6a",2,91,0,,,,
+baseline_wildr_vs_spf,526322264,"Frontal pole, layer 6b",2,9,0,,,,
+baseline_wildr_vs_spf,527696977,"Orbital area, medial part, layer 6b",2,19,0,,,,
+baseline_wildr_vs_spf,549009203,Retroparafascicular nucleus,3,304,2,5.573868325275681,5.573868325275681,5.573868325275681,5.573868325275681
+baseline_wildr_vs_spf,549009211,Medial accesory oculomotor nucleus,1,29,10,5.405472431962628,5.6010289532294,5.405472431962628,5.405472431962628
+baseline_wildr_vs_spf,549009215,Peritrigeminal zone,1,270,15,4.561682256867114,4.568925090988105,4.561682256867114,4.561682256867114
+baseline_wildr_vs_spf,549009223,Parvicellular motor 5 nucleus,3,79,0,,,,
+baseline_wildr_vs_spf,549009227,Intertrigeminal nucleus,1,92,0,,,,
+baseline_wildr_vs_spf,560581551,Ethmoid nucleus of the thalamus,11,1064,63,-4.550376126743229,-6.784217393666141,4.781554006968642,6.462997729530686
+baseline_wildr_vs_spf,560581559,Xiphoid thalamic nucleus,10,429,100,-6.748596636353549,-6.757056765712422,,6.748596636353548
+baseline_wildr_vs_spf,560581563,Posterior intralaminar thalamic nucleus,3,243,2,5.356583301645935,5.356583301645935,5.356583301645935,5.356583301645935
+baseline_wildr_vs_spf,563807435,Posterior triangular thalamic nucleus,5,1059,135,4.448457044505609,4.378800695312077,4.448457044505609,4.448457044505609
+baseline_wildr_vs_spf,563807439,Intermediate geniculate nucleus,3,123,3,-7.580929146975211,-7.599036232277689,,7.580929146975211
+baseline_wildr_vs_spf,576073699,Ventromedial preoptic nucleus,3,213,0,,,,
+baseline_wildr_vs_spf,576073704,Perifornical nucleus,8,1054,105,-6.1706968252322145,-6.729896137758704,,6.1706968252322145
+baseline_wildr_vs_spf,589508447,Hippocampo-amygdalar transition area,7,1913,435,3.37126119448323,3.1022511814873175,3.429999355376893,3.3851756955856067
+baseline_wildr_vs_spf,589508455,Vestibulocerebellar nucleus,1,16,0,,,,
+baseline_wildr_vs_spf,599626923,Subcommissural organ,6,59,0,,,,
+baseline_wildr_vs_spf,599626927,Posterodorsal tegmental nucleus,2,219,0,,,,
+baseline_wildr_vs_spf,606826647,"Medial mammillary nucleus, lateral part",4,839,13,5.566754827478279,5.6010289532294,5.566754827478279,5.566754827478279
+baseline_wildr_vs_spf,606826651,"Medial mammillary nucleus, medial part",4,617,4,5.6010289532294,5.573868325275681,5.601028953229399,5.6010289532294
+baseline_wildr_vs_spf,606826655,"Medial mammillary nucleus, posterior part",1,68,0,,,,
+baseline_wildr_vs_spf,606826659,"Medial mammillary nucleus, dorsal part",3,273,0,,,,
+baseline_wildr_vs_spf,606826663,Paratrochlear nucleus,3,83,6,-7.42701892190414,-7.517554348416535,,7.42701892190414
+baseline_wildr_vs_spf,607344830,Paranigral nucleus,1,19,0,,,,
+baseline_wildr_vs_spf,607344834,"Interpeduncular nucleus, rostral",1,40,0,,,,
+baseline_wildr_vs_spf,607344838,"Interpeduncular nucleus, caudal",3,177,5,5.785721223314685,5.709671465044273,5.785721223314685,5.785721223314684
+baseline_wildr_vs_spf,607344842,"Interpeduncular nucleus, apical",4,146,8,5.827367519510386,5.791153348905428,5.827367519510386,5.827367519510386
+baseline_wildr_vs_spf,607344846,"Interpeduncular nucleus, lateral",2,157,0,,,,
+baseline_wildr_vs_spf,607344850,"Interpeduncular nucleus, intermediate",2,82,0,,,,
+baseline_wildr_vs_spf,607344854,"Interpeduncular nucleus, dorsomedial",4,92,8,5.674750657675206,5.655350209136836,5.674750657675206,5.674750657675206
+baseline_wildr_vs_spf,607344858,"Interpeduncular nucleus, dorsolateral",2,95,1,5.92695648867402,5.92695648867402,5.92695648867402,5.92695648867402
+baseline_wildr_vs_spf,607344862,"Interpeduncular nucleus, rostrolateral",1,27,0,,,,
+baseline_wildr_vs_spf,614454277,Supraoculomotor periaqueductal gray,5,207,0,,,,

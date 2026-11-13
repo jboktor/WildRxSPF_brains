@@ -1,0 +1,6 @@
+hypothesis_id,metric,estimate,null_summary,p_perm,fdr_or_predeclared_alpha,control_result,decision
+H1,accepted_slice_dice_and_continuity_qc,accepted_final=53/66; mean_dice=0.960; continuity_rejects=12; blank=1,QC claim: continuity gate retained; no chance Dice model,,,12 high-Dice fits rejected only by AP continuity,supported
+H2,limbic_hypothalamic_mean_abs_t_minus_rest,intruder_delta=-0.0322 (p=0.8502); baseline_delta=0.6265 (p=0.0003),annotation-label permutation within map (10k),0.85021497850215,,baseline_delta=0.6265; intruder_stronger_than_baseline=FALSE,not_supported
+H3,spearman_intruder_positive_mean_t_vs_neuro_hedges_g,rho=-0.661; n_gates=10; baseline_rho=0.139,gate-label permutation of 2DG scores (10k),0.0414958504149585,0.1,baseline_rho=0.139; baseline_p=0.7023; collapses_or_weaker=FALSE,supported
+H4,abs_rho_intruder_minus_max_abs_rho_IB,|rho_intr|=0.661; |rho_wildr_IB|=0.115; |rho_spf_IB|=0.636; delta=0.024,bootstrap over gates (2000): P(delta<=0),0.641,,max_|rho|_IB=0.636; IB_explains_as_well_or_better=FALSE,inconclusive
+H5,roi_seed_iou_vs_target_parcels,mean_iou=0.0044 across 3 usable seeds; n_with_target_overlap=1/3,QC threshold: mean IoU>=0.05 and >=3 ROIs with overlap,,,L_LS:iou=0.000; R_Cg:iou=0.000; R_vHPC:iou=0.013,inconclusive

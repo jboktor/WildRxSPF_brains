@@ -1,0 +1,165 @@
+annotation,annotation_name,in_prespecified_set
+23,Anterior amygdalar area,TRUE
+30,"Periventricular hypothalamic nucleus, anterior part",TRUE
+31,Anterior cingulate area,TRUE
+38,Paraventricular hypothalamic nucleus,TRUE
+39,"Anterior cingulate area, dorsal part",TRUE
+44,Infralimbic area,TRUE
+47,"Paraventricular hypothalamic nucleus, magnocellular division, anterior magnocellular part",TRUE
+48,"Anterior cingulate area, ventral part",TRUE
+55,"Paraventricular hypothalamic nucleus, parvicellular division, anterior parvicellular part",TRUE
+56,Nucleus accumbens,TRUE
+63,"Paraventricular hypothalamic nucleus, descending division",TRUE
+71,"Paraventricular hypothalamic nucleus, magnocellular division",TRUE
+79,"Paraventricular hypothalamic nucleus, magnocellular division, medial magnocellular part",TRUE
+80,Anterior hypothalamic area,TRUE
+84,"Prelimbic area, layer 6a",TRUE
+87,"Paraventricular hypothalamic nucleus, parvicellular division, medial parvicellular part, dorsal zone",TRUE
+88,Anterior hypothalamic nucleus,TRUE
+94,"Paraventricular hypothalamic nucleus, parvicellular division",TRUE
+103,"Paraventricular hypothalamic nucleus, magnocellular division, posterior magnocellular part",TRUE
+110,"Paraventricular hypothalamic nucleus, parvicellular division, periventricular part",TRUE
+118,"Periventricular hypothalamic nucleus, intermediate part",TRUE
+126,"Periventricular hypothalamic nucleus, posterior part",TRUE
+131,Lateral amygdalar nucleus,TRUE
+132,"Prelimbic area, layer 6b",TRUE
+133,"Periventricular hypothalamic nucleus, preoptic part",TRUE
+150,periventricular bundle of the hypothalamus,TRUE
+171,"Prelimbic area, layer 1",TRUE
+179,"Anterior cingulate area, layer 6a",TRUE
+182,propriohypothalamic pathways,TRUE
+192,"Cortical amygdalar area, anterior part, layer 1",TRUE
+194,Lateral hypothalamic area,TRUE
+195,"Prelimbic area, layer 2",TRUE
+200,"Cortical amygdalar area, anterior part, layer 2",TRUE
+208,"Cortical amygdalar area, anterior part, layer 3",TRUE
+211,"Anterior cingulate area, dorsal part, layer 2/3",TRUE
+216,"Cortical amygdalar area, posterior part, lateral zone, layer 1",TRUE
+223,Arcuate hypothalamic nucleus,TRUE
+224,"Cortical amygdalar area, posterior part, lateral zone, layer 2",TRUE
+227,"Anterior cingulate area, layer 6b",TRUE
+232,"Cortical amygdalar area, posterior part, lateral zone, layer 3",TRUE
+240,"Cortical amygdalar area, posterior part, medial zone, layer 1",TRUE
+242,Lateral septal nucleus,TRUE
+248,"Cortical amygdalar area, posterior part, medial zone, layer 2",TRUE
+250,"Lateral septal nucleus, caudal (caudodorsal) part",TRUE
+253,spinohypothalamic pathway,TRUE
+256,"Cortical amygdalar area, posterior part, medial zone, layer 3",TRUE
+258,"Lateral septal nucleus, rostral (rostroventral) part",TRUE
+266,"Lateral septal nucleus, ventral part",TRUE
+275,Lateral septal complex,TRUE
+278,Striatum-like amygdalar nuclei,TRUE
+290,Hypothalamic lateral zone,TRUE
+295,Basolateral amygdalar nucleus,TRUE
+296,"Anterior cingulate area, ventral part, layer 2/3",TRUE
+303,"Basolateral amygdalar nucleus, anterior part",TRUE
+304,"Prelimbic area, layer 2/3",TRUE
+311,"Basolateral amygdalar nucleus, posterior part",TRUE
+319,Basomedial amygdalar nucleus,TRUE
+327,"Basomedial amygdalar nucleus, anterior part",TRUE
+334,"Basomedial amygdalar nucleus, posterior part",TRUE
+351,Bed nuclei of the stria terminalis,TRUE
+359,"Bed nuclei of the stria terminalis, anterior division",TRUE
+363,"Prelimbic area, layer 5",TRUE
+367,"Bed nuclei of the stria terminalis, posterior division",TRUE
+376,"Cortical amygdalar area, posterior part, lateral zone, layers 1-3",TRUE
+383,"Cortical amygdalar area, posterior part, medial zone, layers 1-3",TRUE
+400,"Piriform-amygdalar area, layers 1-3",TRUE
+403,Medial amygdalar nucleus,TRUE
+405,ventrolateral hypothalamic tract,TRUE
+408,"Piriform-amygdalar area, molecular layer",TRUE
+411,"Medial amygdalar nucleus, anterodorsal part",TRUE
+416,"Piriform-amygdalar area, pyramidal layer",TRUE
+418,"Medial amygdalar nucleus, anteroventral part",TRUE
+424,"Piriform-amygdalar area, polymorph layer",TRUE
+426,"Medial amygdalar nucleus, posterodorsal part",TRUE
+428,medial corticohypothalamic tract,TRUE
+435,"Medial amygdalar nucleus, posteroventral part",TRUE
+439,"Paraventricular hypothalamic nucleus, descending division, dorsal parvicellular part",TRUE
+447,"Paraventricular hypothalamic nucleus, descending division, forniceal part",TRUE
+451,"Basolateral amygdalar nucleus, ventral part",TRUE
+455,"Paraventricular hypothalamic nucleus, descending division, lateral parvicellular part",TRUE
+464,"Paraventricular hypothalamic nucleus, descending division, medial parvicellular part, ventral zone",TRUE
+467,Hypothalamic medial zone,TRUE
+472,"Medial amygdalar nucleus, posterodorsal part, sublayer a",TRUE
+480,"Medial amygdalar nucleus, posterodorsal part, sublayer b",TRUE
+487,"Medial amygdalar nucleus, posterodorsal part, sublayer c",TRUE
+498,"Bed nuclei of the stria terminalis, anterior division, anteromedial area",TRUE
+505,"Bed nuclei of the stria terminalis, anterior division, dorsomedial nucleus",TRUE
+513,"Bed nuclei of the stria terminalis, anterior division, fusiform nucleus",TRUE
+515,Medial preoptic nucleus,TRUE
+521,"Bed nuclei of the stria terminalis, anterior division, magnocellular nucleus",TRUE
+523,Medial preoptic area,TRUE
+529,"Bed nuclei of the stria terminalis, anterior division, ventral nucleus",TRUE
+536,Central amygdalar nucleus,TRUE
+537,"Bed nuclei of the stria terminalis, anterior division, anterolateral area",TRUE
+544,"Central amygdalar nucleus, capsular part",TRUE
+546,"Bed nuclei of the stria terminalis, anterior division, juxtacapsular nucleus",TRUE
+551,"Central amygdalar nucleus, lateral part",TRUE
+554,"Bed nuclei of the stria terminalis, anterior division, oval nucleus",TRUE
+556,"Infralimbic area, layer 2/3",TRUE
+559,"Central amygdalar nucleus, medial part",TRUE
+562,"Bed nuclei of the stria terminalis, anterior division, rhomboid nucleus",TRUE
+564,Medial septal nucleus,TRUE
+569,"Bed nuclei of the stria terminalis, posterior division, dorsal nucleus",TRUE
+572,"Anterior cingulate area, layer 1",TRUE
+578,"Bed nuclei of the stria terminalis, posterior division, principal nucleus",TRUE
+584,"Cortical amygdalar area, posterior part, lateral zone, layers 1-2",TRUE
+585,"Bed nuclei of the stria terminalis, posterior division, interfascicular nucleus",TRUE
+588,"Anterior cingulate area, ventral part, layer 1",TRUE
+592,"Cortical amygdalar area, posterior part, medial zone, layers 1-2",TRUE
+594,"Bed nuclei of the stria terminalis, posterior division, transverse nucleus",TRUE
+602,"Bed nuclei of the stria terminalis, posterior division, strial extension",TRUE
+627,hypothalamohypophysial tract,TRUE
+631,Cortical amygdalar area,TRUE
+639,"Cortical amygdalar area, anterior part",TRUE
+647,"Cortical amygdalar area, posterior part",TRUE
+652,"Paraventricular hypothalamic nucleus, magnocellular division, posterior magnocellular part, lateral zone",TRUE
+655,"Cortical amygdalar area, posterior part, lateral zone",TRUE
+660,"Paraventricular hypothalamic nucleus, magnocellular division, posterior magnocellular part, medial zone",TRUE
+663,"Cortical amygdalar area, posterior part, medial zone",TRUE
+668,"Dorsomedial nucleus of the hypothalamus, anterior part",TRUE
+676,"Dorsomedial nucleus of the hypothalamus, posterior part",TRUE
+684,"Dorsomedial nucleus of the hypothalamus, ventral part",TRUE
+693,Ventromedial hypothalamic nucleus,TRUE
+700,"Anterior hypothalamic nucleus, anterior part",TRUE
+707,"Infralimbic area, layer 1",TRUE
+708,"Anterior hypothalamic nucleus, central part",TRUE
+716,"Anterior hypothalamic nucleus, dorsal part",TRUE
+724,"Anterior hypothalamic nucleus, posterior part",TRUE
+739,"Anterior cingulate area, layer 5",TRUE
+740,"Medial preoptic nucleus, central part",TRUE
+747,"Infralimbic area, layer 2",TRUE
+748,"Medial preoptic nucleus, lateral part",TRUE
+756,"Medial preoptic nucleus, medial part",TRUE
+761,"Ventromedial hypothalamic nucleus, anterior part",TRUE
+762,"propriohypothalamic pathways, dorsal",TRUE
+769,"Ventromedial hypothalamic nucleus, central part",TRUE
+770,"propriohypothalamic pathways, lateral",TRUE
+772,"Anterior cingulate area, ventral part, layer 5",TRUE
+777,"Ventromedial hypothalamic nucleus, dorsomedial part",TRUE
+779,"propriohypothalamic pathways, medial",TRUE
+780,Posterior amygdalar nucleus,TRUE
+785,"Ventromedial hypothalamic nucleus, ventrolateral part",TRUE
+787,"propriohypothalamic pathways, ventral",TRUE
+788,Piriform-amygdalar area,TRUE
+810,"Anterior cingulate area, ventral part, 6a",TRUE
+819,"Anterior cingulate area, ventral part, 6b",TRUE
+824,hypothalamus related,TRUE
+827,"Infralimbic area, layer 5",TRUE
+830,Dorsomedial nucleus of the hypothalamus,TRUE
+884,amygdalar capsule,TRUE
+904,Medial septal complex,TRUE
+919,"Anterior cingulate area, dorsal part, layer 6a",TRUE
+927,"Anterior cingulate area, dorsal part, layer 6b",TRUE
+935,"Anterior cingulate area, dorsal part, layer 1",TRUE
+946,Posterior hypothalamic nucleus,TRUE
+972,Prelimbic area,TRUE
+1015,"Anterior cingulate area, dorsal part, layer 5",TRUE
+1053,"Anterior cingulate area, layer 2/3",TRUE
+1054,"Infralimbic area, layer 6a",TRUE
+1081,"Infralimbic area, layer 6b",TRUE
+1097,Hypothalamus,TRUE
+1105,Intercalated amygdalar nucleus,TRUE
+576073699,Ventromedial preoptic nucleus,TRUE
+589508447,Hippocampo-amygdalar transition area,TRUE

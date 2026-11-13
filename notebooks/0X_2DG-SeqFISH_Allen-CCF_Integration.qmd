@@ -1,0 +1,488 @@
+---
+title: "2DG and seqFISH Co-embedding in Allen CCF"
+subtitle: "Controlled hypothesis battery with Baseline / Intruder−Baseline specificity and interactive CCF viewer"
+date: today
+author: "Joe Boktor"
+categories: [2DG, seqFISH, Allen CCF, Multimodal Integration]
+format:
+  html:
+    theme:
+      - cosmo
+      - ../quarto-aesthetic-kit/theme/aesthetic.scss
+    include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    page-layout: article
+    code-fold: true
+    code-tools: true
+    code-copy: true
+    embed-resources: true
+    fig-cap-location: bottom
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: auto
+---
+
+```{r}
+#| label: setup-display
+#| include: false
+
+run_analysis <- FALSE
+
+suppressPackageStartupMessages({
+  library(data.table)
+  library(glue)
+  library(knitr)
+  library(plotly)
+})
+
+wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
+source_date <- "2026-11-11"
+analysis_date <- "2026-11-12"
+source_dir <- file.path(wkdir, "data/interim/2DG_CCF_Integration", source_date)
+analysis_dir <- file.path(wkdir, "data/interim/2DG_CCF_Integration", analysis_date)
+figure_dir <- file.path(wkdir, "figures/2DG_CCF_Integration")
+table_dir <- file.path(wkdir, "tables/2DG_CCF_Integration")
+
+registration_summary_path <- file.path(
+  source_dir,
+  glue("2dg_registration_summary_strict_{source_date}.csv")
+)
+battery_path <- file.path(
+  table_dir,
+  glue("2DG_hypothesis_battery_controlled_{analysis_date}.csv")
+)
+gate_triad_path <- file.path(
+  table_dir,
+  glue("2DG_gate_control_triad_controlled_{analysis_date}.csv")
+)
+h2_path <- file.path(
+  table_dir,
+  glue("2DG_H2_region_set_enrichment_controlled_{analysis_date}.csv")
+)
+roi_path <- file.path(
+  table_dir,
+  glue("2DG_ROI_seed_ccf_overlap_{analysis_date}.csv")
+)
+widget_rds <- file.path(
+  analysis_dir,
+  glue("2DG_CCF_interactive3d_widget_{analysis_date}.rds")
+)
+
+template_figure <- file.path(
+  figure_dir,
+  glue("2DG_template_intruder_qc_{source_date}.png")
+)
+registration_figure <- file.path(
+  figure_dir,
+  glue("2DG_CCF_registration_qc_status_{analysis_date}.png")
+)
+decision_figure <- file.path(
+  figure_dir,
+  glue("2DG_hypothesis_decision_strip_controlled_{analysis_date}.png")
+)
+h2_figure <- file.path(
+  figure_dir,
+  glue("2DG_H2_region_set_enrichment_controlled_{analysis_date}.png")
+)
+triad_figure <- file.path(
+  figure_dir,
+  glue("2DG_gate_control_triad_controlled_{analysis_date}.png")
+)
+roi_figure <- file.path(
+  figure_dir,
+  glue("2DG_ROI_seed_ccf_overlap_{analysis_date}.png")
+)
+
+registration <- if (file.exists(registration_summary_path)) {
+  fread(registration_summary_path)
+} else {
+  NULL
+}
+battery <- if (file.exists(battery_path)) fread(battery_path) else NULL
+gate_triad <- if (file.exists(gate_triad_path)) fread(gate_triad_path) else NULL
+roi <- if (file.exists(roi_path)) fread(roi_path) else NULL
+
+display_saved_image <- function(path, pending_message) {
+  if (file.exists(path)) {
+    knitr::include_graphics(path)
+  } else {
+    knitr::asis_output(paste0("<p><em>", pending_message, "</em></p>\n"))
+  }
+}
+
+decision_of <- function(id) {
+  if (is.null(battery)) return("pending")
+  battery[hypothesis_id == id, decision][1]
+}
+```
+
+# 2DG and seqFISH Co-embedding in Allen CCF
+
+## Overview
+
+This notebook treats the WildR-versus-SPF Intruder 2DG map as a **group-level**
+contrast co-embedded with seqFISH NEUROeSTIMator activity in Allen CCFv3. The
+upgrade adds what a controlled analysis requires: Baseline and within-genotype
+Intruder−Baseline maps warped through the same Template transforms as
+specificity controls, a pre-specified H1–H5 hypothesis battery with explicit
+pass/fail language, and an interactive 3D CCF viewer with optional anatomy and
+seqFISH overlays.
+
+```{r}
+#| label: display-stats
+#| echo: false
+#| results: asis
+
+n_accepted <- if (is.null(registration)) {
+  0L
+} else {
+  sum(registration$accepted_final)
+}
+n_supported <- if (is.null(battery)) {
+  0L
+} else {
+  sum(battery$decision == "supported")
+}
+n_tested <- if (is.null(battery)) 0L else nrow(battery)
+cat("::: {.stat-row}\n")
+cat("::: {.stat}\n[", n_accepted, "]{.stat-value}\n[Slices passing strict QC]{.stat-label}\n:::\n", sep = "")
+cat("::: {.stat}\n[", n_tested, "]{.stat-value}\n[Pre-specified hypotheses]{.stat-label}\n:::\n", sep = "")
+cat("::: {.stat}\n[", n_supported, "]{.stat-value}\n[Hypotheses supported]{.stat-label}\n:::\n", sep = "")
+cat("::: {.stat}\n[3]{.stat-value}\n[Map families in CCF]{.stat-label}\n:::\n")
+cat(":::\n")
+```
+
+## Background
+
+Scalar `Template/` anatomy and `WildRvSPF Intruder/` t maps are the primary
+inputs (`2DG = y/1.494`, `t = (y/18.409)−7.762`). Accepted Template→CCF warps
+from [data/interim/2DG_CCF_Integration/2026-11-11]{.path} are reused—without
+re-fitting Elastix—to place Baseline and WildR/SPF Intruder−Baseline RGB maps
+into the same coordinates via the validated 254-color LUT. seqFISH still lacks
+a verified section→animal key, so every cross-modality test remains
+section/gate-level and non-animal.
+
+## Hypotheses
+
+These five claims were written before inspecting the control-map results. Only
+they appear as findings.
+
+| ID | Claim | Primary test | Control |
+|----|-------|--------------|---------|
+| H1 | Accepted Template slices occupy plausible CCF planes | Dice + AP continuity QC | Continuity gate retained |
+| H2 | Positive Intruder \|t\| is enriched in a pre-specified limbic/hypothalamic annotation set | Set-vs-complement Δmean\|t\| + 10k label permutations | Same test on Baseline |
+| H3 | Gate-allocated Intruder positive mean t correlates with NEUROeSTIMator Hedges' g | Spearman + gate permutation; α = 0.10 on this metric only | Baseline-allocated positive mean t |
+| H4 | Intruder association is not explained by within-genotype Intruder−Baseline maps | \|ρ\|_Intruder vs max(\|ρ\|_WildR I−B, \|ρ\|_SPF I−B) with gate bootstrap | I−B maps |
+| H5 | ROI seed footprints land in expected Allen parcels | Seed-slice IoU vs target parcels | Anatomical QC only |
+
+```{r}
+#| label: display-decision-strip
+#| echo: false
+#| out.width: "100%"
+
+display_saved_image(
+  decision_figure,
+  "Hypothesis battery not yet computed."
+)
+```
+
+## Results
+
+### H1 — Registration QC is tight where accepted
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-h1-registration
+#| echo: false
+#| out.width: "100%"
+
+display_saved_image(
+  registration_figure,
+  "Controlled registration QC figure not yet written."
+)
+```
+
+::: {.fig-caption}
+[**Figure 1.**]{.fig-num} Template→CCF Dice by source slice. Green =
+`accepted_final`; orange = high-Dice fits rejected only by AP continuity; grey =
+failed or blank.
+:::
+
+::: {.takeaways}
+**Decision: `r decision_of("H1")`**
+
+- 53/66 slices pass strict QC; mean Dice among accepted = 0.960.
+- 12 continuity rejects keep high Dice without inventing an AP trajectory.
+- Template001 is blank and is skipped.
+:::
+:::
+
+### Interactive CCF co-embedding
+
+Use the buttons to toggle **CCF borders** and **seqFISH NEUROeSTIMator** cells
+on top of Intruder t. Legend clicks also toggle traces.
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-interactive-3d
+#| echo: false
+
+if (file.exists(widget_rds)) {
+  readRDS(widget_rds)
+} else {
+  knitr::asis_output(
+    "<p><em>Interactive 3D widget not yet built. Run plot_2dg_ccf_interactive3d.R.</em></p>"
+  )
+}
+```
+
+::: {.fig-caption}
+[**Figure 2.**]{.fig-num} Interactive Plotly viewer. Intruder significant voxels
+(`|t| ≥ 1.725`, subsampled), Allen border points from
+`annotations_25_border_only.tif`, and a sparse seqFISH NEUROeSTIMator cloud.
+:::
+
+::: {.takeaways}
+**Display control**
+
+- Readers can audit spatial co-localization themselves rather than trusting a static PNG.
+- Borders and seqFISH start legend-only so the Intruder map remains readable.
+- Point counts are capped for `embed-resources: true` portability.
+:::
+:::
+
+### H2 — Limbic/hypothalamic enrichment is Baseline-like, not Intruder-specific
+
+::: {.figure-card}
+```{r}
+#| label: display-h2
+#| echo: false
+#| out.width: "100%"
+
+display_saved_image(
+  h2_figure,
+  "H2 enrichment figure not yet written."
+)
+```
+
+::: {.fig-caption}
+[**Figure 3.**]{.fig-num} Pre-specified limbic/hypothalamic annotation set versus
+complement: Δ mean \|t\| for Intruder and Baseline maps (10k label permutations).
+:::
+
+::: {.takeaways}
+**Decision: `r decision_of("H2")`**
+
+- Intruder Δmean\|t\| = −0.032 (p ≈ 0.85): no enrichment in the pre-specified set.
+- Baseline Δmean\|t\| = +0.63 (p ≈ 0.0003): enrichment is Baseline-driven.
+- Control requirement fails: Intruder is not stronger than Baseline.
+:::
+:::
+
+### H3 — Intruder positive mean t tracks gated NEUROeSTIMator g; Baseline does not
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-h3-triad
+#| echo: false
+#| out.width: "100%"
+
+display_saved_image(
+  triad_figure,
+  "Control-triad figure not yet written."
+)
+```
+
+::: {.fig-caption}
+[**Figure 4.**]{.fig-num} Gate-allocated positive mean t versus NEUROeSTIMator
+Hedges' g for Intruder, Baseline, WildR Intruder−Baseline, and SPF
+Intruder−Baseline.
+:::
+
+::: {.takeaways}
+**Decision: `r decision_of("H3")`**
+
+- Intruder Spearman ρ = −0.661 across 10 gates (permutation p ≈ 0.041; pre-declared α = 0.10).
+- Baseline ρ = +0.139 (p ≈ 0.70): the association collapses on the Baseline control map.
+- Negative sign: gates with stronger WildR>SPF NEUROeSTIMator effects carry lower mean positive Intruder t under gate allocation.
+:::
+:::
+
+```{r}
+#| label: display-gate-triad-table
+#| echo: false
+
+if (!is.null(gate_triad)) {
+  knitr::kable(
+    gate_triad[
+      order(neuro_hedges_g),
+      .(
+        final_gate,
+        neuro_hedges_g,
+        intruder_positive_mean_t,
+        baseline_positive_mean_t,
+        wildr_ib_positive_mean_t,
+        spf_ib_positive_mean_t
+      )
+    ],
+    digits = 3,
+    caption = "Control triad of gate-allocated positive mean t scores."
+  )
+}
+```
+
+### H4 — Within-genotype Intruder−Baseline partially overlaps the Intruder signal
+
+::: {.takeaways}
+**Decision: `r decision_of("H4")`**
+
+- \|ρ\|_Intruder = 0.661 versus \|ρ\|_SPF I−B = 0.636 and \|ρ\|_WildR I−B = 0.115.
+- Intruder edges the stronger I−B map, but bootstrap P(Δ ≤ 0) ≈ 0.64, so the excess is not stable.
+- Interpret H3 as Intruder-associated but not cleanly separable from SPF context-driven 2DG structure.
+:::
+
+### H5 — ROI seed footprints are not yet anatomically diagnostic
+
+::: {.figure-card}
+```{r}
+#| label: display-h5
+#| echo: false
+#| out.width: "100%"
+
+display_saved_image(
+  roi_figure,
+  "ROI seed overlap figure not yet written."
+)
+```
+
+::: {.fig-caption}
+[**Figure 5.**]{.fig-num} IoU of WildR Intruder ROI overlay footprints versus
+expected Allen parcels on seed slices. Several seed planes fail continuity QC
+and are excluded from the mean.
+:::
+
+::: {.takeaways}
+**Decision: `r decision_of("H5")`**
+
+- Only 3/6 seed slices are in `accepted_final`; mean IoU ≈ 0.004.
+- L_LS / R_Cg footprints under current AP assignment do not land in septal/cingulate parcels.
+- This is spatial QC failure for the ROI overlays as anatomical masks—not a claim about activity biology.
+:::
+:::
+
+```{r}
+#| label: display-battery-table
+#| echo: false
+
+if (!is.null(battery)) {
+  knitr::kable(
+    battery[
+      ,
+      .(
+        hypothesis_id,
+        decision,
+        estimate,
+        p_perm,
+        control_result
+      )
+    ],
+    digits = 4,
+    caption = "Full pre-specified hypothesis battery."
+  )
+}
+```
+
+### Findings
+
+1. **H1 supported.** Strict Template→CCF registration yields 53 accepted slices at mean Dice 0.960 with an intact continuity gate.
+2. **H2 not supported.** Limbic/hypothalamic \|t\| enrichment is a Baseline property, not an Intruder-specific one.
+3. **H3 supported.** Gate-allocated Intruder positive mean t correlates with NEUROeSTIMator Hedges' g (ρ = −0.66, p ≈ 0.041); Baseline does not.
+4. **H4 inconclusive.** SPF Intruder−Baseline nearly matches Intruder \|ρ\|, so genotype WildR−SPF Intruder is not cleanly isolated from context-driven structure.
+5. **H5 inconclusive.** ROI seed overlays do not currently provide trustworthy anatomical parcel footprints under accepted CCF planes.
+
+::: {.callout-warning}
+None of these tests are animal-level. 2DG remains a group map; seqFISH still
+lacks a verified section→animal key. Do not promote H3 to a confirmatory
+genotype effect without that key and without resolving H4.
+:::
+
+## Next Steps
+
+- Obtain a verified seqFISH section→animal key before any inferential cross-modality model.
+- Resolve H4 with scalar (non-RGB) Intruder−Baseline exports if available.
+- Revisit ROI overlays only after confirming they are anatomical masks rather than contrast displays.
+- Optionally warp Behavior stacks under the same Template transforms as a separate map family.
+
+# Code & Provenance {.code-appendix}
+
+Ordinary rendering loads dated tables/figures/widgets only. Set
+`run_analysis <- TRUE` to rebuild; registration is never submitted by render.
+
+```{bash}
+#| label: cell-warp-siblings
+#| eval: !expr run_analysis
+
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/python \
+  /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/python_scripts/warp_2dg_sibling_maps_to_ccf.py \
+  all
+```
+
+```{bash}
+#| label: cell-hypothesis-battery
+#| eval: !expr run_analysis
+
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript \
+  /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/R_scripts/test_2dg_neuroestimator_hypotheses.R
+```
+
+```{bash}
+#| label: cell-interactive-3d
+#| eval: !expr run_analysis
+
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/python \
+  /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/python_scripts/export_ccf_border_points.py
+
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript \
+  /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/R_scripts/plot_2dg_ccf_interactive3d.R
+```
+
+```{r}
+#| label: cell-tbl-battery
+#| echo: false
+
+if (!is.null(battery)) {
+  knitr::kable(battery, digits = 4, caption = "Provenance copy of the hypothesis battery.")
+}
+```
+
+```{r}
+#| label: cell-tbl-registration
+#| echo: false
+
+if (!is.null(registration)) {
+  knitr::kable(
+    registration[
+      ,
+      .(
+        source_number,
+        nominal_bregma_mm,
+        selected_allen_index,
+        dice,
+        inside_allen_tissue_fraction,
+        accepted_slice_fit,
+        accepted_final,
+        continuity_note
+      )
+    ],
+    caption = "Per-slice Template→Allen registration QC."
+  )
+}
+```
