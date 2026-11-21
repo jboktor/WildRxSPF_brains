@@ -467,8 +467,121 @@ flux_perm_wilcox_results_df %>% glimpse()
 # saveRDS(flux_perm_wilcox_results_df, 
 #   glue("{data_path}/scFEA/snRNASeq_flux_perm_wilcox_results_df_2026-06-08.rds")
 #   )
+write_csv(flux_perm_wilcox_results_df, glue("{data_path}/scFEA/snRNASeq_flux_perm_wilcox_results_df_{Sys.Date()}.csv"))
 
 ```
+
+
+## Pseudobulk flux (mean within mouse)
+
+Average cell-level scFEA fluxes within each mouse (`sample`) for every flux path
+(each path = one `CLAS_*`). Returns a **modules × (mouse|class)** matrix.
+
+```{r}
+#| eval: !expr run_analysis
+
+# sample = mouse×tissue (e.g. SPF_3D4_AMY); mouse strips tissue suffix
+metadata_pseudobulk <- seurat_obj@meta.data %>%
+  as.data.frame() %>%
+  dplyr::select(
+    bc_wells, sample, group, tissue, microbiome,
+    class_label, class_name, supertype_label, supertype_name
+  ) %>%
+  left_join(celltype_droplist, by = c("supertype_label" = "celltype", "tissue")) %>%
+  filter(is.na(dropme)) %>%
+  mutate(mouse = gsub("_(AMY|HYP)$", "", as.character(sample))) %>%
+  distinct()
+
+# Mean flux per mouse within each class file; bind across all flux_paths.
+# min_cells: drop mouse–class units with too few cells
+run_flux_pseudobulk <- function(flux_paths, metadata_pb, min_cells = 10L) {
+  pb_long <- purrr::map_dfr(flux_paths, function(flux_path) {
+    class_from_file <- stringr::str_extract(basename(flux_path), "CLAS_\\d+")
+    message(glue("Pseudobulk {basename(flux_path)}"))
+
+    flux_df <- read.csv(flux_path) %>%
+      dplyr::rename(bc_wells = X) %>%
+      left_join(metadata_pb, by = "bc_wells") %>%
+      filter(!is.na(sample), !is.na(supertype_label))
+
+    module_cols <- grep("^M_\\d+$", names(flux_df), value = TRUE)
+    if (length(module_cols) == 0L || nrow(flux_df) == 0L) {
+      return(tibble::tibble())
+    }
+
+    flux_df %>%
+      group_by(sample, mouse, group, tissue, microbiome, class_label, class_name) %>%
+      summarise(
+        n_cells = dplyr::n(),
+        dplyr::across(dplyr::all_of(module_cols), ~ mean(.x, na.rm = TRUE)),
+        .groups = "drop"
+      ) %>%
+      filter(n_cells >= min_cells) %>%
+      mutate(
+        class_from_file = class_from_file,
+        pb_id = paste(sample, class_label, sep = "|")
+      )
+  })
+
+  module_cols <- grep("^M_\\d+$", names(pb_long), value = TRUE)
+  coldata <- pb_long %>%
+    dplyr::select(
+      pb_id, sample, mouse, group, tissue, microbiome,
+      class_label, class_name, class_from_file, n_cells
+    )
+
+  mat <- pb_long %>%
+    dplyr::select(pb_id, dplyr::all_of(module_cols)) %>%
+    tibble::column_to_rownames("pb_id") %>%
+    as.matrix() %>%
+    t()
+
+  # Row metadata aligned to mat rownames (M_1 … M_171)
+  module_meta <- mouse_modules %>%
+    as.data.frame() %>%
+    mutate(module = as.character(M_id)) %>%
+    dplyr::filter(module %in% rownames(mat)) %>%
+    dplyr::slice(match(rownames(mat), module)) %>%
+    tibble::column_to_rownames("module")
+
+  stopifnot(identical(rownames(mat), rownames(module_meta)))
+
+  list(
+    matrix = mat,
+    coldata = coldata,
+    module_meta = module_meta,
+    long = pb_long
+  )
+}
+
+flux_pb <- run_flux_pseudobulk(flux_paths, metadata_pseudobulk, min_cells = 10L)
+
+# modules × (sample|class_label)
+flux_pseudobulk_mat <- flux_pb$matrix
+flux_pseudobulk_coldata <- flux_pb$coldata
+flux_pseudobulk_module_meta <- flux_pb$module_meta
+
+dim(flux_pseudobulk_mat)
+flux_pseudobulk_mat[1:5, 1:min(5L, ncol(flux_pseudobulk_mat))]
+flux_pseudobulk_coldata %>% glimpse()
+flux_pseudobulk_module_meta %>% glimpse()
+
+saveRDS(
+  flux_pb,
+  glue("{data_path}/scFEA/snRNASeq_flux_pseudobulk_{Sys.Date()}.rds")
+)
+write.csv(
+  flux_pseudobulk_mat,
+  glue("{data_path}/scFEA/snRNASeq_flux_pseudobulk_mat_{Sys.Date()}.csv")
+)
+write.csv(
+  flux_pseudobulk_module_meta,
+  glue("{data_path}/scFEA/snRNASeq_flux_pseudobulk_module_meta_{Sys.Date()}.csv")
+)
+
+flux_pseudobulk_mat
+```
+
 
 
 Visualizing T-test results
@@ -476,7 +589,6 @@ Visualizing T-test results
 
 ```{r}
 #| eval: !expr run_analysis
-
 cell_label_meta <- seurat_obj@meta.data %>% 
   as.data.frame() %>% 
   dplyr::select(class_label, class_name, subclass_label, subclass_name,supertype_label, supertype_name) %>% 
@@ -484,7 +596,7 @@ cell_label_meta <- seurat_obj@meta.data %>%
   glimpse()
 
 # mouse_module_info
-load("/resnick/groups/mthomson/jboktor/git/scFEA/input/mouse_module_info.RData")
+load("/resnick/groups/MazmanianLab/jboktor/git/scFEA/input/mouse_module_info.RData")
 mouse_modules <- mouse_module_info %>% as.data.frame() %>% 
   dplyr::rename(module = M_id) %>% 
   glimpse()
@@ -563,18 +675,22 @@ cell_label_meta <- seurat_obj@meta.data %>%
 
 # mouse_module_info
 load("/resnick/groups/MazmanianLab/jboktor/git/scFEA/input/mouse_module_info.RData")
-mouse_modules <- mouse_module_info %>% as.data.frame() %>% 
+
+mouse_modules <- mouse_module_info %>% as.data.frame() %>%
   dplyr::rename(module = M_id) %>% 
   mutate(SM_id = as.numeric(SM_id)) %>% 
   left_join(super_module_meta) %>% 
   glimpse()
 
-flux_perm_wilcox_results_df <- readRDS(
-  glue("{data_path}/scFEA/snRNASeq_flux_perm_wilcox_results_df_2026-06-08.rds"))
+# flux_perm_wilcox_results_df <- readRDS(
+#   glue("{data_path}/scFEA/snRNASeq_flux_perm_wilcox_results_df_2026-06-08.rds"))
+
 flux_perm_wilcox_results_df %<>% 
   left_join(cell_label_meta) %>% 
   left_join(mouse_modules) %>% 
   mutate(tissue = str_after_last(group_1, "_")) %>% 
+  group_by(supertype_name)  %>%
+  mutate(p_adjusted = p.adjust(p_value, method = "BH")) %>% 
   glimpse()
 
 flux_perm_wilcox_results_df %>% glimpse()
@@ -596,12 +712,125 @@ ggsave(
   height = 20
 )
 
-flux_perm_wilcox_results_df %>% 
-  filter(p_value < 0.05) %>% 
-  arrange(p_value) %>% 
-  write_csv(glue("{data_path}/scFEA/snRNASeq_flux_perm_wilcox_results_df_2026-06-08.csv"))
+# flux_perm_wilcox_results_df %>% 
+#   # filter(p_value < 0.05) %>% 
+#   arrange(p_value) %>% 
+#   write_csv(glue("{data_path}/scFEA/snRNASeq_flux_perm_wilcox_results_df_2026-06-08.csv"))
 
 ```
 
 
-# correlating Cmss1/Lars2 levels with flux of spe
+
+```{r}
+
+flux_ttest_results_df <- read_csv(glue("{data_path}/scFEA/snRNASeq_flux_ttest_results_df_2026-02-06.csv")) %>% 
+  glimpse()
+
+
+flux_perm_wilcox_results_df <- 
+  read_csv(glue("{data_path}/scFEA/snRNASeq_flux_perm_wilcox_results_df_2026-06-08.csv")) %>% 
+  group_by(supertype_name, tissue) %>% 
+  mutate(p_adjusted = p.adjust(p_value, method = "BH")) %>% 
+  glimpse()
+
+
+# View(flux_perm_wilcox_results_df)
+flux_perm_wilcox_results_df
+
+
+# Two-panel volcano (AMY | HYP). CSV is already filtered to p < 0.05.
+# log2FC = log2((mean_SPF + eps) / (mean_WildR + eps))
+lfc_thresh <- 0.5
+n_label <- 12L
+
+volcano_df <- flux_perm_wilcox_results_df %>%
+  filter(!is.na(log2FC), !is.na(p_adjusted)) %>%
+  mutate(
+    neglog10p = -log10(p_adjusted),
+    direction = case_when(
+      log2FC >=  lfc_thresh ~ "Higher in SPF",
+      log2FC <= -lfc_thresh ~ "Higher in WildR",
+      TRUE ~ "Weak |log2FC|"
+    ),
+    direction = factor(
+      direction,
+      levels = c("Higher in WildR", "Weak |log2FC|", "Higher in SPF")
+    )
+  ) %>%
+  group_by(tissue) %>%
+  mutate(
+    label = if_else(
+      abs(log2FC) >= lfc_thresh &
+        dense_rank(if_else(abs(log2FC) >= lfc_thresh, p_adjusted, NA_real_)) <= n_label,
+      paste0(module, ": ", stringr::str_trunc(M_name, 28)),
+      NA_character_
+    )
+  ) %>%
+  ungroup()
+
+volcano_df %>% glimpse()
+
+p_flux_volcano <- volcano_df %>%
+  ggplot(aes(x = log2FC, y = neglog10p, color = SM_name)) +
+  geom_hline(
+    yintercept = -log10(0.05),
+    linetype = "dashed", color = "grey55", linewidth = 0.4
+  ) +
+  geom_vline(
+    xintercept = c(-lfc_thresh, lfc_thresh),
+    linetype = "dashed", color = "grey55", linewidth = 0.4
+  ) +
+  geom_point(aes(alpha = direction), size = 1.15, stroke = 0) +
+  ggrepel::geom_text_repel(
+    aes(label = label),
+    size = 2.4,
+    max.overlaps = 25,
+    min.segment.length = 0,
+    segment.color = "grey50",
+    segment.size = 0.25,
+    segment.alpha = 0.7,
+    box.padding = 0.25,
+    point.padding = 0.15,
+    show.legend = FALSE,
+    na.rm = TRUE
+  ) +
+  facet_wrap(vars(tissue), ncol = 2, scales = "free") +
+  # category20 only has 20 colors; IGV default has 51 (covers 22+ SM_name levels)
+  ggsci::scale_color_igv(palette = "default") +
+  scale_alpha_manual(
+    values = c(
+      "Higher in WildR" = 0.8,
+      "Weak |log2FC|" = 0.22,
+      "Higher in SPF" = 0.8
+    ),
+    guide = "none"
+  ) +
+  labs(
+    x = expression(log[2] ~ "FC (SPF / WildR)"),
+    y = expression(-log[10] ~ italic(p)),
+    color = NULL,
+    title = "Metabolic flux Wilcoxon volcano",
+    subtitle = glue(
+      "p < 0.05 tests; dashed lines: |log2FC| = {lfc_thresh} and p = 0.05"
+    )
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "top",
+    strip.background = element_rect(fill = "grey95", color = NA),
+    strip.text = element_text(face = "bold"),
+    plot.title = element_text(face = "bold")
+  )
+
+p_flux_volcano
+
+ggsave(
+  glue("{fig_path}/scFEA/snRNASeq_flux_perm_wilcox_volcano_{Sys.Date()}.png"),
+  p_flux_volcano,
+  width = 12,
+  height = 8
+)
+
+```

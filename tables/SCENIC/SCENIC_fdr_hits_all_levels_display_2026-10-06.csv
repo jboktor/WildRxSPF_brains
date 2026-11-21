@@ -1,0 +1,43 @@
+Level,Tissue,Split,Regulon,Direction,Animals (W/S),Mean AUC SPF,Mean AUC WildR,Hedges g,Animals separated,p (animal),FDR (split),Nuclei
+class,HYP,20 MB GABA,Irf2(+),SPF higher,6/6,0.0044,0.0018,-3.2,6,1.4e-4,0.032,637
+class,AMY,14 HY Glut,Hsf5(+),SPF higher,6/4,0.016,0.0055,-3.6,6,2.7e-4,0.053,262
+class,HYP,20 MB GABA,Crebl2(+),SPF higher,6/6,0.0038,0.0014,-2.5,5,8.4e-4,0.095,637
+subclass,AMY,002 IT EP-CLA Glut,Lef1(+),WildR higher,6/6,4.2e-5,2.5e-4,4.3,6,1e-5,8.2e-4,2859
+subclass,HYP,064 STR-PAL Chst9 Gaba,Zfp467(+),SPF higher,4/5,0.088,0.058,-4.6,4,1.1e-4,0.022,176
+subclass,AMY,121 MEA-BST Otp Zic2 Glut,Nr2f6(+),WildR higher,6/6,1.6e-4,6.8e-4,3.2,6,1.3e-4,0.026,790
+subclass,HYP,117 LHA Barhl2 Glut,Srebf1(+),SPF higher,6/6,3.2e-4,9.4e-5,-2.9,6,3.2e-4,0.046,1905
+subclass,AMY,074 MEA-BST Lhx6 Sp9 Gaba,Scrt1(+),SPF higher,6/6,0.028,0.024,-2.7,6,5.2e-4,0.068,3515
+subclass,HYP,088 BST Tac2 Gaba,Etv5(+),WildR higher,6/6,0.01,0.011,2.6,6,6.9e-4,0.073,844
+subclass,HYP,088 BST Tac2 Gaba,Pou3f1(+),SPF higher,6/6,0.013,0.011,-2.5,6,7.8e-4,0.073,844
+subclass,AMY,063 STR D1 Sema5a Gaba,Gm28047(+),WildR higher,6/6,0.0067,0.0073,2.8,6,3.8e-4,0.088,392
+supertype,HYP,0396 SI-MPO-LPO Lhx8 Gaba_1,Zfp112(+),SPF higher,5/4,0.0012,5e-5,-6.3,5,1.4e-5,0.0032,208
+supertype,HYP,0605 PMv-TMv Pitx2 Glut_1,Foxa1(+),WildR higher,6/5,0.0013,0.0029,4,6,4.5e-5,0.0086,565
+supertype,HYP,0670 RE-Xi Nox4 Glut_3,Carf(+),WildR higher,3/4,1.9e-5,5.1e-4,8,3,5.9e-5,0.012,211
+supertype,AMY,0386 CEA-BST Ebf1 Pdyn Gaba_3,Dlx1(+),SPF higher,6/6,0.0039,0.0025,-3.3,6,1.1e-4,0.021,1013
+supertype,HYP,0399 SI-MPO-LPO Lhx8 Gaba_4,Mettl3(+),SPF higher,4/4,0.0025,2.8e-4,-5.4,4,1.2e-4,0.025,217
+supertype,HYP,0404 MPO-ADP Lhx8 Gaba_3,Zbtb11(+),SPF higher,6/5,0.026,0.025,-3.5,6,1.4e-4,0.03,543
+supertype,HYP,0403 MPO-ADP Lhx8 Gaba_2,Zfp709(+),SPF higher,4/4,0.0044,0.001,-5.1,4,1.6e-4,0.035,264
+supertype,HYP,0726 SPA-SPFm-SPFp-POL-PIL-PoT Sp9 Glut_9,Dbx2(+),SPF higher,6/4,0.0031,7e-4,-3.8,6,1.8e-4,0.037,213
+supertype,HYP,0451 AHN-SBPV-PVHd Pdrm12 Gaba_6,Zfp612(+),WildR higher,6/6,4.4e-4,0.0015,3,6,2e-4,0.04,678
+supertype,HYP,0583 AHN-RCH-LHA Otp Fezf1 Glut_5,Zxdc(+),WildR higher,3/4,3.9e-4,0.0094,6.2,3,2.1e-4,0.044,154
+supertype,HYP,0495 ARH-PVp Tbx3 Gaba_3,Cux1(+),SPF higher,6/6,0.1,0.093,-3,6,2e-4,0.046,754
+supertype,HYP,0396 SI-MPO-LPO Lhx8 Gaba_1,Churc1(+),SPF higher,5/4,0.012,0.0068,-3.7,5,4.5e-4,0.051,208
+supertype,HYP,0394 BST-SI-AAA Six3 Slc22a3 Gaba_1,Elk4(+),SPF higher,5/5,0.024,0.018,-3.6,5,2.5e-4,0.052,180
+supertype,HYP,0631 MM Foxb1 Glut_2,Zfp704(+),WildR higher,4/5,0.078,0.079,4.1,4,2.5e-4,0.053,1271
+supertype,HYP,1174 Tanycyte NN_3,Zfp595(+),SPF higher,4/5,0.026,0.012,-4,4,2.7e-4,0.057,263
+supertype,AMY,1194 Microglia NN_1,Yy1(+),SPF higher,5/5,0.035,0.028,-3.5,5,2.8e-4,0.057,686
+supertype,HYP,0591 PH-ant-LHA Otp Bsx Glut_1,Yy1(+),WildR higher,6/6,0.061,0.064,2.9,6,3.2e-4,0.057,752
+supertype,HYP,0588 PVH-SO-PVa Otp Glut_4,Zbtb49(+),WildR higher,6/6,0.012,0.014,2.8,6,3.4e-4,0.057,1367
+supertype,HYP,0403 MPO-ADP Lhx8 Gaba_2,Zscan12(+),SPF higher,4/4,0.01,0.0025,-4,4,6.4e-4,0.058,264
+supertype,HYP,0403 MPO-ADP Lhx8 Gaba_2,Zfp148(+),WildR higher,4/4,0.072,0.079,3.8,4,8e-4,0.058,264
+supertype,AMY,0077 CA3 Glut_3,Zfp738(+),SPF higher,3/6,0.002,0.0011,-4.1,3,3.2e-4,0.062,597
+supertype,HYP,0557 ARH-PVp Tbx3 Glut_4,Maf(+),WildR higher,3/4,0.0049,0.01,5.6,3,3.2e-4,0.062,153
+supertype,HYP,0434 RT-ZI Gnb3 Gaba_4,Zfp324(+),WildR higher,6/5,9.2e-4,0.0033,2.9,6,5e-4,0.067,278
+supertype,HYP,0434 RT-ZI Gnb3 Gaba_4,Zfp398(+),WildR higher,6/5,0.025,0.032,2.8,6,6.4e-4,0.067,278
+supertype,HYP,0528 ADP-MPO Trp73 Glut_2,Myef2(+),SPF higher,5/3,0.0075,7.8e-4,-4.2,5,5.8e-4,0.069,142
+supertype,HYP,0528 ADP-MPO Trp73 Glut_2,Nfic(+),SPF higher,5/3,0.0016,0,-4.1,5,6.8e-4,0.069,142
+supertype,HYP,0570 VMH Nr5a1 Glut_5,Neurod1(+),SPF higher,6/6,0.0022,7.2e-4,-2.8,5,3.6e-4,0.075,749
+supertype,AMY,0042 L2/3 IT PIR-ENTl Glut_4,Bhlhe22(+),WildR higher,6/6,2.4e-4,5.9e-4,2.4,6,0.001,0.077,6087
+supertype,AMY,0356 MEA-BST Lhx6 Nr2e1 Gaba_3,Ski(+),WildR higher,6/6,0.029,0.042,2.8,6,3.9e-4,0.084,277
+supertype,HYP,0609 PH-an Pitx2 Glut_2,Mzf1(+),WildR higher,6/6,0.0035,0.011,2.8,5,4e-4,0.084,298
+supertype,AMY,0386 CEA-BST Ebf1 Pdyn Gaba_3,Xbp1(+),SPF higher,6/6,0.014,0.0096,-2.4,5,0.001,0.092,1013

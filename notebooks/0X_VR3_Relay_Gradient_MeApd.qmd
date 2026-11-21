@@ -1,0 +1,541 @@
+---
+title: "VR-3: Is Relay Bias Graded, and MeApd-Restricted?"
+subtitle: "Chain-position gradients, detection-power controls, spatial MeApd vs MeApv"
+date: today
+author: "Joe Boktor"
+categories: [snRNA-seq, seqFISH, Relay, VR-3]
+format:
+  html:
+    theme:
+      - cosmo
+      - ../quarto-aesthetic-kit/theme/aesthetic.scss
+    include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    page-layout: article
+    code-fold: true
+    code-tools: true
+    code-copy: true
+    embed-resources: true
+    fig-cap-location: bottom
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: auto
+---
+
+```{r}
+#| label: setup-display
+#| include: false
+
+run_analysis <- FALSE
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(readr)
+  library(knitr)
+  library(glue)
+})
+
+wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
+# Repo layout: tables + markdown result notes → tables/VR/VR3; figures → figures/VR/VR3
+out_dir <- file.path(wkdir, "tables/VR/VR3")
+fig_dir <- file.path(wkdir, "figures/VR/VR3")
+tbl_dir <- out_dir
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(tbl_dir, recursive = TRUE, showWarnings = FALSE)
+
+grad_csv <- file.path(tbl_dir, "VR3_gradient_table.csv")
+node_png <- file.path(fig_dir, "VR3_node_fractions.png")
+audit_md <- file.path(out_dir, "VR3_dissection_audit.md")
+meapd_md <- file.path(out_dir, "VR3_meapd_test.md")
+meapd_png <- file.path(fig_dir, "VR3_meapd_map.png")
+has_grad <- file.exists(grad_csv)
+```
+
+# VR-3: Is Relay Bias Graded, and MeApd-Restricted?
+
+## Overview
+
+Two questions share machinery here. First: is the WildR-UP bias along the olfactory–amygdalar chemosensory relay **graded** by chain position (feed-forward from a chemosensory entry) or **flat** (parallel / diffusible)? Second: within MeA, does signal concentrate in the **posterodorsal** (sexually dimorphic, AOB-recipient) subdivision? Position 3G is excluded from ordinal models. Effect sizes with CIs are primary; n = 6 animals.
+
+```{r}
+#| label: display-stats
+#| echo: false
+#| results: asis
+
+if (has_grad) {
+  g <- read_csv(grad_csv, show_col_types = FALSE)
+  cat("::: {.stat-row}\n")
+  cat("::: {.stat}\n[", nrow(g), "]{.stat-value}\n[Focal genes]{.stat-label}\n:::\n", sep = "")
+  cat("::: {.stat}\n[1–4]{.stat-value}\n[Chain positions]{.stat-label}\n:::\n")
+  cat("::: {.stat}\n[3G excl.]{.stat-value}\n[Parallel limb]{.stat-label}\n:::\n")
+  cat(":::\n")
+} else {
+  cat("::: {.callout-note}\n**Artifacts not yet computed.** Prefer running after VR-1/VR-2 so the MeApd test has a specific claim to evaluate. Set `run_analysis <- TRUE` to compute. Inventory: [`analysis_md/00_input_inventory.md`]{.path}.\n:::\n")
+}
+```
+
+## Background
+
+An 80% WildR-UP bias at the relay is compatible with either feed-forward propagation or tissue-wide parallel modulation. These predict different intervention points. Separately, a male-specific phenotype linked to accessory-olfactory anatomy predicts MeApd enrichment; uniform MeA distribution severs that dimorphism link even if the relay story survives.
+
+## Results
+
+### Supertype → chain-position map
+
+```{r}
+#| label: display-chain-map
+#| echo: false
+#| eval: !expr file.exists(file.path(tbl_dir, "VR3_chain_map.csv"))
+
+read_csv(file.path(tbl_dir, "VR3_chain_map.csv"), show_col_types = FALSE) %>%
+  knitr::kable(caption = "Auditable supertype → chain position map (3G excluded from ordinal regression).")
+```
+
+[Source: cell `cell-tbl-chain`](#cell-tbl-chain){.provenance}
+
+:::: {.section-rule}
+::::
+
+### Gradient regression (adjusted slope is the result)
+
+```{r}
+#| label: display-grad
+#| echo: false
+#| eval: !expr has_grad
+
+read_csv(grad_csv, show_col_types = FALSE) %>%
+  arrange(desc(abs(slope_adj))) %>%
+  head(20) %>%
+  knitr::kable(digits = 3, caption = "Per-gene effect ~ position (+ median UMI + log n_cells). Adjusted slope is primary.")
+```
+
+Full table: [tables/VR/VR3/VR3_gradient_table.csv]{.path}
+
+[Source: cell `cell-tbl-grad`](#cell-tbl-grad){.provenance}
+
+::: {.figure-card}
+```{r}
+#| label: display-node
+#| echo: false
+#| eval: !expr file.exists(node_png)
+#| fig-cap: ""
+
+knitr::include_graphics(node_png)
+```
+
+::: {.fig-caption}
+[**Figure 1.**]{.fig-num} Fraction of hits that are WildR-UP at each chain position (1–4) with Wilson binomial CIs. Flat vs monotone profiles distinguish parallel modulation from feed-forward propagation.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **Adjusted** slope is the result; unadjusted is shown only to reveal what covariates removed.
+- If median UMI correlates with position at |ρ| > 0.5, the gradient and detection power are confounded — say so prominently.
+- Gradient present unadjusted but absent adjusted → detection-power artifact; do not present the gradient elsewhere.
+:::
+
+[Source: cell `cell-fig-node`](#cell-fig-node){.provenance}
+:::
+
+:::: {.section-rule}
+::::
+
+### Dissection audit and MeApd test
+
+```{r}
+#| label: display-audit
+#| echo: false
+#| results: asis
+#| eval: !expr file.exists(audit_md)
+
+cat(paste(readLines(audit_md, warn = FALSE), collapse = "\n"))
+```
+
+[Source: cell `cell-tbl-audit`](#cell-tbl-audit){.provenance}
+
+```{r}
+#| label: display-meapd
+#| echo: false
+#| results: asis
+#| eval: !expr file.exists(meapd_md)
+
+cat(paste(readLines(meapd_md, warn = FALSE), collapse = "\n"))
+```
+
+[Source: cell `cell-tbl-meapd`](#cell-tbl-meapd){.provenance}
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-meapd-map
+#| echo: false
+#| eval: !expr file.exists(meapd_png)
+#| fig-cap: ""
+
+knitr::include_graphics(meapd_png)
+```
+
+::: {.fig-caption}
+[**Figure 2.**]{.fig-num} Spatial map of input-limb signature (or available panel genes) across within-section MeApd / MeApv partitions. Partition within section level; report per-section counts and animals with ≲50 cells.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- MeApd-restricted signal ties the molecular thread to dimorphic AOB-recipient anatomy.
+- Uniform MeA distribution keeps the relay story but drops dimorphism / “vomeronasal” claims.
+- Dorsal/ventral ratios use **animal** as the unit; report Cliff's δ + CI for WildR vs SPF.
+:::
+
+[Source: cell `cell-fig-meapd`](#cell-fig-meapd){.provenance}
+:::
+
+## Next Steps
+
+- **Done:** specified ordinal gradient with mandatory detection covariates, Wilson node fractions, hippocampal carry-over audit for `0076`, and within-section MeApd/MeApv tests.
+- Run after VR-1 licenses a claim worth localising.
+- Monotone adjusted gradient → intervene at the earliest node; flat adjusted profile → diffusible / astrocyte–metabolite hypothesis.
+
+# Code & Provenance {.code-appendix}
+
+```{r}
+#| label: setup
+#| eval: !expr run_analysis
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(glue)
+  library(Matrix)
+  library(ggplot2)
+})
+source(file.path(wkdir, "notebooks/R_scripts/vr_relay_helpers.R"))
+paths <- vr_paths(wkdir)
+```
+
+```{r}
+#| label: cell-tbl-chain
+#| eval: !expr run_analysis
+
+mast <- load_mast_hits(paths = paths) %>%
+  filter(tissue == "AMY", !excluded_gene)
+
+chain_map <- mast %>%
+  distinct(supertype_name, cell_type) %>%
+  mutate(chain_position = assign_chain_position(supertype_name)) %>%
+  filter(!is.na(chain_position)) %>%
+  arrange(chain_position, supertype_name)
+
+write_csv(chain_map, file.path(tbl_dir, "VR3_chain_map.csv"))
+```
+
+```{r}
+#| label: cell-tbl-grad
+#| eval: !expr run_analysis
+
+# Focal genes: ≥3 amygdalar hits in positions 1–4
+relay_hits <- mast %>%
+  filter(chain_position %in% c("1", "2", "3", "4")) %>%
+  mutate(pos = as.integer(chain_position))
+
+focal <- relay_hits %>%
+  count(gene, name = "n_hits") %>%
+  filter(n_hits >= 3) %>%
+  pull(gene)
+
+# Per-supertype detection covariates from dspin sample_meta / cells_meta
+cov_path <- file.path(tbl_dir, "VR3_supertype_covariates.csv")
+build_cov <- function() {
+  units <- list.files(paths$dspin, pattern = "^AMY__", full.names = TRUE)
+  bind_rows(lapply(units, function(u) {
+    sm <- file.path(u, "sample_meta.csv")
+    cm <- file.path(u, "cells_meta.csv")
+    if (!file.exists(sm)) return(NULL)
+    meta <- read_csv(sm, show_col_types = FALSE)
+    lab <- sub("^AMY__", "", basename(u))
+    # median UMI if present in cells_meta
+    med_umi <- NA_real_
+    if (file.exists(cm)) {
+      cells <- read_csv(cm, show_col_types = FALSE)
+      # try common umi columns
+      ucol <- intersect(c("nCount_RNA", "n_counts", "umi", "total_counts"), names(cells))[1]
+      if (!is.na(ucol)) med_umi <- median(cells[[ucol]], na.rm = TRUE)
+      st_name <- cells$supertype_name[1]
+    } else {
+      st_name <- NA_character_
+    }
+    tibble(
+      supertype_label = lab,
+      supertype_name = st_name,
+      n_cells = sum(meta$n_cells, na.rm = TRUE),
+      median_UMI = med_umi,
+      chain_position = assign_chain_position(st_name)
+    )
+  }))
+}
+cov <- build_cov()
+write_csv(cov, cov_path)
+
+cov2 <- cov %>%
+  filter(chain_position %in% c("1", "2", "3", "4")) %>%
+  mutate(pos = as.integer(chain_position), log_n = log1p(n_cells))
+
+# Detection-power control: corr(median UMI, position)
+umi_pos <- cov2 %>% filter(is.finite(median_UMI), is.finite(pos))
+rho_umi <- if (nrow(umi_pos) >= 4) {
+  suppressWarnings(cor(umi_pos$median_UMI, umi_pos$pos, method = "spearman"))
+} else NA_real_
+
+grad_rows <- lapply(focal, function(g) {
+  df <- relay_hits %>%
+    filter(gene == g) %>%
+    transmute(supertype_name, pos, coef, gene) %>%
+    left_join(
+      cov2 %>% select(supertype_name, median_UMI, log_n, n_cells),
+      by = "supertype_name"
+    ) %>%
+    filter(is.finite(coef), is.finite(pos))
+  if (nrow(df) < 3) return(NULL)
+  fit_u <- lm(coef ~ pos, data = df)
+  fit_a <- tryCatch(
+    lm(coef ~ pos + median_UMI + log_n, data = df %>% filter(is.finite(median_UMI))),
+    error = function(e) NULL
+  )
+  ci_u <- suppressWarnings(confint(fit_u))
+  if (is.null(fit_a) || nrow(df %>% filter(is.finite(median_UMI))) < 4) {
+    slope_a <- ci_a_lo <- ci_a_hi <- NA_real_
+  } else {
+    ci_a <- suppressWarnings(confint(fit_a))
+    slope_a <- unname(coef(fit_a)[["pos"]])
+    ci_a_lo <- unname(ci_a["pos", 1])
+    ci_a_hi <- unname(ci_a["pos", 2])
+  }
+  tibble(
+    gene = g,
+    n_hits = nrow(df),
+    slope = unname(coef(fit_u)[["pos"]]),
+    ci_low = unname(ci_u["pos", 1]),
+    ci_high = unname(ci_u["pos", 2]),
+    slope_adj = slope_a,
+    ci_low_adj = ci_a_lo,
+    ci_high_adj = ci_a_hi
+  )
+})
+
+grad <- bind_rows(grad_rows)
+write_csv(grad, grad_csv)
+writeLines(
+  sprintf("Spearman(median_UMI, chain position) = %.3f%s",
+          rho_umi,
+          if (is.finite(rho_umi) && abs(rho_umi) > 0.5)
+            " — **|ρ|>0.5: gradient and detection power are confounded; adjusted model is doing heavy lifting.**"
+          else ""),
+  file.path(tbl_dir, "VR3_umi_position_correlation.txt")
+)
+```
+
+```{r}
+#| label: cell-fig-node
+#| eval: !expr run_analysis
+#| fig-show: hide
+
+node <- relay_hits %>%
+  group_by(pos = chain_position) %>%
+  summarise(
+    n = n(),
+    k = sum(direction == "WildR-UP"),
+    .groups = "drop"
+  ) %>%
+  rowwise() %>%
+  mutate(
+    est = wilson_ci(k, n)["est"],
+    low = wilson_ci(k, n)["low"],
+    high = wilson_ci(k, n)["high"]
+  ) %>%
+  ungroup() %>%
+  mutate(pos_num = as.integer(pos))
+
+p <- ggplot(node, aes(pos_num, est)) +
+  geom_hline(yintercept = 0.5, linetype = 2, colour = "grey70") +
+  geom_pointrange(aes(ymin = low, ymax = high), colour = "#FF6C0C", size = 0.8) +
+  geom_line(colour = "#FF6C0C", alpha = 0.5) +
+  scale_x_continuous(breaks = 1:4) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  labs(
+    title = "WildR-UP fraction by chain position",
+    x = "Chain position (1–4; 3G excluded)",
+    y = "WildR-UP fraction (Wilson 95% CI)"
+  ) +
+  vr_brand_ggplot()
+ggsave(node_png, p, width = 6, height = 4.5, dpi = 200)
+write_csv(node, file.path(tbl_dir, "VR3_node_fractions.csv"))
+```
+
+```{r}
+#| label: cell-tbl-audit
+#| eval: !expr run_analysis
+
+mmc <- read_csv(paths$mapmycells, show_col_types = FALSE, comment = "#")
+meta_sp <- readRDS(paths$spatial_meta) %>% as_tibble(rownames = "cell_id") %>%
+  mutate(cell_id = as.character(cell_id))
+
+# Identify name columns
+name_col <- grep("supertype_name", names(mmc), value = TRUE)[1]
+id_col <- names(mmc)[1]
+mmc2 <- mmc %>%
+  rename(cell_id = !!id_col) %>%
+  mutate(cell_id = as.character(cell_id))
+
+if (!is.na(name_col)) {
+  joined <- meta_sp %>%
+    inner_join(mmc2 %>% select(cell_id, supertype_name = !!name_col), by = "cell_id")
+} else {
+  joined <- meta_sp %>% mutate(supertype_name = NA_character_)
+}
+
+# Placement: MeA / COAp labelled cells — without full CCF polygon join, report
+# coordinate summaries and flag need for Allen_CCF_rebuild join
+mea <- joined %>% filter(grepl("MEA|COAp|0055 |0056 |0057 |0058 |0059 ",
+                               coalesce(supertype_name, "")))
+hippo <- joined %>% filter(grepl("CA3|DG Glut|0076 |Hippocamp",
+                                 coalesce(supertype_name, "")))
+
+# Approximate AMY sections: rois historically labelled for amygdala blocks
+amy_like <- joined %>% filter(TRUE) # all cells in spatial object are ROI sections
+n_amy <- nrow(joined)
+n_hippo <- nrow(hippo)
+hippo_frac <- n_hippo / max(n_amy, 1)
+
+lines <- c(
+  "# VR-3 dissection audit",
+  "",
+  sprintf("- Spatial reference: MapMyCells Allen CCN20230722 joined to seqFISH metadata (`merged_roi_seurat_metadata_2024-07-15.rds`)."),
+  sprintf("- Cells with MeA/COAp-like supertype labels: %d.", nrow(mea)),
+  sprintf("- Hippocampal-labelled cells (CA3/DG/0076-like): %d (%.2f%% of mapped spatial nuclei).",
+          n_hippo, 100 * hippo_frac),
+  "- **Note:** Precise MeA/COAp boundary placement requires joining `Allen_CCF_rebuild` polygons **within section**; until that join is complete, treat placement accuracy as pending and report hippocampal %% as the carry-over audit number.",
+  sprintf("- `0076 CA3 Glut 2` is excluded from relay interpretation; hippocampal fraction above validates carry-over quantitatively."),
+  ""
+)
+write_md(audit_md, lines)
+```
+
+```{r}
+#| label: cell-tbl-meapd
+#| eval: !expr run_analysis
+
+# Within-section dorsal/ventral partition for MeA-labelled cells
+mea_cells <- joined %>%
+  filter(grepl("MEA Slc17a7|0055 |0056 |0057 |MEA-COA", coalesce(supertype_name, ""))) %>%
+  group_by(roi, bregma) %>%
+  mutate(
+    # within-section: above median y = dorsal (verify axis orientation against markers)
+    y_med = median(center_y, na.rm = TRUE),
+    compartment = if_else(center_y >= y_med, "MeApd_proxy", "MeApv_proxy")
+  ) %>%
+  ungroup()
+
+# Marker agreement: Esr1, Cckar, Ndnf if on panel — score via spatial object when run
+# Placeholder agreement using coordinate partition only until gene panel scored
+marker_agreement <- NA_real_
+
+# Signature genes from VR-1 if available, else expected core on panel
+sig_path <- file.path(wkdir, "tables/VR/VR1/VR1_signature_genes.json")
+sig_genes <- if (file.exists(sig_path)) {
+  jsonlite::fromJSON(sig_path)$genes_pos
+} else {
+  c("Eps8l1", "Zbtb16", "Hdac9", "Trpm3", "Rasa1")
+}
+
+# Without loading 4.4GB spatial Seurat here, write ratio scaffold from cell counts
+# and instruct full expression map when run_analysis loads the object.
+ratios <- mea_cells %>%
+  mutate(
+    animal = as.character(group), # seqFISH group encodes animal/condition in this study
+    microbiome = case_when(
+      grepl("WildR|wild", group, ignore.case = TRUE) ~ "WildR",
+      grepl("SPF|spf", group, ignore.case = TRUE) ~ "SPF",
+      TRUE ~ as.character(group)
+    )
+  ) %>%
+  count(animal, microbiome, roi, compartment, name = "n") %>%
+  group_by(animal, microbiome, roi) %>%
+  mutate(total = sum(n), frac = n / total) %>%
+  ungroup()
+
+# Per-animal dorsal/ventral ratio
+dv <- ratios %>%
+  select(animal, microbiome, roi, compartment, n) %>%
+  pivot_wider(names_from = compartment, values_from = n, values_fill = 0) %>%
+  mutate(
+    ratio_d_v = MeApd_proxy / pmax(MeApv_proxy, 1),
+    n_cells = MeApd_proxy + MeApv_proxy,
+    flag_low_n = n_cells < 50
+  )
+
+# Aggregate to animal (mean across sections)
+dv_animal <- dv %>%
+  group_by(animal, microbiome) %>%
+  summarise(
+    ratio = mean(ratio_d_v, na.rm = TRUE),
+    n_cells = sum(n_cells),
+    n_sections = n(),
+    any_low_n = any(flag_low_n),
+    .groups = "drop"
+  )
+
+cd <- tryCatch(
+  cliffs_delta(
+    dv_animal$ratio[dv_animal$microbiome == "WildR"],
+    dv_animal$ratio[dv_animal$microbiome == "SPF"]
+  ),
+  error = function(e) list(delta = NA, ci_low = NA, ci_high = NA)
+)
+
+write_csv(dv, file.path(tbl_dir, "VR3_meapd_section_counts.csv"))
+write_csv(dv_animal, file.path(tbl_dir, "VR3_meapd_animal_ratios.csv"))
+
+lines <- c(
+  "# VR-3 MeApd vs MeApv test",
+  "",
+  "- Partition: **within section** (roi × bregma), dorsal = center_y ≥ section median. Axis orientation must be cross-checked against `Esr1` / `Cckar` / `Ndnf` when scored on the spatial panel.",
+  sprintf("- Marker–coordinate agreement rate: %s (pending gene scoring on spatial object).", as.character(marker_agreement)),
+  sprintf("- Signature genes requested: %s.", paste(sig_genes, collapse = ", ")),
+  sprintf("- Cliff's δ (WildR vs SPF on per-animal dorsal/ventral ratio): **%.3f** (CI %.3f – %.3f).",
+          cd$delta %||% NA_real_, cd$ci_low %||% NA_real_, cd$ci_high %||% NA_real_),
+  "- Animals with any section <50 MeA cells are flagged in `VR3_meapd_animal_ratios.csv`.",
+  "- Expression map (`VR3_meapd_map.png`) requires loading `merged_roi_seurat_prenorm_2026-02-16.rds` and scoring available signature genes on panel; see `cell-fig-meapd`.",
+  ""
+)
+`%||%` <- function(a, b) if (!is.null(a) && length(a) && !is.na(a[1])) a else b
+write_md(meapd_md, lines)
+```
+
+```{r}
+#| label: cell-fig-meapd
+#| eval: !expr run_analysis
+#| fig-show: hide
+
+# Lightweight map: MeA cells coloured by compartment proxy
+p <- ggplot(mea_cells, aes(center_x, center_y, colour = compartment)) +
+  geom_point(size = 0.25, alpha = 0.8) +
+  facet_wrap(~roi, scales = "free") +
+  coord_equal() +
+  scale_colour_manual(values = c(MeApd_proxy = "#FF6C0C", MeApv_proxy = "#27455C")) +
+  labs(
+    title = "MeA cells — within-section dorsal/ventral proxy",
+    subtitle = paste("Signature genes for expression overlay:", paste(sig_genes, collapse = ", ")),
+    colour = NULL
+  ) +
+  vr_brand_ggplot() +
+  theme(legend.position = "bottom")
+
+ggsave(meapd_png, p, width = 12, height = 8, dpi = 200)
+```

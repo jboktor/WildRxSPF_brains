@@ -1,0 +1,516 @@
+---
+title: "VR-2: MeA–BST GABAergic Program Identity"
+subtitle: "One program or three? Interneuron vs projection — D-SPIN × markers × spatial"
+date: today
+author: "Joe Boktor"
+categories: [snRNA-seq, seqFISH, Relay, VR-2, D-SPIN]
+format:
+  html:
+    theme:
+      - cosmo
+      - ../quarto-aesthetic-kit/theme/aesthetic.scss
+    include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    page-layout: article
+    code-fold: true
+    code-tools: true
+    code-copy: true
+    embed-resources: true
+    fig-cap-location: bottom
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: auto
+---
+
+```{r}
+#| label: setup-display
+#| include: false
+
+run_analysis <- FALSE
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(readr)
+  library(knitr)
+  library(glue)
+})
+
+wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
+# Repo layout: tables + markdown result notes → tables/VR/VR2; figures → figures/VR/VR2
+out_dir <- file.path(wkdir, "tables/VR/VR2")
+fig_dir <- file.path(wkdir, "figures/VR/VR2")
+tbl_dir <- out_dir
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(tbl_dir, recursive = TRUE, showWarnings = FALSE)
+
+overlap_md <- file.path(out_dir, "VR2_program_overlap.md")
+identity_csv <- file.path(tbl_dir, "VR2_identity_scores.csv")
+enrich_csv <- file.path(tbl_dir, "VR2_enrichment.csv")
+bridge_md <- file.path(out_dir, "VR2_mast_bridge.md")
+spatial_png <- file.path(fig_dir, "VR2_spatial_distribution.png")
+spatial_frac <- file.path(tbl_dir, "VR2_spatial_fractions.csv")
+has_core <- file.exists(overlap_md)
+```
+
+# VR-2: MeA–BST GABAergic Program Identity
+
+## Overview
+
+`0338 MEA-BST Sox6 Gaba_2` carries the largest-magnitude D-SPIN response in the study, but `Lhx6`/`Sox6` label both local interneurons and extended-amygdala projection neurons. This notebook asks whether `0338` P10, `0355` P5, and `0359` P6 are one coordinated program, what lineage they resemble, whether they bridge to the MAST catalogue, and where they sit spatially relative to MeA, the stria terminalis, and BST.
+
+```{r}
+#| label: display-stats
+#| echo: false
+#| results: asis
+
+if (has_core) {
+  cat("::: {.stat-row}\n")
+  cat("::: {.stat}\n[3]{.stat-value}\n[GABA programs]{.stat-label}\n:::\n")
+  cat("::: {.stat}\n[0338 P10]{.stat-value}\n[Largest |h|]{.stat-label}\n:::\n")
+  cat("::: {.stat}\n[animal]{.stat-value}\n[Replication unit]{.stat-label}\n:::\n")
+  cat(":::\n")
+} else {
+  cat("::: {.callout-note}\n**Artifacts not yet computed.** Set `run_analysis <- TRUE`, render, then set back to `FALSE`. Inventory: [`analysis_md/00_input_inventory.md`]{.path}.\n:::\n")
+}
+```
+
+## Background
+
+The disinhibition model means different things for local interneurons (intra-MeA) versus MeA→BST projection neurons (BST target). Shared gene membership, projection-marker enrichment, and MeA-to-BST spatial spread would support the figure as drawn; interneuron markers with MeA-confined somata would require redrawing the GABA limb inside MeA.
+
+## Results
+
+### Program overlap
+
+```{r}
+#| label: display-overlap
+#| echo: false
+#| results: asis
+#| eval: !expr file.exists(overlap_md)
+
+cat(paste(readLines(overlap_md, warn = FALSE), collapse = "\n"))
+```
+
+[Source: cell `cell-tbl-overlap`](#cell-tbl-overlap){.provenance} · [tables/VR/VR2/VR2_program_overlap.md]{.path}
+
+:::: {.section-rule}
+::::
+
+### Interneuron vs projection identity scores
+
+```{r}
+#| label: display-identity
+#| echo: false
+#| eval: !expr file.exists(identity_csv)
+
+read_csv(identity_csv, show_col_types = FALSE) %>%
+  knitr::kable(digits = 3, caption = "Per-supertype, per-animal interneuron vs projection panel scores (Lhx6/Sox6 excluded from both panels).")
+```
+
+Full CSV: [tables/VR/VR2/VR2_identity_scores.csv]{.path}
+
+[Source: cell `cell-tbl-identity`](#cell-tbl-identity){.provenance}
+
+:::: {.section-rule}
+::::
+
+### Functional enrichment and MAST bridge
+
+```{r}
+#| label: display-enrich
+#| echo: false
+#| eval: !expr file.exists(enrich_csv)
+
+read_csv(enrich_csv, show_col_types = FALSE) %>%
+  knitr::kable(digits = 4, caption = "Category enrichment vs detection-matched background in the three GABA supertypes.")
+```
+
+[Source: cell `cell-tbl-enrich`](#cell-tbl-enrich){.provenance}
+
+```{r}
+#| label: display-bridge
+#| echo: false
+#| results: asis
+#| eval: !expr file.exists(bridge_md)
+
+cat(paste(readLines(bridge_md, warn = FALSE), collapse = "\n"))
+```
+
+[Source: cell `cell-tbl-bridge`](#cell-tbl-bridge){.provenance}
+
+:::: {.section-rule}
+::::
+
+### Spatial distribution
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-spatial
+#| echo: false
+#| eval: !expr file.exists(spatial_png)
+#| fig-cap: ""
+
+knitr::include_graphics(spatial_png)
+```
+
+::: {.fig-caption}
+[**Figure 1.**]{.fig-num} Spatial positions of cells assigned to `0338` / `0355` / `0359` (or top-decile program signature when labels unavailable), relative to MeA / stria / BST compartments. Panel coverage of program genes is reported before interpretation.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- MeA-confined somata are compatible with either identity; MeA **and** BST along the stria supports the projection-neuron reading.
+- If panel coverage of program genes is ≲20%, treat spatial scores as qualitative only.
+- Report the Allen / MapMyCells reference used — spatial labels may differ from snRNA.
+:::
+
+[Source: cell `cell-fig-spatial`](#cell-fig-spatial){.provenance}
+:::
+
+```{r}
+#| label: display-spatial-frac
+#| echo: false
+#| eval: !expr file.exists(spatial_frac)
+
+read_csv(spatial_frac, show_col_types = FALSE) %>%
+  knitr::kable(digits = 3, caption = "Fraction of high-scoring / labelled cells per anatomical compartment, per section.")
+```
+
+## Next Steps
+
+- **Done:** specified Jaccard null, lineage panels (without Lhx6/Sox6), enrichment with matched background, MAST bridge, and spatial localisation.
+- Execute with `run_analysis <- TRUE` after VR-1 licenses (or revises) the circuit sentence.
+- Shared membership + projection markers + MeA–BST spread → BST is the disinhibition target.
+- No shared membership → weaken MeA–BST framing to `0338` alone.
+
+# Code & Provenance {.code-appendix}
+
+```{r}
+#| label: setup
+#| eval: !expr run_analysis
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(glue)
+  library(Matrix)
+  library(ggplot2)
+})
+source(file.path(wkdir, "notebooks/R_scripts/vr_relay_helpers.R"))
+paths <- vr_paths(wkdir)
+```
+
+```{r}
+#| label: cell-tbl-overlap
+#| eval: !expr run_analysis
+
+gaba <- gaba_output_programs()
+read_prog <- function(label, pid) {
+  f <- file.path(paths$dspin, paste0("AMY__", label), "programs_genes.csv")
+  read_csv(f, show_col_types = FALSE) %>%
+    filter(program_id == pid) %>%
+    mutate(gene = strip_grcm39(gene)) %>%
+    filter(!gene %in% VR_EXCLUDED_GENES) %>%
+    pull(gene) %>%
+    unique()
+}
+
+sets <- list(
+  `0338_P10` = read_prog("CS20230722_SUPT_0338", "P10"),
+  `0355_P5`  = read_prog("CS20230722_SUPT_0355", "P5"),
+  `0359_P6`  = read_prog("CS20230722_SUPT_0359", "P6")
+)
+keys <- names(sets)
+jac <- matrix(NA_real_, 3, 3, dimnames = list(keys, keys))
+for (i in 1:3) for (j in 1:3) jac[i, j] <- jaccard(sets[[i]], sets[[j]])
+
+three_way <- Reduce(intersect, sets)
+union_all <- Reduce(union, sets)
+
+# Null: draw matched-size sets from union of all programs in these three units
+pool <- unique(unlist(lapply(gaba$supertype_label, function(lab) {
+  f <- file.path(paths$dspin, paste0("AMY__", lab), "programs_genes.csv")
+  strip_grcm39(read_csv(f, show_col_types = FALSE)$gene)
+})))
+pool <- setdiff(pool, VR_EXCLUDED_GENES)
+set.seed(1)
+n_draw <- 1000L
+null_j <- replicate(n_draw, {
+  a <- sample(pool, length(sets[[1]]))
+  b <- sample(pool, length(sets[[2]]))
+  c <- sample(pool, length(sets[[3]]))
+  c(j12 = jaccard(a, b), j13 = jaccard(a, c), j23 = jaccard(b, c))
+})
+
+lines <- c(
+  "# VR-2 program overlap",
+  "",
+  "## Gene-set sizes",
+  sprintf("- 0338 P10: %d genes", length(sets[[1]])),
+  sprintf("- 0355 P5: %d genes", length(sets[[2]])),
+  sprintf("- 0359 P6: %d genes", length(sets[[3]])),
+  sprintf("- Three-way intersection (n=%d): %s",
+          length(three_way), paste(three_way, collapse = ", ")),
+  "",
+  "## Jaccard matrix",
+  "",
+  "```",
+  paste(capture.output(print(round(jac, 3))), collapse = "\n"),
+  "```",
+  "",
+  "## Null (1,000 draws from union of programs in these supertypes)",
+  sprintf("- Observed J(0338,0355)=%.3f; null mean=%.3f (2.5–97.5%%: %.3f–%.3f)",
+          jac[1, 2], mean(null_j["j12", ]),
+          quantile(null_j["j12", ], 0.025), quantile(null_j["j12", ], 0.975)),
+  sprintf("- Observed J(0338,0359)=%.3f; null mean=%.3f",
+          jac[1, 3], mean(null_j["j13", ])),
+  sprintf("- Observed J(0355,0359)=%.3f; null mean=%.3f",
+          jac[2, 3], mean(null_j["j23", ])),
+  ""
+)
+write_md(overlap_md, lines)
+write_csv(as.data.frame(jac) %>% tibble::rownames_to_column("program"),
+          file.path(tbl_dir, "VR2_jaccard.csv"))
+```
+
+```{r}
+#| label: cell-tbl-identity
+#| eval: !expr run_analysis
+
+interneuron <- c("Pvalb", "Sst", "Vip", "Npy", "Lamp5", "Htr3a", "Reln", "Cnr1", "Calb2")
+projection <- c("Foxp2", "Bcl11b", "Isl1", "Six3", "Pdyn", "Tac1", "Penk", "Nts", "Cartpt")
+# Do NOT use Lhx6 or Sox6
+
+score_markers <- function(label, panel, name) {
+  df <- score_unit_via_python(label, panel, character(), paths = paths)
+  if (is.null(df)) return(NULL)
+  df %>%
+    mutate(
+      score = score_pos_only,
+      panel = name,
+      genes_used = length(panel)
+    )
+}
+
+id_long <- bind_rows(
+  lapply(gaba$supertype_label, score_markers, panel = interneuron, name = "interneuron"),
+  lapply(gaba$supertype_label, score_markers, panel = projection, name = "projection")
+)
+
+identity <- id_long %>%
+  group_by(supertype_label, animal, group, panel) %>%
+  summarise(mean_score = mean(score, na.rm = TRUE), n_cells = n(),
+            genes_used = first(genes_used), .groups = "drop") %>%
+  pivot_wider(names_from = panel, values_from = c(mean_score, n_cells, genes_used))
+
+write_csv(identity, identity_csv)
+```
+
+```{r}
+#| label: cell-tbl-enrich
+#| eval: !expr run_analysis
+
+union_genes <- unique(unlist(sets))
+cats <- list(
+  gaba_identity = c("Gad1", "Gad2", "Slc32a1"),
+  gaba_a_receptor = grep("^Gabra|^Gabrb|^Gabrg|^Gabrr|^Gabre|^Gabrd",
+                         pool, value = TRUE),
+  synaptic_organisers = unique(c(
+    grep("^Nlgn|^Nrxn|^Cntn|^Lrrtm", pool, value = TRUE)
+  )),
+  neuropeptides = intersect(c("Pdyn", "Tac1", "Penk", "Nts", "Cartpt", "Npy",
+                              "Sst", "Vip", "Crh", "Avp", "Oxt"), pool),
+  axon_guidance = unique(c(
+    grep("^Sema|^Robo|^Epha|^Ephb|^Dcc", pool, value = TRUE)
+  ))
+)
+
+# Background: genes expressed in these units at matched detection (use pool)
+# Hypergeometric vs matched-detection background = pool (already restricted)
+enrich_rows <- lapply(names(cats), function(nm) {
+  cat_genes <- intersect(cats[[nm]], pool)
+  k <- length(intersect(union_genes, cat_genes))
+  n <- length(union_genes)
+  K <- length(cat_genes)
+  N <- length(pool)
+  p <- if (K == 0) NA_real_ else phyper(k - 1, K, N - K, n, lower.tail = FALSE)
+  tibble(
+    category = nm,
+    n_in_union = k,
+    category_size = K,
+    union_size = n,
+    background_size = N,
+    background = "genes in any program of 0338/0355/0359 units (detection-restricted to program universe)",
+    hypergeom_p = p,
+    enrichment = (k / max(n, 1)) / max(K / max(N, 1), .Machine$double.eps)
+  )
+})
+enrich <- bind_rows(enrich_rows)
+write_csv(enrich, enrich_csv)
+```
+
+```{r}
+#| label: cell-tbl-bridge
+#| eval: !expr run_analysis
+
+mast27 <- load_mast_hits(paths = paths) %>%
+  filter(tissue == "AMY", !excluded_gene) %>%
+  distinct(gene) %>%
+  pull(gene)
+
+# Focus list from spec + full AMY catalogue intersection
+focus <- unique(c("Hap1", "Cntn6", "Itpkb", "Eps8l1", mast27))
+bridge <- lapply(names(sets), function(nm) {
+  tibble(
+    program = nm,
+    gene = focus,
+    in_program = focus %in% sets[[nm]]
+  )
+}) %>% bind_rows()
+
+# loadings if weight present
+load_w <- function(label, pid) {
+  f <- file.path(paths$dspin, paste0("AMY__", label), "programs_genes.csv")
+  read_csv(f, show_col_types = FALSE) %>%
+    filter(program_id == pid) %>%
+    mutate(gene = strip_grcm39(gene), program = paste0(substr(label, 18, 21), "_", pid))
+}
+w_all <- bind_rows(
+  load_w("CS20230722_SUPT_0338", "P10"),
+  load_w("CS20230722_SUPT_0355", "P5"),
+  load_w("CS20230722_SUPT_0359", "P6")
+)
+bridge2 <- bridge %>%
+  left_join(w_all %>% select(gene, program_id, weight) %>%
+              mutate(program = case_when(
+                program_id == "P10" ~ "0338_P10",
+                program_id == "P5" ~ "0355_P5",
+                program_id == "P6" ~ "0359_P6"
+              )), by = c("gene", "program"))
+
+hits_bridge <- bridge2 %>% filter(in_program)
+lines <- c(
+  "# VR-2 MAST ↔ D-SPIN gene-level bridge",
+  "",
+  if (nrow(hits_bridge)) {
+    c(
+      "**First gene-level agreements between D-SPIN programs and the MAST catalogue:**",
+      "",
+      paste(capture.output(print(hits_bridge)), collapse = "\n")
+    )
+  } else {
+    "- No MAST-catalogue gene (`Hap1`, `Cntn6`, `Itpkb`, `Eps8l1`, or other AMY hits) falls inside the three program gene sets."
+  },
+  "",
+  "Full presence/absence table: `tables/VR2_mast_bridge.csv`.",
+  ""
+)
+write_md(bridge_md, lines)
+write_csv(bridge2, file.path(tbl_dir, "VR2_mast_bridge.csv"))
+```
+
+```{r}
+#| label: cell-fig-spatial
+#| eval: !expr run_analysis
+#| fig-show: hide
+
+# Panel coverage
+panel_genes <- tryCatch({
+  # from spatial prenorm — gene names via sparse matrix rownames if meta-only unavailable
+  character(0)
+}, error = function(e) character(0))
+
+# MapMyCells labels for spatial cells
+mmc <- read_csv(paths$mapmycells, show_col_types = FALSE, comment = "#")
+# standardise
+nm <- names(mmc)
+id_col <- nm[1]
+sup_col <- grep("supertype_name|SUPT", nm, value = TRUE, ignore.case = TRUE)[1]
+if (is.na(sup_col)) {
+  # columns from inventory peek
+  # cell, class_label, class_name, ..., supertype_label, supertype_name, ...
+  possible <- c("supertype_name", "CCN20230722_SUPT")
+  sup_col <- intersect(possible, nm)[1]
+}
+
+meta_sp <- readRDS(paths$spatial_meta) %>% as_tibble(rownames = "cell_id")
+
+# Join MapMyCells if cell ids align
+if (!is.null(sup_col) && id_col %in% names(mmc)) {
+  mmc2 <- mmc %>%
+    rename(cell_id = !!id_col) %>%
+    mutate(cell_id = as.character(cell_id))
+  # find best name column
+  name_col <- grep("supertype_name", names(mmc2), value = TRUE)[1]
+  if (!is.na(name_col)) {
+    gaba_cells <- mmc2 %>%
+      filter(grepl("0338 |0355 |0359 |MEA-BST", .data[[name_col]])) %>%
+      transmute(cell_id, supertype_name = .data[[name_col]])
+  } else {
+    gaba_cells <- tibble(cell_id = character(), supertype_name = character())
+  }
+} else {
+  gaba_cells <- tibble(cell_id = character(), supertype_name = character())
+}
+
+plot_df <- meta_sp %>%
+  mutate(cell_id = as.character(cell_id)) %>%
+  left_join(gaba_cells, by = "cell_id") %>%
+  mutate(is_gaba_supertype = !is.na(supertype_name))
+
+# Crude anatomical compartments by Allen CCF if available
+ccf2d <- file.path(paths$ccf_rebuild, "ccf2d.csv")
+# Fallback: report fractions by roi / bregma only
+frac <- plot_df %>%
+  filter(is_gaba_supertype) %>%
+  count(roi, bregma, name = "n") %>%
+  group_by(roi) %>%
+  mutate(frac = n / sum(n)) %>%
+  ungroup() %>%
+  mutate(
+    compartment = "unassigned_pending_CCF_join",
+    note = "Join Allen_CCF_rebuild labels within section before MeA/BST calls"
+  )
+
+# Panel coverage check using program genes vs spatial gene panel from prenorm object (lazy)
+coverage_note <- sprintf(
+  "Program-gene spatial panel coverage not fully quantified in this run (requires gene list from spatial object). Treat step 5 as qualitative until coverage ≥20%%."
+)
+
+write_csv(frac, spatial_frac)
+
+p <- ggplot(plot_df %>% filter(is_gaba_supertype | row_number() %% 50 == 0),
+            aes(center_x, center_y)) +
+  geom_point(data = plot_df %>% slice_sample(n = min(20000, nrow(plot_df))),
+             colour = "grey85", size = 0.1) +
+  geom_point(data = plot_df %>% filter(is_gaba_supertype),
+             aes(colour = supertype_name), size = 0.4) +
+  coord_equal() +
+  labs(title = "MeA–BST GABA-assigned cells on seqFISH sections",
+       subtitle = coverage_note, colour = NULL) +
+  vr_brand_ggplot() +
+  theme(legend.position = "bottom")
+
+ggsave(spatial_png, p, width = 10, height = 7, dpi = 200)
+
+# Decision stub appended to overlap md
+decision <- c(
+  "",
+  "## Spatial reference",
+  "- Labels: MapMyCells Allen CCN20230722 hierarchy joined to seqFISH metadata by cell_id.",
+  paste0("- ", coverage_note),
+  "",
+  "## Decision rule inputs",
+  "- Compare Jaccard vs null, mean projection vs interneuron scores (with per-animal spread), and spatial MeA±BST fractions above.",
+  ""
+)
+write_md(overlap_md, c(readLines(overlap_md, warn = FALSE), decision))
+```

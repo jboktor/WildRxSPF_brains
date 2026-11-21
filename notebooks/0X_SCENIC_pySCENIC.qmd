@@ -1,9 +1,9 @@
 ---
-title: "pySCENIC Gene Regulatory Networks in WildR vs SPF Brain"
-subtitle: "snRNA-seq — pilot subsample + tissue×class production (Flux-style)"
+title: "pySCENIC Regulon Activity in WildR vs SPF Brain"
+subtitle: "snRNA-seq · 537 GRNs per tissue × Allen class (36), subclass (137) and supertype (364) · animal-level tests (6 vs 6 animals per tissue)"
 date: today
 author: "Joe Boktor"
-categories: [snRNA-seq, SCENIC, Gene Regulatory Networks]
+categories: [snRNA-seq, SCENIC, Gene Regulatory Networks, Microbiome]
 format:
   html:
     theme:
@@ -23,19 +23,22 @@ format:
     code-copy: true
     embed-resources: true
     fig-cap-location: bottom
+    lightbox: true
 execute:
   echo: true
   warning: false
   message: false
-  freeze: auto
+  freeze: false
 ---
 
 ```{r}
 #| label: setup-display
 #| include: false
 
-# Normal render/preview: FALSE — no Seurat load, no loom export, no sbatch.
-# Set TRUE intentionally to export class looms and/or submit SLURM jobs (appendix).
+# Display-only render by default: reads saved CSV/PNG artifacts. No Seurat
+# load, no loom export, no sbatch. Set TRUE intentionally to re-run the
+# (cheap) aggregation / animal-level / permutation / figure scripts or to
+# resubmit SLURM jobs.
 run_analysis <- FALSE
 
 suppressPackageStartupMessages({
@@ -45,544 +48,499 @@ suppressPackageStartupMessages({
   library(glue)
   library(stringr)
   library(jsonlite)
+  library(DT)
 })
 
 wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
-fig_dir <- file.path(wkdir, "figures/SCENIC/snRNASeq")
-proc_dir <- file.path(wkdir, "data/processed/scenic")
-agg_fig_dir <- file.path(wkdir, "figures/SCENIC/snRNASeq_by_class/_aggregate")
+rscript <- "/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript"
+
+report_fig_dir <- file.path(wkdir, "figures/SCENIC/report")
+tbl_dir <- file.path(wkdir, "tables/SCENIC")
 agg_proc_dir <- file.path(wkdir, "data/processed/scenic_by_class")
-interim_dir <- file.path(wkdir, "data/interim/scenic")
-input_db <- file.path(wkdir, "data/input/scenic/cisTarget")
+pilot_fig_dir <- file.path(wkdir, "figures/SCENIC/snRNASeq")
 
-fig_rel <- function(name) file.path("../figures/SCENIC/snRNASeq", name)
-agg_fig_rel <- function(name) file.path("../figures/SCENIC/snRNASeq_by_class/_aggregate", name)
-proc_rel <- function(name) file.path("../data/processed/scenic", name)
-agg_proc_rel <- function(name) file.path("../data/processed/scenic_by_class", name)
-
-has_fig <- function(name) file.exists(file.path(fig_dir, name))
-has_agg_fig <- function(name) file.exists(file.path(agg_fig_dir, name))
-has_proc <- function(...) {
-  paths <- file.path(proc_dir, c(...))
-  any(file.exists(paths))
-}
-
-# Prefer dated CSVs if present, else latest match
-latest_csv <- function(pattern, dir = proc_dir) {
+latest <- function(dir, pattern) {
   hits <- sort(list.files(dir, pattern = pattern, full.names = TRUE))
-  if (!length(hits)) return(NA_character_)
-  hits[length(hits)]
+  if (length(hits)) tail(hits, 1) else NA_character_
 }
-
-diff_csv <- latest_csv("^diff_regulons_WildR_vs_SPF_.*\\.csv$")
-rss_csv <- latest_csv("^regulon_rss_.*\\.csv$")
-summary_json <- file.path(proc_dir, "run_summary.json")
-conclusions_txt <- file.path(proc_dir, "conclusions.txt")
-
-run_summary <- if (file.exists(summary_json)) {
-  jsonlite::fromJSON(summary_json)
-} else {
-  NULL
+read_latest <- function(pattern) {
+  f <- latest(tbl_dir, pattern)
+  if (is.na(f)) NULL else read_csv(f, show_col_types = FALSE)
 }
+not_computed <- function(what) {
+  cat(glue("::: {{.callout-warning}}\n**{what} not yet computed** — set `run_analysis <- TRUE` and run the appendix cells.\n:::"), "\n\n")
+}
+# Embed a saved figure (path relative to notebooks/) or print a not-computed note
+show_fig <- function(name, dir = report_fig_dir, rel = "../figures/SCENIC/report") {
+  if (file.exists(file.path(dir, name))) cat(glue("![]({rel}/{name})"), "\n\n") else not_computed(name)
+}
+dt_table <- function(df, caption, page = 10, center = NULL) {
+  datatable(df, rownames = FALSE, filter = "top", class = "compact stripe hover",
+            extensions = "Buttons", caption = caption,
+            options = list(pageLength = page, lengthMenu = unique(c(page, 25, 50, nrow(df))),
+                           dom = "Bfrtip", buttons = list("colvis", "csv"), scrollX = TRUE,
+                           columnDefs = if (length(center)) list(list(className = "dt-center", targets = center)) else list()))
+}
+rel <- function(p) sub(paste0(wkdir, "/"), "", p, fixed = TRUE)
+big <- function(x) format(x, big.mark = ",")
 
-n_cells <- if (!is.null(run_summary)) run_summary$n_cells else NA
-n_genes <- if (!is.null(run_summary)) run_summary$n_genes else NA
-n_regulons <- if (!is.null(run_summary)) run_summary$n_regulons else NA
-n_sig <- if (!is.null(run_summary)) run_summary$n_sig_diff else NA
+# Class-level artifacts (date-only file names; the _subclass/_supertype files carry a suffix)
+d8 <- "\\d{4}-\\d{2}-\\d{2}\\.csv$"
+tests_csv <- latest(tbl_dir, paste0("^SCENIC_animal_level_tests_", d8))
+split_disp_csv <- latest(tbl_dir, paste0("^SCENIC_split_summary_display_", d8))
+tests <- if (!is.na(tests_csv)) read_csv(tests_csv, show_col_types = FALSE) else NULL
+agg <- if (file.exists(file.path(agg_proc_dir, "aggregate_summary.json")))
+  fromJSON(file.path(agg_proc_dir, "aggregate_summary.json")) else NULL
 
-# Class-split aggregation (production)
-agg_summary_json <- file.path(agg_proc_dir, "aggregate_summary.json")
-agg_summary <- if (file.exists(agg_summary_json)) jsonlite::fromJSON(agg_summary_json) else NULL
-hit_counts_csv <- file.path(agg_proc_dir, "hit_counts_by_split.csv")
-tf_recurrence_csv <- file.path(agg_proc_dir, "tf_hit_recurrence.csv")
-top_hits_csv <- file.path(agg_proc_dir, "top_hits_padj05.csv")
-agg_concl_txt <- file.path(agg_proc_dir, "conclusions.txt")
-run_status_csv <- file.path(agg_proc_dir, "run_status.csv")
+# Multi-level artifacts
+lvl <- read_latest(paste0("^SCENIC_level_summary_display_", d8))
+perm_split <- read_latest(paste0("^SCENIC_split_permutation_tests_", d8))
+circuit <- read_latest(paste0("^SCENIC_popalign_circuit_permutation_display_", d8))
+hits_all <- read_latest(paste0("^SCENIC_fdr_hits_all_levels_display_", d8))
+n_fit <- sapply(c(class = "", subclass = "_subclass", supertype = "_supertype"), function(s) {
+  f <- latest(tbl_dir, paste0("^SCENIC_animal_level_split_summary", s, "_", d8))
+  if (is.na(f)) NA_integer_ else nrow(read_csv(f, show_col_types = FALSE))
+})
+
+# Headline numbers (NA if artifacts are missing)
+n_cell_hits <- if (!is.null(agg)) agg$n_sig_tests else NA
+if (!is.null(lvl)) {
+  by_lv <- lvl %>% group_by(Level) %>%
+    summarise(grns = sum(GRNs), tests = sum(Tests), nom = sum(`p < 0.05`), exp = sum(`Expected (5%)`),
+              fdr = sum(`FDR < 0.10 (split)`), glob = sum(`FDR < 0.10 (global)`),
+              sep = sum(`Complete separation (6 vs 6)`), sep_exp = sum(`Expected separations`),
+              perm_min = min(`Permutation p (excess)`), .groups = "drop")
+  lv <- function(l, col) by_lv[[col]][by_lv$Level == l]
+  tot_tests <- sum(by_lv$tests); tot_nom <- sum(by_lv$nom); tot_exp <- sum(by_lv$exp)
+  tot_fdr <- sum(by_lv$fdr); tot_glob <- sum(by_lv$glob)
+  tot_sep <- sum(by_lv$sep); tot_sep_exp <- sum(by_lv$sep_exp)
+  perm_min <- min(lvl$`Permutation p (excess)`)
+}
+if (!is.null(perm_split)) {
+  ps_n <- nrow(perm_split); ps_nom <- sum(perm_split$p_perm < 0.05)
+  ps_fdr <- sum(perm_split$fdr_perm_level < 0.10)
+}
+if (!is.null(circuit)) {
+  ci_n <- nrow(circuit); ci_nom <- sum(circuit$`Permutation p` < 0.05)
+  ci_obs <- sum(circuit$`p < 0.05 observed`); ci_exp <- round(sum(circuit$`Permutation mean`))
+}
+if (!is.null(tests)) {
+  ch <- tests %>% filter(cell_level_hit)
+  n_ch_nom <- sum(ch$p_animal < 0.05, na.rm = TRUE)
+  pct_ch_sign <- round(100 * mean(sign(ch$delta_cell) == sign(ch$delta_animal), na.rm = TRUE))
+  med_g_ch <- round(median(abs(ch$hedges_g), na.rm = TRUE), 2)
+  med_rel_ch <- round(100 * median(abs(ch$delta_cell) / ((ch$animal_mean_SPF + ch$animal_mean_WildR) / 2), na.rm = TRUE), 1)
+  pct_ch_p25 <- round(100 * mean(ch$p_animal < 0.25, na.rm = TRUE))
+  pct_all_p25 <- round(100 * mean(tests$p_animal < 0.25, na.rm = TRUE))
+}
+if (!is.null(hits_all)) {
+  n_hits_low <- sum(pmax(hits_all$`Mean AUC SPF`, hits_all$`Mean AUC WildR`) < 0.005)
+  med_hit_nuclei <- round(median(hits_all$Nuclei))
+}
+mde_g <- round(power.t.test(n = 6, power = 0.8, sig.level = 0.05)$delta, 1)
+n_needed <- ceiling(power.t.test(delta = 0.6, power = 0.8, sig.level = 0.05)$n)
 ```
 
-# pySCENIC Gene Regulatory Networks in WildR vs SPF Brain
+# Microbiome Effects on Transcription-Factor Regulon Activity (pySCENIC)
 
 ## Overview
 
-Production pySCENIC runs use **raw UMI counts** from Seurat `RNA` `counts`, one GRN per **tissue × Allen class** (Flux-style; both microbiome groups in each loom). WildR vs SPF contrasts are Wilcoxon tests on AUCell within each split. Cross-class comparisons use **TF hit lists**, not raw AUC (regulons are inferred separately per split).
+We asked whether WildR and SPF mice differ in **transcription-factor regulon activity** in the amygdala (AMY) and hypothalamus (HYP). pySCENIC was fitted separately for every tissue × Allen cell type at three resolutions: **`r n_fit[["class"]]` class, `r n_fit[["subclass"]]` subclass and `r n_fit[["supertype"]]` supertype GRNs** (`r sum(n_fit)` in total). Every regulon was then tested on per-animal mean AUCell, 6 WildR vs 6 SPF animals per tissue, because the animal is the unit of replication. **The answer is no, at every resolution.**
 
-AMY `01 IT-ET Glut` (~87k cells) and the two whole-tissue jobs are still running and are **excluded** from the aggregation below.
+- Of `r big(tot_tests)` regulon tests, `r big(tot_nom)` reach nominal p < 0.05. Chance alone predicts ≈`r big(tot_exp)`.
+- **No test survives correction across GRNs** at any level.
+- Relabelling the 12 animals 924 ways gives the exact null for this design. The observed result sits in the middle or lower part of that null in every level × tissue (permutation p ≥ `r perm_min`).
+
+The `r n_cell_hits` "significant regulons" from the original per-nucleus tests were pseudoreplication. Their direction is mostly real, but they are about a third of the size that 6 vs 6 animals can detect. **Use this analysis as a regulon catalogue and a source of weak hypotheses, not as evidence for microbiome-driven TF programs.**
 
 ```{r}
 #| label: display-stats
 #| echo: false
 #| results: asis
-
-if (is.null(agg_summary)) {
-  cat("::: {.callout-warning}\n")
-  cat("**Class-split aggregates not found.** Run ")
-  cat("`notebooks/R_scripts/aggregate_scenic_class_results.R`.\n")
-  cat(":::\n")
+if (is.null(lvl)) {
+  not_computed("Multi-level animal-level summary")
 } else {
-  pending <- paste(agg_summary$pending_stems, collapse = ", ")
-  cat("::: {.stat-row}\n")
-  cat("::: {.stat}\n")
-  cat(glue("[{agg_summary$n_completed}/{agg_summary$n_completed + agg_summary$n_pending}]{{.stat-value}}\n"))
-  cat("[Class splits done]{.stat-label}\n")
-  cat(":::\n")
-  cat("::: {.stat}\n")
-  cat(glue("[{format(agg_summary$n_sig_tests, big.mark=',')}]{{.stat-value}}\n"))
-  cat("[Sig. regulon tests]{.stat-label}\n")
-  cat(":::\n")
-  cat("::: {.stat}\n")
-  cat(glue("[{agg_summary$n_splits_with_hits}]{{.stat-value}}\n"))
-  cat("[Splits with hits]{.stat-label}\n")
-  cat(":::\n")
-  cat("::: {.stat}\n")
-  cat(glue("[{agg_summary$n_pending}]{{.stat-value}}\n"))
-  cat("[Pending (excluded)]{.stat-label}\n")
-  cat(":::\n")
-  cat(":::\n")
-  if (nzchar(pending)) {
-    cat("::: {.callout-note}\n")
-    cat(glue("Pending / excluded from aggregation: `{pending}`.\n"))
-    cat(":::\n")
-  }
+  stat <- function(v, l) cat(glue("::: {{.stat}}\n[{v}]{{.stat-value}}\n[{l}]{{.stat-label}}\n:::"), "\n\n")
+  cat("::: {.stat-row}\n\n")
+  stat(sum(n_fit), "GRNs fitted (class + subclass + supertype)")
+  stat(big(tot_tests), "Regulon tests at the animal level")
+  stat(glue("{big(tot_nom)} vs {big(tot_exp)}"), "p < 0.05 observed vs expected by chance")
+  stat(tot_glob, "Tests passing FDR < 0.10 across GRNs")
+  cat(":::\n\n")
 }
 ```
 
 ## Background
 
-Microbiome status (WildR vs SPF) reshapes brain gene expression in this cohort (see DEG notebooks). SCENIC asks which **transcription-factor regulons** change activity. Gene symbols were stripped of the Parse `-GRCm39` suffix to match cisTarget TF lists. Input matrices are **raw UMIs** (not the Seurat `data` layer).
+Microbiome status shifts gene expression and cell state in specific amygdalar and hypothalamic populations in this cohort. These are concentrated in the MeA–BST–medial-hypothalamus network (see the MAST DEG, D-SPIN and popAlign notebooks). SCENIC asks the upstream question: which **regulons** change activity? A regulon is a TF plus the co-expressed target genes that carry its binding motif. A regulon that shifts consistently between groups would be a candidate mechanistic driver to follow up spatially and experimentally.
 
-## Results — class-split production
+Three design facts govern how the results can be read:
 
-### Run completeness
+1. **A GRN is fitted separately for each split.** Regulons are therefore only comparable within a split, and comparisons across splits must use standardized effects (Hedges g, within-split z). Splitting finer gives cell-type-specific networks but fewer nuclei per GRN.
+2. **There are 6 animals per microbiome group in each tissue.** All three resolutions reuse the same 12 animals per tissue, so agreement across levels is not independent replication. At 6 vs 6, 80% power at α = 0.05 requires Hedges g ≈ `r mde_g`.
+3. **Thousands of regulons are tested.** With hundreds of GRNs, a handful of within-GRN FDR hits and complete-separation patterns are expected by chance alone. This report compares every count against its null.
 
-::: {.figure-card .fig-wide}
-```{r}
-#| label: display-agg-status
-#| echo: false
-#| results: asis
-if (has_agg_fig("run_status.png")) {
-  cat(sprintf("![](%s)\n", agg_fig_rel("run_status.png")))
-} else {
-  cat("*Aggregate figure pending.*\n")
-}
-```
+## Results
 
-::: {.fig-caption}
-[**Figure P1.**]{.fig-num} Class-split run status by cell count. Orange = pending (excluded from aggregation).
-:::
-:::
-
-### Significant regulons per class
+### 537 GRNs at three resolutions, most with all 12 animals
 
 ::: {.figure-card .fig-wide}
 ```{r}
-#| label: display-agg-nsig
+#| label: display-levels-coverage
 #| echo: false
 #| results: asis
-if (has_agg_fig("n_sig_by_class.png")) {
-  cat(sprintf("![](%s)\n", agg_fig_rel("n_sig_by_class.png")))
-} else {
-  cat("*Aggregate figure pending.*\n")
-}
+show_fig("SCENIC_levels_coverage.png")
 ```
 
 ::: {.fig-caption}
-[**Figure P2.**]{.fig-num} Number of BH-significant (padj < 0.05) WildR vs SPF regulons per completed tissue × class split.
+[**Figure 1.**]{.fig-num} Design and coverage of the testable GRNs at each Allen resolution (class: 35 of 36 testable). (A) Nuclei per GRN (log scale). (B) Share of GRNs by how many animals per group contribute ≥ 10 nuclei. An animal enters the test only above that floor, and a GRN needs ≥ 3 animals per group. (C) Regulons retained per GRN after cisTarget motif pruning.
 :::
 
 ::: {.takeaways}
 **Key takeaways**
 
-- Glial classes dominate hit counts: **Astro-Epen** and **OPC-Oligo** in both tissues; HYP **CNU-LGE GABA** also high.
-- Several neuronal classes show moderate hit sets (e.g. CNU-HYa, CTX-MGE/CGE in AMY; HY GABA/Glut in HYP).
-- Small / rare classes often have **zero** significant regulons — underpowered, not necessarily null biology.
+- All GRNs ran `grn → ctx → aucell` on raw UMI counts and passed the animal-level test stage: `r n_fit[["class"]]` class, `r n_fit[["subclass"]]` subclass and `r n_fit[["supertype"]]` supertype. HYP `21 MB Dopa` is the only class-level GRN that is untestable (4 vs 2 animals).
+- Finer splits are smaller. The median GRN shrinks from ~2–3k nuclei (class) to ~500 (supertype), yet 63–83% of GRNs at every level still have all **6 vs 6 animals**. A null result therefore reflects effect size and replication, not missing animals.
+- Smaller GRNs call *more* regulons: the median rises from 156–182 at class level to 208–215 at supertype. Large heterogeneous neuronal classes retain the fewest. Hit counts must be compared as rates against a null, never as raw totals.
 :::
+
+[Source: cell `cell-fig-report`](#cell-fig-report){.provenance}
 :::
 
 ```{r}
-#| label: display-hit-counts-table
+#| label: display-level-table
+#| echo: false
+if (!is.null(lvl)) {
+  dt_table(lvl, page = 6, center = 2:14,
+           caption = "Per level × tissue summary. 'Expected (5%)' = 5% of tests; 'Permutation median / p' = the 924-relabelling null for the count of p < 0.05 tests (Figure 2C); complete separation = all 6 animals of one group above all 6 of the other (chance 2/924 per test).")
+} else not_computed("Level summary")
+```
+
+::: {.callout-note collapse="true"}
+## Class-level detail: coverage per class and the per-class table
+
+```{r}
+#| label: display-coverage
 #| echo: false
 #| results: asis
+show_fig("SCENIC_split_coverage.png")
+```
 
-if (file.exists(hit_counts_csv)) {
-  hc <- read_csv(hit_counts_csv, show_col_types = FALSE) %>%
-    filter(status == "completed") %>%
-    arrange(desc(n_sig)) %>%
+Coverage of the 36 tissue × class GRNs: nuclei per class (AMY `01 IT-ET Glut` was stratified-subsampled from 87k to 45k nuclei to finish inside walltime), animals per group with ≥ 10 nuclei (dashed line = 3-animal floor), and regulons retained.
+
+```{r}
+#| label: display-split-table
+#| echo: false
+if (!is.na(split_disp_csv)) {
+  dt_table(read_csv(split_disp_csv, show_col_types = FALSE), page = 12, center = 2:10,
+           caption = "Per-class summary. 'Cell-level hits' = original nucleus-level Wilcoxon padj < 0.05; '…also animal p<0.05' = how many of those survive a nominal animal-level test.") %>%
+    formatCurrency("Nuclei", currency = "", digits = 0)
+}
+```
+
+Per-class table: [`r if (!is.na(split_disp_csv)) rel(split_disp_csv)`]{.path}
+:::
+
+### The original cell-level hits were pseudoreplication
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-cell-vs-animal
+#| echo: false
+#| results: asis
+show_fig("SCENIC_cell_vs_animal_level.png")
+```
+
+::: {.fig-caption}
+[**Figure 2.**]{.fig-num} Why the original class-level hit counts cannot be read as microbiome effects. (A) Regulons significant in the per-class, nucleus-level Wilcoxon test (BH padj < 0.05) against nuclei in the class. (B) The same `r n_cell_hits` cell-level hits re-tested on per-animal mean AUCell (pooled-variance t-test, 6 vs 6); the dashed line is the count expected per bin if none were real. (C) The single most significant cell-level hit, one point per animal (size = nuclei); bars are group means.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Cell-level hit counts track **how many nuclei a class has**. HY GABA/Glut and OPC-Oligo, with 37–49k nuclei each, report dozens of hits from ΔAUC ≈ 0.001.
+- Only **`r n_ch_nom` of `r n_cell_hits`** cell-level hits reach nominal p < 0.05 on animal means, close to the 5% expected by chance. The extreme case, Bclaf1(+) in HYP HY Glut, goes from p = 8 × 10⁻¹⁰⁵ to p = 0.54. Its six WildR animals span the entire SPF range.
+- The hits are not pure noise. `r pct_ch_sign`% keep their sign per animal, and `r pct_ch_p25`% have animal-level p < 0.25 (vs `r pct_all_p25`% of all regulons). They are **small, directionally coherent shifts** (median `r med_rel_ch`% change in AUC, |g| ≈ `r med_g_ch`) that 6 vs 6 animals cannot confirm. Detecting g ≈ 0.6 at 80% power would need ~`r n_needed` animals per group.
+- The old hit tables ([data/processed/scenic_by_class/top_hits_padj05.csv]{.path}, `tf_hit_recurrence.csv`) and their recurrent TFs (Rfx3, Bclaf1, Klf12, Bptf) should not be cited as microbiome-regulated regulons.
+:::
+
+[Source: cell `cell-tbl-animal-level`](#cell-tbl-animal-level){.provenance}
+:::
+
+### No resolution shows more signal than chance
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-levels-null
+#| echo: false
+#| results: asis
+show_fig("SCENIC_levels_null.png")
+```
+
+::: {.fig-caption}
+[**Figure 3.**]{.fig-num} Global tests for any microbiome effect on regulon activity at each resolution. (A) QQ plot of all animal-level p-values against the uniform null. (B) Tests at nominal p < 0.05 against 5% of tests. (C) Exact permutation null for each level × tissue. The tissue's 12 animals were relabelled in all 924 ways, the same relabelling was applied to every GRN at once (which keeps the correlation between regulons and between GRNs), and tests at p < 0.05 were counted. The orange line marks the observed count. (D) Per-GRN permutation p for an excess of p < 0.05 tests (all relabellings of that GRN's animals); the dashed line is the uniform expectation.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **Every level is null.** Nominal p < 0.05 occurs *less* often than 5% at every resolution: class `r lv("class","nom")` vs `r lv("class","exp")`, subclass `r big(lv("subclass","nom"))` vs `r big(lv("subclass","exp"))`, supertype `r big(lv("supertype","nom"))` vs `r big(lv("supertype","exp"))`. The QQ curves lie on or below the diagonal.
+- The permutation null (C) is the right yardstick, because regulons are correlated and the 5% line understates how widely the count can vary under no effect. It has a long right tail: some relabellings of the 12 animals produce far more hits than the true WildR/SPF labels. Animals do differ systematically, but **not along the microbiome axis**. The observed count sits at or below the null median in all six level × tissue panels (permutation p ≥ `r perm_min`).
+- Per GRN (D), `r ps_nom` of `r ps_n` GRNs reach permutation p < 0.05 (≈`r round(0.05*ps_n)` expected), and none survives FDR within its level (`r ps_fdr`). A naïve binomial test would have flagged 3 supertypes; under permutation they are ordinary.
+- Complete 6 vs 6 separation of animals, the most striking pattern in a superplot, occurs `r tot_sep` times against ≈`r tot_sep_exp` expected by chance (2/924 per test).
+:::
+
+[Source: cell `cell-tbl-permutation`](#cell-tbl-permutation) · [cell `cell-fig-report`](#cell-fig-report){.provenance}
+:::
+
+### The few within-GRN hits are isolated, low-activity and do not replicate
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-hit-superplots
+#| echo: false
+#| results: asis
+show_fig("SCENIC_fdr_hits_superplots.png")
+```
+
+::: {.fig-caption}
+[**Figure 4.**]{.fig-num} The 12 strongest within-GRN FDR < 0.10 regulons across all levels (GRNs with ≥ 5 animals per group). One point per animal, sized by nuclei; bars are group means. Panel titles give the regulon, tissue, level, split, within-GRN q and Hedges g. None passes FDR after correcting across GRNs.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- `r tot_fdr` regulons pass FDR < 0.10 *within* their own GRN: `r lv("class","fdr")` at class, `r lv("subclass","fdr")` at subclass and `r lv("supertype","fdr")` at supertype level. That is about what testing `r sum(n_fit)` GRNs separately would yield by chance, and **zero survive correction across GRNs**.
+- They look like multiplicity, not biology:
+  - **Each of the `r tot_fdr` is a different GRN × TF pair**, and none recurs at a second level in the same tissue and direction.
+  - **Many are near-zero-activity regulons.** `r n_hits_low` of `r tot_fdr` have mean AUC < 0.005; Lef1(+) in AMY IT EP-CLA sits at 0.00004 vs 0.00025. In that range a few target genes moving can drive the score.
+  - **Most come from small GRNs** (median `r med_hit_nuclei` nuclei).
+- The class-level MB GABA leads (Irf2, Crebl2, Usf2; SPF-higher) do **not** reappear in the MB GABA subclass or supertypes. The panels look clean because a single 6 vs 6 split with g ≈ 3 is what a few hundred GRN × regulon tests produce by chance.
+:::
+
+[Source: cell `cell-tbl-animal-level-subclass`](#cell-tbl-animal-level-subclass) · [cell `cell-fig-report`](#cell-fig-report){.provenance}
+:::
+
+```{r}
+#| label: display-fdr-hits-levels
+#| echo: false
+if (!is.null(hits_all)) {
+  dt_table(hits_all, page = 10, center = 5:12,
+           caption = "All within-GRN FDR < 0.10 regulons at class, subclass and supertype level. None survives correction across GRNs; 'Animals separated' = animals of the higher group above every animal of the other (6 = complete).")
+} else not_computed("Multi-level FDR hit table")
+```
+
+Per-level results: [tables/SCENIC/SCENIC_animal_level_tests{,\_subclass,\_supertype}\_2026-10-06.csv]{.path}; per-GRN outputs: [data/interim/scenic/by_{class,subclass,supertype}/&lt;stem&gt;/]{.path}.
+
+::: {.callout-note collapse="true"}
+## Class-level detail: animal-level volcano, strongest class regulons and top-150 table
+
+```{r}
+#| label: display-animal-volcano
+#| echo: false
+#| results: asis
+show_fig("SCENIC_animal_level_volcano.png")
+```
+
+Class level: Hedges g against −log10 animal-level p, by tissue (orange = within-class FDR < 0.10; dark = nominal p < 0.05), and the class-level QQ plot.
+
+```{r}
+#| label: display-superplots
+#| echo: false
+#| results: asis
+show_fig("SCENIC_top_animal_level_regulons.png")
+```
+
+Per-animal AUCell for the eight strongest class-level regulons (classes with ≥ 5 animals per group). HYP MB GABA contributes three SPF-higher regulons (Irf2, Crebl2, Usf2). HYP Immune shows WildR-higher Npas2(+) and Gli2(+) (q = 0.22). None replicates at finer levels.
+
+```{r}
+#| label: display-top-animal-table
+#| echo: false
+if (!is.null(tests)) {
+  top <- tests %>%
+    filter(!is.na(p_animal)) %>%
+    arrange(p_animal) %>%
+    slice_head(n = 150) %>%
     transmute(
-      tissue, class = class_name,
-      n_cells = format(n_cells, big.mark = ","),
-      n_regulons = n_regulons_tested,
-      n_sig, WildR_up = n_WildR_up, SPF_up = n_SPF_up
+      Tissue = tissue, Class = str_remove(class_name, "^\\d+\\s+"), Regulon = regulon,
+      Direction = direction,
+      `Animals (W/S)` = glue("{n_animals_WildR}/{n_animals_SPF}"),
+      `Mean AUC SPF` = signif(animal_mean_SPF, 3), `Mean AUC WildR` = signif(animal_mean_WildR, 3),
+      `Hedges g` = round(hedges_g, 2), `Animals separated` = animals_separated,
+      `p (animal)` = signif(p_animal, 2), `FDR (class)` = signif(fdr_split, 2),
+      `Cell-level hit` = if_else(cell_level_hit, "yes", ""), `Nuclei` = n_cells
     )
-  cat(knitr::kable(hc, caption = "Significant regulons per completed class split.") |> paste(collapse = "\n"))
-  cat("\n\n")
-}
+  dt_table(top, page = 10, center = c(3, 4, 7, 8, 9, 10, 11),
+           caption = "150 strongest class-level animal tests (sorted by p).")
+} else not_computed("Animal-level tests")
 ```
 
-### Direction of shifts
+Full class-level results (cell-level columns joined): [`r if (!is.na(tests_csv)) rel(tests_csv)`]{.path}
+:::
+
+### The circuits flagged by popAlign carry no extra regulon signal
+
+A prespecified, better-powered question: do the populations where popAlign found microbiome-associated **cell-state or abundance shifts** show more regulon signal than the rest? These include MEA-BST Lhx6 Nr2e1 / Lhx6 Sp9 / Otp Zic2, DMH Hmx2, TMd-DMH Foxd2, PVHd-DMH Lhx6 and PVH-SO-PVa Otp. The test below uses every subclass and supertype GRN in those populations.
+
+```{r}
+#| label: display-circuit-table
+#| echo: false
+if (!is.null(circuit)) {
+  dt_table(circuit, page = 10, center = 3:7,
+           caption = "Subclass/supertype GRNs in the popAlign-flagged MeA–BST–medial-hypothalamus populations, sorted by per-GRN permutation p for an excess of p < 0.05 regulon tests.")
+} else not_computed("popAlign-circuit permutation table")
+```
+
+::: {.takeaways}
+**Key takeaways**
+
+- Across the `r ci_n` circuit GRNs, `r ci_obs` regulon tests reach p < 0.05 against `r ci_exp` expected under permutation. `r ci_nom` GRNs reach permutation p < 0.05, against ≈`r round(0.05*ci_n, 1)` expected by chance.
+- The exact supertypes where popAlign's state shifts were strongest are unremarkable here: MEA-BST Lhx6 Nr2e1 Gaba_2 (`0355`) and DMH Hmx2 Gaba_2 (`0488`).
+- The three nominal circuit GRNs (AMY MEA-BST Lhx6 Sp9 Gaba_3, HYP PVH-SO-PVa Otp Glut_6, HYP DMH Hmx2 Gaba_3) are sibling supertypes of popAlign leads. They are worth noting but are not more than chance.
+- Interpretation: the popAlign state shifts are **not accompanied by detectable whole-regulon reprogramming**. They are more likely to involve changes in target-gene sets that pySCENIC does not group into one regulon, or TFs that cisTarget did not call.
+:::
+
+Permutation tables: [`r rel(latest(tbl_dir, paste0("^SCENIC_split_permutation_tests_", d8)))`]{.path} · [`r rel(latest(tbl_dir, paste0("^SCENIC_level_permutation_tests_", d8)))`]{.path}
+
+### No TF program is consistent across cell types or resolutions
 
 ::: {.figure-card .fig-wide}
 ```{r}
-#| label: display-agg-direction
+#| label: display-consensus
 #| echo: false
 #| results: asis
-if (has_agg_fig("sig_direction_by_class.png")) {
-  cat(sprintf("![](%s)\n", agg_fig_rel("sig_direction_by_class.png")))
-} else {
-  cat("*Aggregate figure pending.*\n")
-}
+show_fig("SCENIC_tf_consensus_levels.png")
 ```
 
 ::: {.fig-caption}
-[**Figure P3.**]{.fig-num} Among significant regulons, counts higher in WildR vs higher in SPF (mean AUCell).
-:::
-:::
-
-### Combined volcano
-
-::: {.figure-card .fig-wide}
-```{r}
-#| label: display-agg-volcano
-#| echo: false
-#| results: asis
-if (has_agg_fig("volcano_all_splits.png")) {
-  cat(sprintf("![](%s)\n", agg_fig_rel("volcano_all_splits.png")))
-} else {
-  cat("*Aggregate figure pending.*\n")
-}
-```
-
-::: {.fig-caption}
-[**Figure P4.**]{.fig-num} All within-split WildR − SPF regulon tests from completed class GRNs (faceted by tissue).
-:::
-:::
-
-### Recurrent TFs across classes
-
-::: {.figure-card .fig-wide}
-```{r}
-#| label: display-agg-tf-recurrence
-#| echo: false
-#| results: asis
-if (has_agg_fig("tf_recurrence.png")) {
-  cat(sprintf("![](%s)\n", agg_fig_rel("tf_recurrence.png")))
-}
-if (has_agg_fig("tf_hit_heatmap.png")) {
-  cat(sprintf("\n![](%s)\n", agg_fig_rel("tf_hit_heatmap.png")))
-}
-```
-
-::: {.fig-caption}
-[**Figure P5.**]{.fig-num} TFs whose regulons are significant in ≥2 class splits (hit-list recurrence), and presence/direction heatmap across splits.
+[**Figure 5.**]{.fig-num} Cross-GRN TF consensus at each level. This asks whether a TF moves the same way across *all* cell types of a tissue, which is the best-powered test for a broad microbiome effect. For each TF whose activating regulon was called in ≥ 3 GRNs of a tissue, the 12 animal means were z-scored within each GRN, each animal's z was averaged across GRNs, and 6 vs 6 was tested once per TF × tissue (BH within tissue). (A) Consensus Hedges g against −log10 p, by tissue (rows) and level (columns); orange = candidate TFs from earlier analyses; the four strongest per panel are labelled. (B) Consensus g of the candidate TFs at each level; point size = GRNs pooled.
 :::
 
 ::: {.takeaways}
 **Key takeaways**
 
-- Most recurrent TFs include **Rfx3**, **Bclaf1**, **Klf12**, **Bptf**, **Mllt10**, **Nfia**, **Pbx1** — candidates for microbiome-linked GRN state across multiple classes.
-- **Mllt10** / **Ube2k** hits skew WildR-up across splits; others are mixed — direction is class-dependent.
-- Treat recurrence as hypothesis generation; confirm against DEG TF lists and (when finished) tissue-wide shared-regulon AUCs.
+- **No TF passes FDR < 0.10 in the consensus test at any level.** The strongest tests (AMY Zfp324/Esr1/Glis1; HYP Banp/Zfp207/Zbtb34) differ at each level, and consensus effects agree only weakly between levels (r ≈ 0.25).
+- The cell-level "recurrent" TFs **Rfx3, Bptf and Bclaf1 change sign** between tissues or levels. Their recurrence reflected that broadly active regulons get tested in nearly every GRN.
+- **HYP Mllt10, Zbtb20 and Klf12** are the only candidates whose sign holds at all three levels (WildR-higher; g ≈ 0.5–1.0, p ≥ 0.1 throughout). Ube2k is WildR-higher in HYP at class level but weakens at finer levels. Because every level reuses the same 12 animals, this consistency is a weak hypothesis, not replication.
 :::
+
+[Source: cell `cell-tbl-animal-level`](#cell-tbl-animal-level) · [cell `cell-fig-report`](#cell-fig-report){.provenance}
 :::
-
-```{r}
-#| label: display-top-hits-table
-#| echo: false
-#| results: asis
-
-if (file.exists(top_hits_csv)) {
-  top <- read_csv(top_hits_csv, show_col_types = FALSE) %>%
-    arrange(padj, desc(abs(delta))) %>%
-    transmute(
-      tissue, class = class_name, tf, regulon,
-      delta, padj, direction
-    ) %>%
-    slice_head(n = 40)
-  cat("### Top differential regulons (padj < 0.05)\n\n")
-  cat(knitr::kable(top, caption = "Top 40 class-split hits by padj.") |> paste(collapse = "\n"))
-  cat("\n\nFull table: [`", agg_proc_rel("top_hits_padj05.csv"), "`]{.path}\n", sep = "")
-}
-```
-
-```{r}
-#| label: display-agg-conclusions
-#| echo: false
-#| results: asis
-
-if (file.exists(agg_concl_txt)) {
-  cat("::: {.callout-note}\n")
-  cat("**Auto-summary (class aggregation)**\n\n```\n")
-  cat(paste(readLines(agg_concl_txt), collapse = "\n"))
-  cat("\n```\n:::\n")
-}
-```
-
-## Results — pilot subsample (reference)
-
-Early ~5k-cell pilot used to validate the pipeline (gene naming, RSS identity TFs). Production claims should use the class-split section above.
-
-### Pilot subsample composition
 
 ::: {.figure-card .fig-wide}
 ```{r}
-#| label: display-composition
+#| label: display-recurrent
 #| echo: false
 #| results: asis
-if (has_fig("subsample_composition.png")) {
-  cat(sprintf("![](%s)\n", fig_rel("subsample_composition.png")))
-} else {
-  cat("*Figure pending — pipeline not finished.*\n")
-}
+show_fig("SCENIC_recurrent_tf_effects.png")
 ```
 
 ::: {.fig-caption}
-[**Figure 1.**]{.fig-num} Stratified pilot subsample composition by Allen class, tissue (AMY / HYP), and microbiome (WildR / SPF). Sampling capped per microbiome × tissue × subclass, then globally to ~5,000 cells.
+[**Figure 6.**]{.fig-num} Class level: the 24 TFs most often reported as cell-level hits, across every class GRN in which their activating regulon was called. Tile colour = animal-level Hedges g (WildR − SPF, clipped at ±2.5); blank = not called in that class. ○ = cell-level hit (padj < 0.05); ✱ = animal-level p < 0.05.
 :::
 
 ::: {.takeaways}
 **Key takeaways**
 
-- Both tissues and microbiome groups are represented, so WildR vs SPF contrasts are not driven by missing strata.
-- Large glutamatergic / GABAergic and glial classes dominate the subsample, matching cohort composition.
-- This is a **pilot**; rare subclasses remain underpowered for per-type regulon tests.
+- Almost no cell-level circle carries an animal-level star, and the recurrent TFs flip colour between classes.
+- Mllt10(+) and Ube2k(+) are mostly orange (WildR-higher) across HYP classes, which is the origin of the candidate above.
+- Glial identity regulons (Spi1, Irf8, Ikzf1, Fli1 in OPC-Oligo / Astro-Epen) flip sign between AMY and HYP. That more likely reflects different microglial contamination of those classes than a microbiome response.
 :::
 
-[Source: cell `cell-run-pipeline`](#cell-run-pipeline){.provenance}
+[Source: cell `cell-fig-report`](#cell-fig-report){.provenance}
 :::
 
-Artifacts: intermediates in [data/interim/scenic/]{.path}; cisTarget DBs in [data/input/scenic/cisTarget/]{.path}.
-
-### Regulon activity embedding
+### Pipeline validation: identity regulons are recovered correctly
 
 ::: {.figure-card .fig-wide}
-```{r}
-#| label: display-umap
-#| echo: false
-#| results: asis
-if (has_fig("scenic_umap_feature.png")) {
-  cat(sprintf("![](%s)\n", fig_rel("scenic_umap_feature.png")))
-} else {
-  cat("*Figure pending — pipeline not finished.*\n")
-}
-```
-
-::: {.fig-caption}
-[**Figure 2.**]{.fig-num} UMAP of AUCell regulon-activity space. Top: cells colored by Allen subclass and by microbiome. Bottom: FeaturePlots for the four most variable regulons in the pilot.
-:::
-
-::: {.takeaways}
-**Key takeaways**
-
-- Regulon AUC embeddings largely recover **cell-type identity**, as expected for SCENIC.
-- Microbiome labels **mix within** subclasses rather than forming separate clouds — consistent with state shifts inside types, not wholesale retyping.
-- High-variance regulons that track subclasses are candidate identity TFs; those that vary by microbiome within type are candidate state TFs.
-:::
-
-[Source: cell `cell-run-pipeline`](#cell-run-pipeline){.provenance}
-:::
-
-### Top variable regulons across cell types
-
-::: {.figure-card .fig-wide}
-```{r}
-#| label: display-heatmap
-#| echo: false
-#| results: asis
-if (has_fig("regulon_heatmap_top50.png")) {
-  cat(sprintf("![](%s)\n", fig_rel("regulon_heatmap_top50.png")))
-} else {
-  cat("*Figure pending — pipeline not finished.*\n")
-}
-```
-
-::: {.fig-caption}
-[**Figure 3.**]{.fig-num} Pseudobulk scaled AUCell scores for the 50 most variable regulons, columns grouped by microbiome (SPF / WildR) and annotated by tissue.
-:::
-
-::: {.takeaways}
-**Key takeaways**
-
-- Column structure is dominated by **cell-type programs** (blocks of regulons co-active in related subclasses).
-- Within-type SPF vs WildR column pairs can reveal microbiome-linked TF programs when present.
-- Use this heatmap to pick regulons for FeaturePlots and for overlap with DEG hits.
-:::
-
-[Source: cell `cell-run-pipeline`](#cell-run-pipeline){.provenance}
-:::
-
-::: {.figure-card .fig-wide}
-```{r}
-#| label: display-dotplot
-#| echo: false
-#| results: asis
-if (has_fig("regulon_dotplot.png")) {
-  cat(sprintf("![](%s)\n", fig_rel("regulon_dotplot.png")))
-} else {
-  cat("*Figure pending — pipeline not finished.*\n")
-}
-```
-
-::: {.fig-caption}
-[**Figure 4.**]{.fig-num} Dot plot of the top 25 variable regulons across the 12 largest subclasses, split by microbiome within each subclass.
-:::
-
-::: {.takeaways}
-**Key takeaways**
-
-- Dot size/color summarize how broadly and strongly each regulon is active in a subclass × microbiome group.
-- Systematic WildR–SPF differences within a subclass nominate TFs for follow-up with DEG and RSS results.
-:::
-
-[Source: cell `cell-run-pipeline`](#cell-run-pipeline){.provenance}
-:::
-
-### Cell-type–specific regulons (RSS)
-
-::: {.figure-card .fig-wide}
+::: {.panel-grid}
+[A]{.panel-label}
 ```{r}
 #| label: display-rss
 #| echo: false
 #| results: asis
-if (has_fig("regulon_rss.png")) {
-  cat(sprintf("![](%s)\n", fig_rel("regulon_rss.png")))
-} else {
-  cat("*Figure pending — pipeline not finished.*\n")
-}
+show_fig("SCENIC_pilot_rss.png")
 ```
 
+[B]{.panel-label}
+```{r}
+#| label: display-umap
+#| echo: false
+#| results: asis
+show_fig("scenic_umap_feature.png", dir = pilot_fig_dir, rel = "../figures/SCENIC/snRNASeq")
+```
+:::
+
 ::: {.fig-caption}
-[**Figure 5.**]{.fig-num} Regulon Specificity Score (RSS) — top five regulons per major subclass. RSS uses a Jensen–Shannon–based score relating AUCell profiles to cell-type membership (SCENIC protocol style).
+[**Figure 7.**]{.fig-num} Sanity check from the ~5,000-nucleus stratified pilot run (both tissues, both groups, one GRN). (A) Regulon Specificity Score (Jensen–Shannon based) for the top five regulons in each of the 12 largest subclasses. (B) UMAP of AUCell regulon space coloured by subclass and microbiome, with the four most variable regulons.
 :::
 
 ::: {.takeaways}
 **Key takeaways**
 
-- RSS recovers expected identity TFs: **Myb / Irx5** (ependymal), **Runx1 / Irf5 / Irf8 / Ikzf1** (microglia), **Sox10** (oligo).
-- That is a strong sanity check that motif pruning + AUCell worked on this Parse gene set after `-GRCm39` stripping.
-- Identity regulons that later show microbiome ΔAUC would be identity × state candidates; none are FDR-significant in this pilot.
-- Full RSS table: [data/processed/scenic/regulon_rss_2026-08-08.csv]{.path}.
+- The pipeline recovers textbook identity TFs: Myb / Irx5 (ependymal), Runx1 / Irf5 / Irf8 / Ikzf1 (microglia) and Sox10 (oligodendrocytes). This confirms that gene-symbol cleaning, the cisTarget databases and AUCell work on this Parse data. The null microbiome result is not a broken pipeline.
+- Neuronal subclasses have weak specificity in a single pooled GRN (RSS < 0.1). That is why production fitted one GRN per class, subclass and supertype.
+- In regulon space, the microbiome groups mix within subclasses. Cell identity is the dominant axis.
 :::
 
-[Source: cell `cell-run-pipeline`](#cell-run-pipeline){.provenance}
+[Source: cell `cell-fig-report`](#cell-fig-report) (A) · [cell `cell-run-pipeline`](#cell-run-pipeline) (B){.provenance}
 :::
-
-### Differential regulon activity: WildR vs SPF
-
-::: {.figure-card .fig-wide}
-```{r}
-#| label: display-volcano
-#| echo: false
-#| results: asis
-if (has_fig("diff_regulon_volcano.png")) {
-  cat(sprintf("![](%s)\n", fig_rel("diff_regulon_volcano.png")))
-} else {
-  cat("*Figure pending — pipeline not finished.*\n")
-}
-```
-
-::: {.fig-caption}
-[**Figure 6.**]{.fig-num} Volcano of Wilcoxon tests of AUCell scores (WildR − SPF) within tissue × subclass strata (minimum 10 cells per group). Highlighted points: padj < 0.05 and large |ΔAUC|.
-:::
-
-::: {.takeaways}
-**Key takeaways**
-
-- After BH correction across ~9k tissue × subclass × regulon tests, **no regulon reaches padj < 0.05** in this 5k-cell pilot.
-- Nominal top hits (e.g. Tcf12, Zfp148 in HYP subclasses) exist but are underpowered; treat as hypotheses only.
-- Positive ΔAUC = higher mean activity in WildR; negative = higher in SPF.
-- Scale cell numbers (or lock regulons and score the full object) before concluding microbiome GRN effects are absent.
-:::
-
-[Source: cell `cell-run-pipeline`](#cell-run-pipeline){.provenance}
-:::
-
-```{r}
-#| label: display-diff-table
-#| echo: false
-#| results: asis
-
-if (!is.na(diff_csv) && file.exists(diff_csv)) {
-  diff <- read_csv(diff_csv, show_col_types = FALSE)
-  top <- diff %>%
-    filter(!is.na(padj), padj < 0.05) %>%
-    arrange(padj) %>%
-    transmute(
-      tissue, subclass_name, regulon,
-      n_SPF, n_WildR,
-      delta = round(delta, 4),
-      p = signif(p, 3),
-      padj = signif(padj, 3)
-    ) %>%
-    slice_head(n = 25)
-  cat("### Top differential regulons\n\n")
-  if (nrow(top) == 0) {
-    cat("No regulon tests reached padj < 0.05 in this pilot subsample. ")
-    cat("Expand `target_n_cells` / `max_cells_per_group` before concluding absence of GRN effects.\n")
-  } else {
-    cat(knitr::kable(top, caption = "Top WildR vs SPF differential regulons (padj < 0.05).") |> paste(collapse = "\n"))
-    cat("\n\nFull table: [`", proc_rel(basename(diff_csv)), "`]{.path}\n", sep = "")
-  }
-} else {
-  cat("::: {.callout-note}\nDifferential table not written yet.\n:::\n")
-}
-```
 
 ### Conclusions
 
-```{r}
-#| label: display-conclusions
-#| echo: false
-#| results: asis
+- **pySCENIC detects no microbiome effect on regulon activity at animal resolution, at any Allen level.**
+  - Across `r sum(n_fit)` GRNs and `r big(tot_tests)` regulon tests, the p-value distribution, the exact permutation null and the complete-separation counts all match no effect.
+  - The `r tot_fdr` within-GRN FDR hits do not survive correction across GRNs and do not recur across levels.
+- **The earlier "`r n_cell_hits` significant regulons" were pseudoreplication.**
+  - Nucleus-level tests turned ~`r med_rel_ch`% AUC shifts into p-values as small as 10⁻¹⁰⁵.
+  - The shifts are mostly in the right direction. But their typical size (g ≈ `r med_g_ch`) is about a third of what 6 vs 6 animals can detect (g ≈ `r mde_g`).
+- **Even the circuits with independent microbiome evidence show no regulon signal.** The MeA–BST–medial-hypothalamus populations where popAlign found state shifts look like the rest. Whatever moves cell state there is not a whole-regulon TF program that AUCell can see.
+- **What survives as hypothesis only:**
+  - WildR-higher Mllt10(+), Zbtb20(+) and Klf12(+) across HYP cell types: same sign at three levels, never significant, same animals throughout.
+  - SPF-higher Irf2 / Crebl2 / Usf2 in HYP MB GABA and WildR-higher Npas2 / Gli2 in HYP microglia. These are class-level only and did not replicate at finer resolution.
 
-if (file.exists(conclusions_txt)) {
-  cat("::: {.callout-note}\n")
-  cat("**Auto-summary from pipeline**\n\n")
-  cat("```\n")
-  cat(paste(readLines(conclusions_txt), collapse = "\n"))
-  cat("\n```\n")
-  cat(":::\n")
-}
-```
+## Next Steps
 
-**Interpretation checklist (standard pySCENIC read)**
-
-1. **AUC UMAP** — subclass structure present → identity regulons dominate (expected). Look for microbiome mixing *within* subclass as state change.
-2. **RSS** — recover known lineage TFs; if not, check gene naming / DB mismatch / underpowered subsample.
-3. **WildR − SPF volcano** — few pilot hits is common; scale up before claiming “no GRN effect.”
-4. **DEG overlap** — TFs that are DE *and* whose regulons change AUC are the strongest mechanistic candidates.
-
-Processed Seurat with SCENIC assay: [data/processed/scenic/seurat_with_scenic_auc.rds]{.path}.
-
-## Production design: two parallel workflows
-
-We run **two** pySCENIC production tracks from the same raw UMI counts:
-
-1. **Class split (Flux-style)** — one GRN per tissue × Allen `class_label` (~100+ cells; both microbiome groups in the loom). Best for within-type WildR vs SPF state tests; jobs are smaller and parallel.
-2. **Tissue split** — one GRN for all AMY nuclei (~199k) and one for all HYP (~190k). Enables within-tissue comparisons across cell types on a **shared** regulon vocabulary. If these finish in reasonable walltime, prefer them for cross-class questions; otherwise fall back to hit-list comparison across class GRNs.
-
-| | Class split | Tissue split |
-|--|-------------|--------------|
-| Unit | tissue × `class_label` | whole AMY / whole HYP |
-| WildR vs SPF | within class | overall + within-class on shared regulons |
-| Cross-class AUC | not comparable across jobs | comparable within tissue |
-| Compute | many medium jobs | 2 large jobs (600G / 7d requested) |
-
-### Input matrix (verified)
-
-pySCENIC / GRNBoost2 expects **raw counts** (tree models; official guidance: no need to normalize). We export Seurat `RNA` **`counts`** only — not `data`.
-
-Checks on `seurat_obj_onlyparsefilters_celltyped_2025-12-27.rds` (`keep_cell`):
-
-- `counts` nonzeros are **100% integer**, non-negative; library sizes look like UMIs (sample median ~13.5k).
-- `data` is a transformed layer (non-integer; not used).
-- Gene names `Symbol-GRCm39` are stripped to bare symbols for cisTarget TF overlap.
-
-Export refuses to write a loom if the counts layer fails the integer check.
+- **Stop investing compute in pySCENIC for this contrast.** Three resolutions of GRNs give the same null, and finer splits only add tests. Power is the binding constraint: detecting the observed shift size (g ≈ `r med_g_ch`) at 80% power needs ~`r n_needed` animals per group.
+- **Use the regulons as features, not endpoints.** The regulon catalogue (per-GRN `regulons.csv`, AUCell matrices) is still useful to *annotate* effects found elsewhere. For example, check which regulons contain the popAlign state-shift genes (*Erbb4*, *Htr2c*, *Reln*, *Zbtb20*) and the MAST DEGs in the same populations. That is target-level enrichment, a different question from regulon-activity change.
+- **If one hypothesis is pursued, make it HYP Mllt10 / Zbtb20 / Klf12**, the only signals with a consistent sign. Check per-animal depth first (`mean_auc ~ group + log10 median UMI`), then validate a few targets in seqFISH, where more animals or sections can be added.
+- **Retire the old outputs from citation.** `data/processed/scenic_by_class/top_hits_padj05.csv`, `tf_hit_recurrence.csv` and the `_aggregate/` figures are superseded by the animal-level tables in [tables/SCENIC/]{.path}.
+- **Optional:** the class GRNs were not refitted after the switch to the animal-level test (their AUCell matrices are unchanged), so no refit is needed. If one is ever wanted for a new loom set, write it to a new `by_class_<date>` folder, not over `by_class/`.
 
 # Code & Provenance {.code-appendix}
 
-## Launch: export + submit both workflows
+All heavy steps are recorded below but gated by `run_analysis` (default `FALSE`), so rendering never re-exports looms, refits GRNs or submits jobs. The post-hoc scripts (aggregate, animal-level tests, permutation, figures) read saved outputs only and run in under a minute on a login node.
 
-Preferred one-shot (compute node): `run_scenic_export_and_submit.sh` exports class + tissue looms, then `sbatch`s class jobs (default 24 CPU / 300G / 3d) and tissue jobs (32 CPU / 600G / 7d).
+## Inputs and run design
+
+pySCENIC runs **one GRN per tissue × Allen split** with both microbiome groups in each loom, at class, subclass and supertype resolution. Input is the Seurat `RNA` **`counts`** layer (raw UMIs) from `seurat_obj_onlyparsefilters_celltyped_2025-12-27.rds` (`keep_cell`). Export checked that nonzeros are 100% integer and non-negative (median library size ~13.5k) and refuses to write a loom otherwise. `Symbol-GRCm39` names are stripped to bare symbols for the cisTarget TF overlap.
+
+- **Class (36 GRNs).** AMY `01 IT-ET Glut` (87k nuclei) timed out at 3 days. It was stratified-subsampled to 45k nuclei (microbiome × subclass) and finished in ~3 h with 450G; the full loom is kept as `*_full87k.*`.
+- **Subclass (137) and supertype (364) GRNs.** Looms were sliced from the class looms (raw UMIs; full 87k AMY IT-ET loom), and genes were re-filtered to those detected in ≥ 10 nuclei. A split is eligible with ≥ 100 nuclei, ≥ 30 per group and ≥ 3 animals per group with ≥ 10 nuclei. Of 310 tissue × subclass combinations, 137 qualified; 364 supertypes qualified.
+- **Whole-tissue GRNs (AMY / HYP, ~190–200k nuclei) were discontinued.** Both jobs ran to the 7-day walltime without finishing `pyscenic grn`, at only ~90–95G of 600G, which points to a dask/Numba worker-fork stall.
+- **Contrast.** Since 2026-10-06, `run_scenic_one_split.R` runs the animal-level test via [notebooks/R_scripts/scenic_animal_level_helpers.R]{.path}:
+  - per-animal mean AUCell, animals with ≥ 10 nuclei, ≥ 3 animals per group;
+  - pooled-variance t-test (≡ `lm(mean ~ group)`), plus Hedges g, Cliff's δ, exact Wilcoxon and complete-separation counts;
+  - BH within split.
+
+  The original nucleus-level Wilcoxon (`diff_regulons_WildR_vs_SPF.csv`, `run_summary_celllevel.json`) is kept for the record.
+
+| Role | Path |
+|------|------|
+| cisTarget DBs / TF list | [data/input/scenic/cisTarget/]{.path} |
+| Class looms, metadata, manifest | [data/input/scenic/snRNASeq/]{.path} |
+| Subclass / supertype looms, metadata, manifests, array lists | [data/interim/scenic/looms_{subclass,supertype}/]{.path} |
+| Per-GRN outputs (`adjacencies`, `regulons`, `auc_mtx`, animal-level diff, `run_summary.json`) | [data/interim/scenic/by_{class,subclass,supertype}/&lt;stem&gt;/]{.path} |
+| Per-animal means, TF consensus scores, permutation null | [data/interim/scenic/animal_level/]{.path} |
+| Result + display tables | [tables/SCENIC/]{.path} |
+| Report figures | [figures/SCENIC/report/]{.path} |
+| Nucleus-level aggregation (superseded) | [data/processed/scenic_by_class/]{.path}, [figures/SCENIC/snRNASeq_by_class/_aggregate/]{.path} |
+| Pilot (5k subsample) | [data/processed/scenic/]{.path}, [figures/SCENIC/snRNASeq/]{.path} |
+| SLURM logs / job lists | [.cluster_runs/scenic/]{.path} |
+
+## Class GRNs: export looms and submit (SLURM)
+
+`run_scenic_export_and_submit.sh` exports the class looms and submits one `sbatch` job per class (default 24 CPU / 300G / 3 d).
 
 ```{r}
 #| label: cell-scenic-launch
@@ -598,62 +556,154 @@ shell_do(cmd)
 #| label: cell-scenic-check
 #| eval: !expr run_analysis
 
-input_dir <- file.path(wkdir, "data/input/scenic/snRNASeq")
-man_class <- file.path(input_dir, "manifest_class.csv")
-man_tissue <- file.path(input_dir, "manifest_tissue.csv")
-if (file.exists(man_class)) {
-  message("Class manifest:")
-  print(read_csv(man_class, show_col_types = FALSE))
-}
-if (file.exists(man_tissue)) {
-  message("Tissue manifest:")
-  print(read_csv(man_tissue, show_col_types = FALSE))
-}
-done_c <- list.files(file.path(wkdir, "data/interim/scenic/by_class"),
+for (lv in c("class", "subclass", "supertype")) {
+  done <- list.files(file.path(wkdir, "data/interim/scenic", paste0("by_", lv)),
                      pattern = "run_summary\\.json$", recursive = TRUE)
-done_t <- list.files(file.path(wkdir, "data/interim/scenic/by_tissue"),
-                     pattern = "run_summary\\.json$", recursive = TRUE)
-message("Finished class summaries: ", length(done_c),
-        "; tissue summaries: ", length(done_t))
+  message(lv, ": ", length(done), " run summaries")
+}
 ```
 
-## Optional: pilot end-to-end (subsample)
+## Subclass- and supertype-level GRNs (SLURM, 2026-10-06)
+
+[notebooks/python_scripts/export_scenic_subclass_looms.py]{.path} slices the class looms; [notebooks/shell_scripts/run_pyscenic_subclass_array.sh]{.path} runs `run_scenic_one_split.R` on line *i* of a loom list. Two resource tiers were sized from the class runs (49k nuclei used 85 GB / 2.4 h at 24 CPUs):
+
+| Step | Job | Tasks | Resources | State |
+|------|-----|-------|-----------|-------|
+| Subclass loom export | 4096829 | 1 | 4 CPU / 64G (37 min, 11.8 GB peak) | completed |
+| Subclass GRNs, < 5k nuclei | 4099811 | 120 | 16 CPU / 64G / 12 h, ≤ 20 concurrent | 100 completed, 20 failed at test stage → rerun |
+| Subclass GRNs, ≥ 5k nuclei | 4099812 | 17 | 24 CPU / 160G / 1 d, ≤ 8 concurrent | 9 completed, 8 failed at test stage → rerun |
+| Supertype loom export | 4100108 | 1 | 4 CPU / 64G (1 h 28 min) | completed |
+| Supertype GRNs, < 5k nuclei | 4106625 | 352 | as subclass small tier | 352 completed |
+| Supertype GRNs, ≥ 5k nuclei | 4106626 | 12 | as subclass large tier | 12 completed |
+
+Logs: `.cluster_runs/scenic/log_pyscenic_subclass_<jobid>_<task>.{log,err}` (dask "stream closed" tracebacks at shutdown are benign); job lists `.cluster_runs/scenic/submitted_jobs_{subclass,supertype}_2026-10-06.txt`. The largest splits were AMY 009 L2/3 IT PIR-ENTl Glut (34k nuclei, subclass) and HYP 1184 MOL NN_4 (28k, supertype), so no subsampling was needed.
+
+::: {.callout-note}
+**Run incident (2026-10-06).** 28 subclass tasks (small 0–19, large 0–7) failed with an R parse error. `run_scenic_one_split.R` was edited while they ran, and `Rscript` reads its file incrementally. All 28 had already finished `grn → ctx → aucell`, so only the animal-level test stage was rerun on the saved outputs (log `.cluster_runs/scenic/log_subclass_rerun_teststage_*.log`), with no GRN refit. The array worker now runs a private snapshot of the runner taken at task start. All 137 subclass and 364 supertype `run_summary.json` files carry the animal-level test.
+:::
+
+```{r}
+#| label: cell-scenic-subclass-export
+#| eval: !expr run_analysis
+
+shell_do(glue("sbatch {wkdir}/notebooks/shell_scripts/run_scenic_export_subclass.sh"))
+shell_do(glue("sbatch --export=ALL,LEVEL=supertype {wkdir}/notebooks/shell_scripts/run_scenic_export_subclass.sh"))
+```
+
+```{r}
+#| label: cell-scenic-subclass-submit
+#| eval: !expr run_analysis
+
+S <- file.path(wkdir, "notebooks/shell_scripts/run_pyscenic_subclass_array.sh")
+for (lv in c("subclass", "supertype")) {
+  L <- file.path(wkdir, glue("data/interim/scenic/looms_{lv}"))
+  n_small <- length(Filter(nzchar, readLines(file.path(L, glue("looms_{lv}_small.txt")))))
+  n_large <- length(Filter(nzchar, readLines(file.path(L, glue("looms_{lv}_large.txt")))))
+  shell_do(glue("sbatch --array=0-{n_small - 1}%20 {S} -l {L}/looms_{lv}_small.txt"))
+  shell_do(glue("sbatch --array=0-{n_large - 1}%8 --cpus-per-task=24 --mem=160G --time=1-00:00:00 {S} -l {L}/looms_{lv}_large.txt"))
+}
+```
+
+## Animal-level regulon tests
+
+[notebooks/R_scripts/test_scenic_regulons_animal_level.R]{.path} recomputes the per-split animal-level test from the saved AUCell matrices with the shared helper. It adds BH-FDR within split (primary) and across all tests of a level (global). The cross-split TF consensus z-scores animal means within each split, averages them per animal across the splits where the TF's (+) regulon was called (≥ 3), and runs one 6 vs 6 test per TF × tissue. At class level it also joins the original nucleus-level result. Run directly on 2026-10-06 (seconds per level).
+
+```{r}
+#| label: cell-tbl-animal-level
+#| eval: !expr run_analysis
+
+# Writes (date-stamped):
+#   tables/SCENIC/SCENIC_animal_level_tests_<date>.csv
+#   tables/SCENIC/SCENIC_animal_level_split_summary_<date>.csv
+#   tables/SCENIC/SCENIC_tf_consensus_animal_level_<date>.csv
+#   data/interim/scenic/animal_level/regulon_auc_per_animal_<date>.csv
+#   data/interim/scenic/animal_level/regulon_tf_consensus_per_animal_<date>.csv
+system2(rscript, c(file.path(wkdir, "notebooks/R_scripts/test_scenic_regulons_animal_level.R"),
+                   "--level", "class"))
+```
+
+```{r}
+#| label: cell-tbl-animal-level-subclass
+#| eval: !expr run_analysis
+
+# Same outputs with a _subclass / _supertype suffix
+for (lv in c("subclass", "supertype")) {
+  system2(rscript, c(file.path(wkdir, "notebooks/R_scripts/test_scenic_regulons_animal_level.R"),
+                     "--level", lv))
+}
+```
+
+## Permutation tests (2026-10-07)
+
+[notebooks/R_scripts/test_scenic_split_permutation.R]{.path} tests for an excess of p < 0.05 regulon tests by relabelling the microbiome group over animals, which keeps the correlation between regulons.
+
+- **Per GRN:** every relabelling of that GRN's eligible animals is enumerated (≤ 924).
+- **Per level × tissue:** one relabelling of the tissue's 12 animals is applied to all GRNs jointly, because the animals are shared across GRNs.
+  - A GRN whose relabelled groups fall below 3 animals contributes its null expectation (0.05 × regulons).
+  - The observed totals reproduce the counts in the test tables (143 / 850 / 2,812).
+
+Run directly on 2026-10-07 in 41 s; log `.cluster_runs/scenic/log_split_permutation_2026-10-07_1118.log`.
+
+```{r}
+#| label: cell-tbl-permutation
+#| eval: !expr run_analysis
+
+# Writes tables/SCENIC/SCENIC_{split,level}_permutation_tests_<date>.csv and
+# data/interim/scenic/animal_level/level_permutation_null_<date>.csv
+system2(rscript, c(file.path(wkdir, "notebooks/R_scripts/test_scenic_split_permutation.R"), "2026-10-06"))
+```
+
+## Nucleus-level aggregation (original; superseded)
+
+Collects the per-class `run_summary_celllevel.json` and nucleus-level diff tables into [data/processed/scenic_by_class/]{.path}. Last run 2026-10-04 (36/36). Kept only for the Figure 2 comparison.
+
+```{r}
+#| label: cell-aggregate
+#| eval: !expr run_analysis
+
+system2(rscript, file.path(wkdir, "notebooks/R_scripts/aggregate_scenic_class_results.R"))
+```
+
+## Report figures
+
+[notebooks/R_scripts/plot_scenic_report_figures.R]{.path} reads the tables above plus the pilot RSS and writes `figures/SCENIC/report/SCENIC_*.png` (12 in wide, 200 dpi, house theme shared with the MapMyCells QC notebook). It also writes the display tables `tables/SCENIC/SCENIC_{split_summary,level_summary,fdr_hits_all_levels,popalign_circuit_permutation}_display_<date>.csv`. The argument pins the animal-level result date.
+
+```{r}
+#| label: cell-fig-report
+#| eval: !expr run_analysis
+
+system2(rscript, c(file.path(wkdir, "notebooks/R_scripts/plot_scenic_report_figures.R"), "2026-10-06"))
+```
+
+## Pilot end-to-end run (5k subsample)
+
+Pilot only. It produced the RSS table and the AUCell UMAP (Figure 7) and validated gene naming and databases before the production runs.
 
 ```{r}
 #| label: cell-run-pipeline
 #| eval: !expr run_analysis
 
-# Pilot only — production uses class + tissue SLURM jobs above.
 script <- file.path(wkdir, "notebooks/R_scripts/run_scenic_pipeline.R")
 stopifnot(file.exists(script))
-status <- system2(
-  "/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript",
-  args = script
-)
-stopifnot(status == 0)
+stopifnot(system2(rscript, script) == 0)
 ```
 
 ### How to regenerate
 
 ```bash
-# One-shot: export raw-count looms + submit class and tissue pySCENIC jobs
+R=/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript
+
+# 1. (SLURM, heavy) class looms + GRNs; subclass/supertype loom export + GRN arrays
 sbatch notebooks/shell_scripts/run_scenic_export_and_submit.sh
+sbatch notebooks/shell_scripts/run_scenic_export_subclass.sh
+sbatch --export=ALL,LEVEL=supertype notebooks/shell_scripts/run_scenic_export_subclass.sh
+#    then the two array tiers per level (header of run_pyscenic_subclass_array.sh)
 
-# Aggregate completed class splits (skips pending, e.g. AMY CLAS_01)
-/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript \
-  notebooks/R_scripts/aggregate_scenic_class_results.R
+# 2. (login node, < 1 min each) animal-level tests → permutation → figures
+for lv in class subclass supertype; do $R notebooks/R_scripts/test_scenic_regulons_animal_level.R --level $lv; done
+$R notebooks/R_scripts/test_scenic_split_permutation.R 2026-10-06
+$R notebooks/R_scripts/plot_scenic_report_figures.R 2026-10-06
+
+# 3. render (from notebooks/)
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/quarto render 0X_SCENIC_pySCENIC.qmd
 ```
-
-### Path conventions
-
-| Role | Path |
-|------|------|
-| cisTarget DBs / TF list | `data/input/scenic/cisTarget/` |
-| Looms + manifests | `data/input/scenic/snRNASeq/` |
-| Class interim | `data/interim/scenic/by_class/<stem>/` |
-| Tissue interim | `data/interim/scenic/by_tissue/<stem>/` |
-| Class aggregate tables | `data/processed/scenic_by_class/` |
-| Class aggregate figures | `figures/SCENIC/snRNASeq_by_class/_aggregate/` |
-| Class / tissue per-split figures | `figures/SCENIC/snRNASeq_by_{class,tissue}/` |
-| SLURM logs / job list | `.cluster_runs/scenic/` |
-| Pilot (subsample) | `data/interim/scenic/`, `data/processed/scenic/`, `figures/SCENIC/snRNASeq/` |

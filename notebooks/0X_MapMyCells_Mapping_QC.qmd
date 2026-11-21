@@ -1,0 +1,555 @@
+---
+title: "MapMyCells Mapping Quality: WildR vs SPF per Cell Type"
+subtitle: "Does cell-type label confidence differ by microbiome? snRNA-seq (AMY, HYP) and seqFISH, before cell filtering"
+date: today
+author: "Joe Boktor"
+categories: [QC, MapMyCells, snRNA-seq, seqFISH]
+format:
+  html:
+    theme:
+      - cosmo
+      - ../quarto-aesthetic-kit/theme/aesthetic.scss
+    include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    page-layout: article
+    code-fold: true
+    code-tools: true
+    code-copy: true
+    embed-resources: true
+    fig-cap-location: bottom
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: auto
+---
+
+```{r}
+#| label: setup-display
+#| include: false
+
+run_analysis <- FALSE
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(readr)
+  library(knitr)
+  library(glue)
+})
+
+wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
+fig_dir <- file.path(wkdir, "figures/MapMyCells_QC")
+tbl_dir <- file.path(wkdir, "tables/MapMyCells_QC")
+int_dir <- file.path(wkdir, "data/interim/MapMyCells_QC")
+fig_rel <- "../figures/MapMyCells_QC"   # relative to notebooks/ for embedding
+
+results_rds <- file.path(int_dir, "mapmycells_qc_results_all-levels_2026-10-02.rds")
+prec_csv <- file.path(tbl_dir, "MapMyCells_QC_precision_summary.csv")
+glob_csv <- file.path(tbl_dir, "MapMyCells_QC_global_replicate_summary.csv")
+tests_csv <- function(lvl) file.path(tbl_dir, glue("MapMyCells_QC_tests_{lvl}.csv"))
+has_core <- file.exists(prec_csv) && file.exists(tests_csv("subclass"))
+
+not_computed <- function(what) {
+  cat(glue("::: {{.callout-note}}\n**{what} not yet computed.** Set `run_analysis <- TRUE` ",
+           "and render (or run `notebooks/R_scripts/run_mapmycells_qc.R`), then set it back to `FALSE`.\n:::\n"))
+}
+# Embed a saved figure, or say it is missing (never errors at render time).
+show_fig <- function(file) {
+  if (file.exists(file.path(fig_dir, file))) cat(glue("![]({fig_rel}/{file})\n\n"))
+  else not_computed(glue("Figure `{file}`"))
+}
+
+if (has_core) {
+  prec <- read_csv(prec_csv, show_col_types = FALSE)
+  glob <- read_csv(glob_csv, show_col_types = FALSE)
+  mmc_levels <- c("class", "subclass", "supertype", "cluster")
+  tests_all <- bind_rows(lapply(mmc_levels[file.exists(tests_csv(mmc_levels))],
+                                function(l) read_csv(tests_csv(l), show_col_types = FALSE)))
+  n_tests <- sum(!is.na(tests_all$p_lm))
+  n_fdr <- sum(tests_all$fdr_lm < 0.05, na.rm = TRUE)
+  n_robust <- sum(tests_all$robust_hit, na.rm = TRUE)
+  n_cells <- sum(glob$n_cells)
+}
+```
+
+# MapMyCells Mapping Quality: WildR vs SPF per Cell Type
+
+## Overview
+
+We checked whether MapMyCells assigns Allen Brain Cell Atlas labels to WildR and SPF cells with equal confidence. This was tested within every cell type, before cell filtering, in both snRNA-seq (amygdala and hypothalamus, 6 vs 6 animals each) and seqFISH (8 vs 8 ROI sections). We compared three per-cell scores at all four taxonomy resolutions (class, subclass, supertype and cluster) using replicate-level models with depth-adjusted sensitivity fits. **Mapping quality does not differ between WildR and SPF in any cell type.** No test passes FDR < 0.05, nominal p < 0.05 rates match chance, and the 95% CIs rule out shifts larger than a few hundredths. Mapping quality does differ sharply *between modalities*. The 1,000-gene seqFISH panel resolves glia well but most neuron subclasses only at bootstrap probability ≈ 0.4–0.6, against ≥ 0.9 in snRNA-seq.
+
+```{r}
+#| label: display-stats
+#| echo: false
+#| results: asis
+
+if (has_core) {
+  cat("::: {.stat-row}\n")
+  cat(glue("::: {{.stat}}\n[{format(n_cells, big.mark = ',')}]{{.stat-value}}\n[Cells / nuclei scored]{{.stat-label}}\n:::\n\n"))
+  cat(glue("::: {{.stat}}\n[{format(n_tests, big.mark = ',')}]{{.stat-value}}\n[Cell type × endpoint tests]{{.stat-label}}\n:::\n\n"))
+  cat(glue("::: {{.stat}}\n[{n_fdr}]{{.stat-value}}\n[Tests at FDR < 0.05]{{.stat-label}}\n:::\n\n"))
+  cat("::: {.stat}\n[animal / ROI]{.stat-value}\n[Replication unit]{.stat-label}\n:::\n")
+  cat(":::\n")
+} else {
+  not_computed("Results")
+}
+```
+
+## Background
+
+Every downstream comparison (MAST DEGs, D-SPIN programs, composition, VR relay analyses) conditions on MapMyCells labels. If the microbiome changed how cleanly cells match the reference, WildR and SPF cells with the same label would not be equivalent. For example, cells could sit further from the reference centroid or more often be borderline calls. Apparent expression or abundance differences could then be label artifacts. Testing on the unfiltered mapping outputs makes sure downstream QC thresholds on these scores cannot introduce a group-dependent bias.
+
+The question is narrow: **within each cell type, does any mapping-quality score shift between WildR and SPF, beyond what animal-to-animal variation and sequencing/probe depth explain?** A clean null here licenses treating labels as equivalent across groups. A hit would flag specific cell types for caution.
+
+## Results
+
+### Scores and statistical design
+
+MapMyCells (hierarchical, 100 bootstrap iterations, 50% marker subsampling, `CCN20230722` taxonomy, supertype as `--drop_level`) writes several per-cell scores per taxonomy level into its extended JSON. The CSV keeps only bootstrap probability. We flattened the JSON and chose endpoints as follows.
+
+| Score (per level) | What it measures | Used? |
+|---|---|---|
+| `bootstrapping_probability` | Fraction of bootstrap iterations voting for the assigned node, conditional on the parent call. *Label stability.* | **Yes**: replicate mean, plus fraction of cells < 0.5 ("low-confidence"), because snRNA scores pile up at 1.0 (77% of nuclei at subclass) |
+| `avg_correlation` | Correlation of the cell's marker profile with the assigned node's reference profile. *Absolute fit*: continuous, no ceiling, depth-sensitive | **Yes**: replicate mean |
+| `aggregate_probability` | Product of bootstrap probabilities down the tree | No: redundant with per-level bootstrap probability and dominated by the cluster level |
+| Runner-up correlation / probability | Distance to the next-best node | No: runner-ups are only reported when ≥ 1 bootstrap iteration disagreed, so they are missing for *every* cell with bootstrap = 1 (77% of SN, 24% of seqFISH). They are missing-not-at-random by construction |
+
+: Table 1. MapMyCells scores considered and how each enters the analysis. Supertype scores are back-filled from cluster votes because supertype was the `--drop_level`. {#tbl-scores}
+
+**Unit of replication.** For snRNA-seq the unit is the animal, analysed separately within AMY and HYP (6 WildR vs 6 SPF per region). For seqFISH it is the ROI section (8 vs 8). Each of the 4 imaging runs holds 2 SPF + 2 WildR ROIs, and run 1 is a low-depth batch (median 240–440 transcripts/cell vs 620–800). Run therefore enters as a blocking term.
+
+**Resolution.** Cell types are defined, and scores taken, at each of the four levels in turn: class (34 in the taxonomy), subclass (338), supertype (1,201) and cluster (5,322). Each level's own scores are used (e.g. subclass bootstrap probability for subclass-defined types). Coarse levels test well-populated groups with high per-replicate precision. Fine levels test whether any effect is confined to narrow types that get averaged away at coarse levels.
+
+**Primary test.** For each stratum × level × cell type × endpoint we take replicate means. A replicate counts if it has ≥ 20 cells of that type, and a type is tested only if ≥ half the replicates of *each* group qualify. The model is `value ~ group` (SN) or `value ~ group + run` (seqFISH), giving Δ (WildR − SPF) with a 95% CI. BH-FDR is applied within each stratum × level × endpoint family. An exact Wilcoxon test (run-centred for seqFISH) is reported as a robustness check. We chose a parametric test because with 6 vs 6 an exact Wilcoxon cannot go below p ≈ 0.002, which is too coarse to survive FDR across 50–270 cell types.
+
+**Depth-adjusted sensitivity.** A cell-level linear mixed model, `score ~ group (+ run) + log10(counts) + (1 | replicate)` (`nlme`), with group tested on between-replicate (containment) df, so cells are never treated as replicates. A **robust hit** requires FDR < 0.05 in the primary test *and* p < 0.05 with the same sign after depth adjustment.
+
+Per-cell scores live at [data/interim/MapMyCells_QC/mapmycells_scores_SN_2026-10-02.parquet]{.path} and [data/interim/MapMyCells_QC/mapmycells_scores_seqFISH_2026-10-02.parquet]{.path}. Test results are at [data/interim/MapMyCells_QC/mapmycells_qc_results_all-levels_2026-10-02.rds]{.path}.
+
+[Source: cell `cell-extract`](#cell-extract){.provenance} · [Source: cell `cell-run-qc`](#cell-run-qc){.provenance}
+
+:::: {.section-rule}
+::::
+
+### Mapping confidence before filtering
+
+::: {.figure-card .fig-wide}
+[A]{.panel-label}
+
+```{r}
+#| label: display-fig-ecdf
+#| echo: false
+#| results: asis
+show_fig("MapMyCells_QC_ecdf_levels.png")
+```
+
+
+[B]{.panel-label}
+
+```{r}
+#| label: display-fig-depth
+#| echo: false
+#| results: asis
+show_fig("MapMyCells_QC_depth_vs_quality.png")
+```
+
+::: {.fig-caption}
+[**Figure 1.**]{.fig-num} Mapping confidence of all scored cells, with no cell filtering. snRNA keeps all 417,459 WildR/SPF nuclei. seqFISH drops only 495 empty masks (< 10 transcripts) of 1,086,336. (A) Per-replicate empirical CDFs of bootstrap probability at each taxonomy level. Each line is one animal (SN) or ROI (seqFISH), coloured by group, and the dashed line marks 0.5. (B) Replicate-mean subclass correlation to reference against replicate median log10 counts per cell.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- WildR and SPF replicate curves interleave at every level in every stratum. There is no global confidence shift, and replicate-to-replicate spread is larger than any group separation.
+- snRNA labels are near-ceiling at subclass/supertype (median bootstrap = 1.0, 1.6% of nuclei < 0.5 at subclass). seqFISH is far less certain (median 0.87, 17.9% < 0.5), so seqFISH labels need confidence-aware handling regardless of group.
+- Absolute fit tracks depth in all three strata, most steeply in seqFISH, where the run-1 ROIs sit low on both axes. This is why depth adjustment and run blocking are part of the test.
+- Groups are balanced on depth (SN AMY median log10 counts 4.21 vs 4.23; HYP 3.97 vs 3.95; seqFISH 2.78 vs 2.76), so depth cannot masquerade as a group effect.
+:::
+
+[Source: cell `cell-fig-ecdf`](#cell-fig-ecdf){.provenance} · [Source: cell `cell-fig-depth`](#cell-fig-depth){.provenance}
+:::
+
+Replicate-level global summaries: [tables/MapMyCells_QC/MapMyCells_QC_global_replicate_summary.csv]{.path}
+
+### Which cell types map well in each modality
+
+::: {.figure-card .fig-wide}
+
+```{r}
+#| label: display-fig-landscape
+#| echo: false
+#| results: asis
+show_fig("MapMyCells_QC_landscape_subclass.png")
+```
+
+::: {.fig-caption}
+[**Figure 2.**]{.fig-num} Cell-weighted mean subclass bootstrap probability per tested subclass and stratum. Rows are the union of the 15 most abundant tested subclasses in each stratum. Blank cells mean the subclass is not testable there (too few cells in too few replicates). The supertype version is at [figures/MapMyCells_QC/MapMyCells_QC_landscape_supertype.png]{.path}.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- In snRNA-seq nearly every abundant subclass maps at ≥ 0.9. The weakest are `007 L2/3 IT CTX Glut` (0.80) and `318 Astro-NT NN` in AMY (0.87).
+- In seqFISH, glia and vascular cells map confidently (Oligo 0.99, OPC/Endo/Astro-TE ≈ 0.88). Cortical, amygdalar and hypothalamic neuron subclasses fall to ≈ 0.4–0.6 (e.g. `012 MEA Slc17a7 Glut` 0.53, `073 MEA-BST Sox6 Gaba` 0.55, `106 PVpo-VMPO-MPN Hmx2 Gaba` 0.39). The panel separates neuron *classes* but often not neighbouring *subclasses*.
+- Practical consequence: seqFISH analyses at subclass/supertype resolution for these neuron types should carry the bootstrap probability as a weight or filter, or work one level up.
+- Flag: `243 PGRN-PARN-MDRN Hoxb5 Glut`, a hindbrain type, maps with ≈ 1.00 confidence in 7,282 HYP and 516 AMY nuclei. That points to real caudal tissue in some dissections rather than a mapping error, and is worth checking per animal.
+:::
+
+[Source: cell `cell-fig-landscape`](#cell-fig-landscape){.provenance}
+:::
+
+:::: {.section-rule}
+::::
+
+### WildR vs SPF: summary across all cell types
+
+::: {.figure-card .fig-wide}
+[A]{.panel-label}
+
+```{r}
+#| label: display-fig-heatmap-class
+#| echo: false
+#| results: asis
+show_fig("MapMyCells_QC_effect-heatmap_class.png")
+```
+
+
+[B]{.panel-label}
+
+```{r}
+#| label: display-fig-heatmap
+#| echo: false
+#| results: asis
+show_fig("MapMyCells_QC_effect-heatmap_subclass.png")
+```
+
+::: {.fig-caption}
+[**Figure 3.**]{.fig-num} Summary visual. Cliff's δ for WildR vs SPF on replicate means (+1 = every WildR replicate above every SPF replicate; orange = WildR higher, blue = SPF higher) for each cell type (rows) × stratum (columns) × endpoint (sub-panels), at (A) class and (B) subclass resolution. Stars would mark BH-FDR < 0.05 from the primary replicate-level model; none occur. Rows are the up-to-50 types with the smallest FDR, ties broken by abundance. Finer levels: [figures/MapMyCells_QC/MapMyCells_QC_effect-heatmap_supertype.png]{.path} · [figures/MapMyCells_QC/MapMyCells_QC_effect-heatmap_cluster.png]{.path}.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- No cell type at any resolution shows an FDR-significant shift on any endpoint: 0 of 4,043 defined tests across class, subclass, supertype and cluster. The smallest FDR anywhere is 0.059.
+- Even at class level, where each test pools thousands of cells per animal, the 15–27 classes per stratum show no group pattern. A broad, class-wide mapping shift is therefore excluded, not just a type-specific one.
+- The colours form no coherent pattern. Signs flip between endpoints for the same type (higher bootstrap but more low-confidence cells) and between modalities (SN AMY vs seqFISH for the same subclass), which is what noise looks like with 6–8 replicates per arm.
+- Large |δ| values are expected under the null at this sample size. Exactly ±1 is reachable by chance, so δ alone is not evidence. The model-based CIs (Figure 4) and p-value distributions (Figure 5) are the inferential read-out.
+:::
+
+[Source: cell `cell-fig-heatmap`](#cell-fig-heatmap){.provenance}
+:::
+
+::: {.figure-card .fig-wide}
+[A]{.panel-label}
+
+```{r}
+#| label: display-fig-forest-corr
+#| echo: false
+#| results: asis
+show_fig("MapMyCells_QC_forest_subclass_mean_corr.png")
+```
+
+
+[B]{.panel-label}
+
+```{r}
+#| label: display-fig-forest-boot
+#| echo: false
+#| results: asis
+show_fig("MapMyCells_QC_forest_subclass_mean_boot.png")
+```
+
+::: {.fig-caption}
+[**Figure 4.**]{.fig-num} Effect sizes with 95% CIs (WildR − SPF) from the replicate-level model for the 35 most abundant subclasses. (A) Mean correlation to reference. (B) Mean bootstrap probability. Filled points would mark FDR < 0.05. The x-axes are free per stratum because seqFISH effects are about 2× less precise. Forest plots for every level are in [figures/MapMyCells_QC/]{.path} (`MapMyCells_QC_forest_<level>_<endpoint>.png`).
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Every interval spans zero, and point estimates scatter symmetrically around it.
+- The intervals are narrow. In SN, correlation differences are bounded to about ±0.01–0.02 on a scale where subclasses average 0.63–0.66. In seqFISH they are bounded to about ±0.02–0.04 on a mean of 0.36.
+:::
+
+[Source: cell `cell-fig-forest`](#cell-fig-forest){.provenance}
+:::
+
+### Is the null well-powered?
+
+::: {.figure-card .fig-wide}
+
+```{r}
+#| label: display-fig-pvals
+#| echo: false
+#| results: asis
+show_fig("MapMyCells_QC_pvalue_hist.png")
+```
+
+::: {.fig-caption}
+[**Figure 5.**]{.fig-num} Distributions of primary-test p-values across all tested cell types, one panel per taxonomy level (rows) × stratum (columns), with the three endpoints pooled. Endpoints are correlated, so counts are not independent tests. The dashed line is the count expected per 0.05-wide bin under a uniform null. A real, widespread group effect would appear as excess mass at p < 0.05.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- All 12 level × stratum histograms are approximately flat with no spike at low p, from class down to cluster. The data are consistent with no group effect in any family, not just with too few tests passing FDR.
+- Observed nominal-p < 0.05 counts match or fall below chance in every family (Table 2), so there is no sub-threshold "many weak effects" signal either.
+:::
+
+[Source: cell `cell-fig-pvals`](#cell-fig-pvals){.provenance}
+:::
+
+```{r}
+#| label: display-tbl-precision
+#| echo: false
+
+if (has_core) {
+  prec %>%
+    transmute(Level = level, Stratum = stratum, Endpoint = endpoint,
+              `Types tested` = n_types,
+              `p < 0.05 (obs / exp)` = glue("{n_nominal_p05} / {expected_nominal}"),
+              `FDR < 0.05` = n_fdr05, `Robust` = n_robust,
+              `Typical value` = signif(median_group_mean, 2),
+              `Median |Δ|` = signif(median_abs_delta, 2),
+              `Median CI ±` = signif(median_ci_halfwidth, 2),
+              `90th pct max |CI|` = signif(p90_max_abs_ci, 2),
+              `r(Δ, Δ depth-adj)` = round(r_delta_vs_depth_adj, 2)) %>%
+    knitr::kable(caption = "Table 2. Null precision by family. Typical value = median group mean of the endpoint. Median CI ± = median 95% CI half-width. 90th pct max |CI| = for 90% of cell types, effects larger than this are excluded. r = agreement of the primary and depth-adjusted estimates.")
+} else not_computed("Precision table")
+```
+
+[Source: cell `cell-tbl-precision`](#cell-tbl-precision){.provenance} · [tables/MapMyCells_QC/MapMyCells_QC_precision_summary.csv]{.path}
+
+The bound is tight in snRNA-seq at every level. For 90% of cell types, a WildR–SPF shift larger than ≈ 0.04–0.09 in mean bootstrap probability, or ≈ 0.02–0.04 in mean correlation, is excluded. Precision is best at subclass/supertype and loosens slightly at cluster, where types have fewer cells. seqFISH is looser on the bootstrap endpoints (0.11–0.28) because of its lower and more variable confidence, but its correlation endpoint is still bounded to ≈ 0.03–0.05. Primary and depth-adjusted estimates agree closely (r = 0.66–0.99; lowest for class-level correlation in SN, where only 15 types enter each family). Depth is therefore not hiding or creating group effects. 136 of 4,179 tests are undefined because every replicate of both groups had identical values, typically zero low-confidence cells or bootstrap = 1 everywhere. Those types are trivially equivalent.
+
+:::: {.section-rule}
+::::
+
+### Inspecting a single cell type
+
+When a cell type does show a difference, this two-panel "superplot" is the figure to make. It shows the cell-level distribution and the replicate-level test side by side, with the full statistics in the caption line. The driver plots the strongest **robust hit**. Because there are none, it shows the cell type with the smallest nominal p among fully replicated types as a worked example. This keeps the visual vocabulary ready and shows what a *non-significant* nominal effect looks like.
+
+::: {.figure-card .fig-wide}
+[A]{.panel-label}
+
+```{r}
+#| label: display-fig-superplot-sub
+#| echo: false
+#| results: asis
+show_fig("MapMyCells_QC_superplot_subclass_top.png")
+```
+
+
+[B]{.panel-label}
+
+```{r}
+#| label: display-fig-superplot-supt
+#| echo: false
+#| results: asis
+show_fig("MapMyCells_QC_superplot_supertype_top.png")
+```
+
+::: {.fig-caption}
+[**Figure 6.**]{.fig-num} Single-distribution view. (A) Subclass level: smallest-p test, `337 DC NN`, seqFISH, mean correlation. (B) Supertype level: smallest-p test, SN HYP, mean bootstrap probability. In each, the left panel shows all cells of that type (violin + up to 400 jittered cells per replicate) with replicate means as open circles. The right panel shows replicate means only, with group mean ± 95% CI, which is the level the test is run at. The caption line reports the replicate-level model (Δ, CI, p, BH-FDR), the exact Wilcoxon p, Cliff's δ and the depth-adjusted LMM.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Even the strongest nominal effects are small (Δ ≈ 0.01–0.03) and fall far from FDR significance (FDR ≥ 0.61 for the best example at every level).
+- In panel A the cell-level violins overlap almost entirely. A naïve per-cell test on thousands of cells would call this "significant", which is exactly the pseudoreplication the replicate-level design avoids.
+- The class- and cluster-level examples are at [figures/MapMyCells_QC/MapMyCells_QC_superplot_class_top.png]{.path} (`02 NP-CT-L6b Glut`, SN AMY) and [figures/MapMyCells_QC/MapMyCells_QC_superplot_cluster_top.png]{.path} (`0194 MEA Slc17a7 Glut_1`, SN AMY).
+- To inspect any other type, call `plot_superplot()` from `mapmycells_qc_functions.R` with a cell type, stratum and level (see cell `cell-fig-superplot`).
+:::
+
+[Source: cell `cell-fig-superplot`](#cell-fig-superplot){.provenance}
+:::
+
+### Full results
+
+```{r}
+#| label: display-tbl-tests
+#| echo: false
+
+if (has_core) {
+  tests_all %>%
+    select(level, stratum, cell_type, endpoint, n_rep_WildR, n_rep_SPF,
+           mean_SPF, mean_WildR, delta, ci_low, ci_high, p_lm, fdr_lm,
+           p_wilcox, cliffs_delta, delta_adj, p_adj_depth, robust_hit) %>%
+    mutate(across(where(is.double), ~ signif(.x, 3))) %>%
+    DT::datatable(filter = "top", rownames = FALSE,
+                  options = list(pageLength = 10, scrollX = TRUE),
+                  caption = "Table 3. All WildR vs SPF tests at class, subclass, supertype and cluster level. Filter by level, stratum, endpoint or cell type.")
+} else not_computed("Test table")
+```
+
+Full tables: [tables/MapMyCells_QC/MapMyCells_QC_tests_<level>.csv]{.path} (class, subclass, supertype, cluster) · replicate-level summaries [tables/MapMyCells_QC/MapMyCells_QC_replicate_summary_<level>.csv]{.path}
+
+[Source: cell `cell-run-qc`](#cell-run-qc){.provenance}
+
+::: {.callout-warning}
+**Caveats.** (1) **seqFISH replicate = ROI, not animal.** No ROI → animal key is recorded in the repo, so if several ROIs come from one mouse the seqFISH df is optimistic. Because the seqFISH result is null, this cannot have produced a false positive, but the mapping should be added before any seqFISH group test is reported. (2) **Selection on the label.** Each test conditions on the assigned cell type. A group difference that pushed cells into a *different* label would appear as a composition change, not here. The global, label-free ECDFs (Figure 1A) cover this partly. (3) The seqFISH MapMyCells outputs were written inside the read-only `data/input/SpatialAnalysis_2024-07/` tree. They were read from there, not moved.
+:::
+
+## Next Steps
+
+- **Done:** extracted all per-cell MapMyCells scores from the extended JSON for 417,459 nuclei and 1,085,841 seqFISH cells, and tested WildR vs SPF at all four resolutions on three endpoints: 57 class, 237 subclass, 523 supertype and 576 cluster type × stratum units. Replicate-level models with run blocking and depth-adjusted LMMs found no difference at any level.
+- **Treat labels as group-equivalent.** Downstream WildR vs SPF analyses (MAST, D-SPIN, composition, VR) need no group-specific mapping-quality correction. Any confidence filter should be applied identically to both groups.
+- **seqFISH at subclass/supertype resolution for neurons** should use bootstrap probability as a filter or weight (e.g. ≥ 0.5 drops ~18% of cells), or aggregate to class. This is a modality issue, not a microbiome one.
+- **Record the seqFISH ROI → animal mapping** and re-run the seqFISH stratum with animal as the replicate if ROIs share animals.
+- **Audit the hindbrain `243 Hoxb5 Glut` nuclei per animal** in HYP (and AMY). If concentrated in a few samples, consider them dissection contamination and check overlap with `VR3_dissection_audit`.
+
+# Code & Provenance {.code-appendix}
+
+All compute is gated behind `run_analysis`. Rendering never recomputes. Heavy logic is in [notebooks/python_scripts/extract_mapmycells_scores.py]{.path}, [notebooks/R_scripts/mapmycells_qc_functions.R]{.path} and [notebooks/R_scripts/run_mapmycells_qc.R]{.path}. Environment: `spatialomics` (`/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics`). MapMyCells itself was **not** re-run. Inputs are the existing outputs of `slurm_map-my-cells.sh` (SN, 2025-04-24) and `slurm-map-my-cells-dynamic.sh` (seqFISH, 2026-02-16).
+
+[]{#cell-extract}
+
+```{r}
+#| label: cell-extract
+#| eval: !expr run_analysis
+# Step 1 — flatten MapMyCells extended JSON -> per-cell parquet (+ depth covariates).
+# Ran 2026-10-02. seqFISH directly on the login node (~2 min, one ROI at a time);
+# SN via SLURM because the 1.25 GB JSON needs ~25 GB RAM (job 3784126, ~30 s).
+PY <- "/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/python"
+system(glue("{PY} {wkdir}/notebooks/python_scripts/extract_mapmycells_scores.py --modality seqFISH ",
+            "| tee {wkdir}/.cluster_runs/mapmycells_qc/extract_seqFISH_2026-10-02.log"))
+system(glue("sbatch {wkdir}/notebooks/shell_scripts/run_mapmycells_qc_extract.sh"))   # MODALITY=SN
+# Logs: .cluster_runs/mapmycells_qc/log_mmc_qc_extract_<jobid>.{log,err}
+# Inputs:
+#   SN      data/interim/MapMyCells/output.json  (+ obs from data/input/parse_bio_anndata/anndata_ensembl.h5ad;
+#           ASO/WT samples in that h5ad are excluded -> 24 WildR/SPF samples, 417,459 nuclei)
+#   seqFISH data/input/SpatialAnalysis_2024-07/export_*/export_*/mapmycells_output.json
+#           (+ cell_by_gene_matrix_<roi>_<block>.csv, cell_attributes_<roi>_<block>.csv; 16 ROIs, 1,086,336 cells)
+# Outputs: data/interim/MapMyCells_QC/mapmycells_scores_{SN,seqFISH}_2026-10-02.parquet
+```
+
+[]{#cell-run-qc}
+
+```{r}
+#| label: cell-run-qc
+#| eval: !expr run_analysis
+# Step 2 — all tests, tables and figures (~5 min single core, run directly).
+# Parameters (see params list in the script):
+#   levels_tested = class, subclass, supertype, cluster; min_counts SN = 0, seqFISH = 10;
+#   min_cells = 20 per replicate; min_rep_frac = 0.5 of each group's replicates;
+#   primary = lm on replicate means (value ~ group [+ run]); BH within stratum x level x endpoint;
+#   sensitivity = nlme::lme(score ~ group [+ run] + log10_counts, random = ~1 | replicate).
+system(glue(
+  "/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript ",
+  "{wkdir}/notebooks/R_scripts/run_mapmycells_qc.R ",
+  "> {wkdir}/.cluster_runs/mapmycells_qc/run_mapmycells_qc_all-levels_2026-10-02.log 2>&1"))
+# History: a first run (subclass + supertype, min_reps = 3) and a second
+# ("minrep-half", subclass + supertype) preceded this one; their RDS files are
+# superseded by the all-levels run. Subclass/supertype results are identical.
+# Outputs: data/interim/MapMyCells_QC/mapmycells_qc_results_all-levels_2026-10-02.rds,
+#          tables/MapMyCells_QC/*.csv, figures/MapMyCells_QC/*.png
+```
+
+The cells below re-create each figure from the saved results, so every figure has a single labelled source. All figures share one width (12 in), dpi and font scale, set by `mmc_fig_w` / `mmc_fig_h` in `mapmycells_qc_functions.R`. To redraw everything in one go without recomputing any statistics, run `Rscript notebooks/R_scripts/plot_mapmycells_qc_figures.R` (2026-10-02: used after the display-size fix).
+
+```{r}
+#| label: cell-load-results
+#| eval: !expr run_analysis
+source(file.path(wkdir, "notebooks/R_scripts/mapmycells_qc_functions.R"))
+res <- readRDS(results_rds)
+load_all_cells <- function() {
+  sn <- load_mmc_scores(file.path(int_dir, "mapmycells_scores_SN_2026-10-02.parquet"), "SN", 0)
+  fish <- load_mmc_scores(file.path(int_dir, "mapmycells_scores_seqFISH_2026-10-02.parquet"), "seqFISH", 10)
+  common <- intersect(names(sn), names(fish))
+  bind_rows(sn[common], fish[common]) %>%
+    mutate(stratum = factor(stratum, levels = c("SN AMY", "SN HYP", "seqFISH")))
+}
+```
+
+[]{#cell-fig-ecdf}
+
+```{r}
+#| label: cell-fig-ecdf
+#| eval: !expr run_analysis
+all_cells <- load_all_cells()
+mmc_save(plot_ecdf_levels(all_cells), fig_dir, "MapMyCells_QC_ecdf_levels.png", "ecdf")
+```
+
+[]{#cell-fig-depth}
+
+```{r}
+#| label: cell-fig-depth
+#| eval: !expr run_analysis
+mmc_save(plot_depth_vs_quality(res$global), fig_dir, "MapMyCells_QC_depth_vs_quality.png", "depth")
+```
+
+[]{#cell-fig-landscape}
+
+```{r}
+#| label: cell-fig-landscape
+#| eval: !expr run_analysis
+# Tile heatmap, top 15 most abundant tested types per stratum (all four levels).
+for (l in mmc_levels)
+  mmc_save(plot_quality_landscape(res[[l]]$replicate, res[[l]]$eligible, top_n = 15),
+           fig_dir, glue("MapMyCells_QC_landscape_{l}.png"), "landscape")
+```
+
+[]{#cell-fig-heatmap}
+
+```{r}
+#| label: cell-fig-heatmap
+#| eval: !expr run_analysis
+for (l in mmc_levels)
+  mmc_save(plot_effect_heatmap(res[[l]]$tests, max_types = 50), fig_dir,
+           glue("MapMyCells_QC_effect-heatmap_{l}.png"),
+           if (l == "class") "heatmap_class" else "heatmap")
+```
+
+[]{#cell-fig-forest}
+
+```{r}
+#| label: cell-fig-forest
+#| eval: !expr run_analysis
+for (l in mmc_levels) for (ep in c("mean_corr", "mean_boot"))
+  mmc_save(plot_effect_forest(res[[l]]$tests, ep, max_types = 35), fig_dir,
+           glue("MapMyCells_QC_forest_{l}_{ep}.png"), "forest")
+```
+
+[]{#cell-fig-pvals}
+
+```{r}
+#| label: cell-fig-pvals
+#| eval: !expr run_analysis
+res_all <- bind_rows(lapply(mmc_levels, function(l) res[[l]]$tests))
+mmc_save(plot_pvalue_hist(res_all), fig_dir, "MapMyCells_QC_pvalue_hist.png", "pvalue")
+```
+
+[]{#cell-tbl-precision}
+
+```{r}
+#| label: cell-tbl-precision
+#| eval: !expr run_analysis
+# Written by the driver; na.rm guards the 136 tests with undefined p
+# (all replicates share one value).
+write_csv(summarise_precision(res_all), prec_csv)
+```
+
+[]{#cell-fig-superplot}
+
+```{r}
+#| label: cell-fig-superplot
+#| eval: !expr run_analysis
+# Example: inspect any cell type x stratum x level. The driver picks the strongest
+# robust hit, or (none here) the smallest-p fully replicated test.
+lvl <- "subclass"
+cm <- cell_metrics_at(all_cells, lvl)
+lmm <- res[[lvl]]$tests %>% select(modality, stratum, level, cell_type, endpoint,
+                                   delta_adj, p_adj_depth, df_adj)
+pick <- res[[lvl]]$superplot_pick
+p <- plot_superplot(cm, res[[lvl]]$tests, lmm, pick$cell_type, as.character(pick$stratum), lvl,
+                    metric = c(mean_corr = "avg_corr", mean_boot = "boot_prob")[[pick$endpoint]],
+                    endpoint_sel = pick$endpoint, min_cells = 20,
+                    note = "No robust hit at this level: strongest nominal test shown as an example")
+mmc_save(p, fig_dir, glue("MapMyCells_QC_superplot_{lvl}_top.png"), "superplot")
+```

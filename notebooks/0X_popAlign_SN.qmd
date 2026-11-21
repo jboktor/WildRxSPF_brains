@@ -1,0 +1,1056 @@
+---
+title: "PopAlign Subpopulation Discovery in WildR vs SPF Single-Nucleus Brain Data"
+subtitle: "Gaussian-mixture population models at Allen class, subclass and supertype level (AMY, HYP; 6 vs 6 animals)"
+date: today
+author: "Joe Boktor"
+categories: [snRNA-seq, popAlign, Microbiome, Subpopulations]
+format:
+  html:
+    theme:
+      - cosmo
+      - ../quarto-aesthetic-kit/theme/aesthetic.scss
+    include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    page-layout: article
+    code-fold: true
+    code-tools: true
+    code-copy: true
+    embed-resources: true
+    fig-cap-location: bottom
+    lightbox: true
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: false
+---
+
+```{r}
+#| label: setup-display
+#| include: false
+
+# Display-only render by default: reads saved CSV/PNG artifacts.
+# Set TRUE (or run chunks interactively) to re-run manifest / submit SLURM jobs.
+run_analysis <- FALSE
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(glue)
+  library(knitr)
+  library(DT)
+})
+
+wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
+run_tag <- "2026-10-04"                  # current popAlign run; 2026-10-02 run superseded (see Code & Provenance)
+synth_tag <- "2026-10-05"                # current synthesis of that run (Ensembl GO + contamination flag)
+pa_base <- file.path(wkdir, "data/interim/popalign/snRNASeq")
+fig_dir <- file.path(wkdir, "figures/popAlign/snRNASeq", glue("run_{run_tag}_synth-{synth_tag}"))
+tbl_dir <- file.path(wkdir, "tables/popAlign/snRNASeq", glue("run_{run_tag}_synth-{synth_tag}"))
+log_dir <- file.path(wkdir, ".cluster_runs/popalign")
+
+manifest_f <- file.path(pa_base, glue("manifest_{run_tag}.csv"))
+manifest <- if (file.exists(manifest_f)) read_csv(manifest_f, show_col_types = FALSE) else tibble()
+read_tbl <- function(name) { f <- file.path(tbl_dir, name); if (file.exists(f)) read_csv(f, show_col_types = FALSE) else NULL }
+unit_status <- read_tbl("popAlign_unit_status.csv")
+catalog <- read_tbl("popAlign_subpopulation_catalog.csv")
+has_results <- !is.null(catalog)
+lv_order <- c("class", "subclass", "supertype")
+
+n_units <- nrow(manifest)
+n_by_level <- if (n_units) table(factor(manifest$level, lv_order)) else c(class = 0, subclass = 0, supertype = 0)
+n_done <- if (is.null(unit_status)) 0L else sum(unit_status$status == "ok")
+n_substructure <- if (is.null(unit_status)) NA else sum(unit_status$atlas_K > 1, na.rm = TRUE)
+n_robust <- if (has_results) sum(catalog$robust & !catalog$contamination_flag, na.rm = TRUE) else NA
+n_shift <- if (has_results) sum(catalog$microbiome_effect %in% c("abundance", "state", "abundance + state")) else NA
+
+leads <- read_tbl("popAlign_followup_leads.csv")          # build_popalign_report_assets_sn.R
+mp_sum <- read_tbl("popAlign_meta_program_summary.csv")
+abund_t <- read_tbl("popAlign_abundance_tests.csv")
+omni_t <- read_tbl("popAlign_abundance_omnibus.csv")
+state_t <- read_tbl("popAlign_state_shift_tests.csv")
+xmap <- read_tbl("popAlign_cross_level_map.csv")
+pct <- function(x, d = 0) paste0(round(100 * x, d), "%")
+if (has_results) {
+  rc <- catalog %>% filter(robust, !contamination_flag)
+  k_med <- unit_status %>% group_by(level) %>% summarise(m = median(atlas_K)) %>% deframe()
+  k1 <- unit_status %>% group_by(level) %>% summarise(n = sum(atlas_K == 1)) %>% deframe()
+  kagree <- unit_status %>% group_by(level) %>% summarise(m = median(boot_K_agreement)) %>% deframe()
+  ab_nr <- abund_t %>% filter(!redundant)
+  # tests with too few animals have NA p: count only tests that were actually run
+  ab_nr <- ab_nr %>% filter(!is.na(p_perm)); omni_t <- omni_t %>% filter(!is.na(p_omnibus))
+  state_t <- state_t %>% filter(!is.na(p_perm))
+  n_ab <- nrow(ab_nr); n_ab05 <- sum(ab_nr$p_perm < 0.05)
+  n_om <- nrow(omni_t); n_om05 <- sum(omni_t$p_omnibus < 0.05); minq_om <- min(omni_t$q_omnibus)
+  n_st <- nrow(state_t); n_st05 <- sum(state_t$p_perm < 0.05); minq_st <- min(state_t$q_perm)
+  n_depth <- sum(catalog$depth_flag); n_contam <- sum(catalog$contamination_flag)
+  eta <- catalog %>% distinct(unit_id, level, unit_depth_eta2) %>% group_by(level) %>%
+    summarise(m = median(unit_depth_eta2)) %>% deframe()
+  kinds <- rc %>% count(level, kind) %>% pivot_wider(names_from = kind, values_from = n, values_fill = 0)
+  xl_share <- xmap %>% group_by(coarse_level, fine_level, coarse_unit, coarse_comp) %>%
+    summarise(top = max(p), .groups = "drop") %>% group_by(coarse_level) %>%
+    summarise(med = median(top), frac50 = mean(top >= 0.5)) %>% split(.$coarse_level)
+}
+
+enr <- read_tbl("popAlign_circuit_enrichment.csv")         # circuit enrichment (report assets)
+dvc <- read_tbl("popAlign_deg_vs_composition.csv")         # MAST DEGs vs composition shift
+E <- function(scope, field, outcome = "hit") {               # pull one enrichment number
+  if (is.null(enr)) return(NA)
+  v <- enr[[field]][enr$scope == scope & enr$outcome == outcome & enr$grouping == "circuit"]
+  if (length(v)) v[1] else NA
+}
+ORf <- function(x) sprintf("%.1f", x); Pf <- function(x) format(signif(x, 2), scientific = FALSE)
+if (!is.null(dvc)) {
+  dvc_top <- dvc %>% group_by(level) %>% slice_max(n_deg, prop = 0.25, with_ties = FALSE) %>% ungroup()
+  deg_rho <- cor.test(log1p(dvc$n_deg), -log10(dvc$p_omnibus), method = "spearman", exact = FALSE)
+}
+
+# Show a saved figure, or a placeholder if the pipeline has not produced it yet.
+show_fig <- function(name) {
+  f <- file.path(fig_dir, glue("popAlign_{name}.png"))
+  if (file.exists(f)) knitr::include_graphics(f) else
+    cat(glue("*Not yet computed — `{basename(f)}` is written by `run_popalign_synthesis_sn.R` (run {run_tag}).*"))
+}
+fmt <- function(x) if (is.na(x)) "—" else format(x, big.mark = ",")
+```
+
+## Overview
+
+**Bottom line.** Across `r n_units` cell-type units at three Allen levels, the microbiome leaves
+the *make-up* of cell types intact. It does appear to shift the *expression state* of cells in one
+circuit: the medial amygdala → bed nucleus of the stria terminalis → medial hypothalamus network,
+which carries chemosensory social signals into neuroendocrine and behavioural output. No single
+shift survives FDR with 6 vs 6 animals. The evidence is that sub-threshold shifts concentrate in
+this network far more than chance allows.
+
+::: {.stat-row}
+::: {.stat}
+[`r ORf(E("unit level, adjusted (n_comp, n_cells, level, tissue)", "odds_ratio"))`×]{.stat-value}
+[Enrichment of state shifts in the MeA–BST–hypothalamus network (p = `r Pf(E("unit level, adjusted (n_comp, n_cells, level, tissue)", "p"))`)]{.stat-label}
+:::
+::: {.stat}
+[0 / `r if (has_results) n_om else "—"`]{.stat-value}
+[Units whose subpopulation mix changes (FDR)]{.stat-label}
+:::
+::: {.stat}
+[`r fmt(n_robust)`]{.stat-value}
+[Robust subpopulations discovered]{.stat-label}
+:::
+::: {.stat}
+[`r fmt(n_units)`]{.stat-value}
+[Cell-type units modelled (class / subclass / supertype)]{.stat-label}
+:::
+:::
+
+### What is interesting
+
+1. **The microbiome signal sits in one circuit.** Units from the medial amygdala, BST and medial
+   hypothalamic nuclei carry a microbiome-associated state shift at
+   `r sprintf("%.1f", E("all levels", "rate_in") / E("all levels", "rate_out"))`× the rate of all other
+   cell types: `r E("all levels", "in_group_hits")` / `r E("all levels", "in_group_units")`
+   vs `r E("all levels", "out_group_hits")` / `r E("all levels", "out_group_units")` units (adjusted
+   odds ratio `r ORf(E("unit level, adjusted (n_comp, n_cells, level, tissue)", "odds_ratio"))`,
+   p = `r Pf(E("unit level, adjusted (n_comp, n_cells, level, tissue)", "p"))`). They contain
+   `r E("all levels", "in_group_hits", "strong")` of the
+   `r E("all levels", "in_group_hits", "strong") + E("all levels", "out_group_hits", "strong")`
+   strongest shifts. The enrichment holds at subclass and supertype level separately, and is not
+   explained by unit size, number of subpopulations, or GABA vs glutamate identity
+   ([Fig. A](#sec-circuit)).
+2. **It changes how cells are tuned, not how many there are.** No unit changes its subpopulation
+   mix (0 / `r if (has_results) n_om else "—"` at FDR; nominal hits run *below* chance). The gene
+   programs that move are synaptic (*Erbb4, Htr2c, Nrg1, Gria1, Grm1, Grik1*), with no
+   immediate-early activity genes. That suggests durable retuning rather than an acute
+   difference in activity.
+3. **It reframes the differential-expression results.** The
+   `r if (!is.null(dvc)) nrow(dvc_top) else "—"` units with the most MAST DEGs (median
+   `r if (!is.null(dvc)) median(dvc_top$n_deg) else "—"` per unit) show no composition change at all
+   (smallest p = `r if (!is.null(dvc)) round(min(dvc_top$p_omnibus), 2) else "—"`). Microbiome DEGs
+   therefore reflect regulation *within* stable cell populations, not a shifting cell mix
+   ([Fig. B](#sec-deg)).
+4. **Specific populations to chase.** MEA-BST Lhx6 Nr2e1 GABA (amygdala) and DMH Hmx2 GABA
+   (hypothalamus) are each flagged by both the subclass and the supertype model. PVH *Avp* neurons
+   and an expanding MEA-BST Otp Zic2 glutamatergic subpopulation complete the list
+   (@tbl-leads).
+
+### How we got there
+
+- **Units.** 12 animals per tissue (6 WildR, 6 SPF), amygdala and hypothalamus. Every Allen class,
+  subclass and supertype with ≥ 25 nuclei in every animal gives 244 units.
+- **Discover subpopulations.** popAlign compresses each unit into interpretable gene programs
+  (oNMF) and fits Gaussian mixtures to find subpopulations. "None" is allowed. Each subpopulation
+  is checked by bootstrap.
+- **Test the microbiome.** For each animal we measure each subpopulation's *share* (composition)
+  and its *position in program space* (state). WildR and SPF are compared by exact permutation of
+  the 12 animals.
+- **Guard against artefacts.**
+  - normalisation matched to sequencing depth, with a depth flag and covariate;
+  - a cross-lineage contamination screen, which found myelin RNA in hypothalamic neurons, relevant
+    to every hypothalamic analysis;
+  - gene annotation keyed on Ensembl IDs.
+
+  A full audit trail is under [Code & Provenance](#code-provenance).
+
+### What to do next
+
+1. **Test the circuit hypothesis in space.** Score the shifted programs of the MeA / BST / medial
+   hypothalamus leads in the seqFISH data, WildR vs SPF. That is an independent modality with
+   anatomy attached.
+2. **Connect the shifted programs to genes and to the relay analyses.** Test whether the genes
+   in each moving program are enriched among MAST hits and D-SPIN responses of the same unit.
+   Correlate per-animal state scores with the VR-1 / VR-2 relay scores.
+3. **Harden the hypothalamic signal.** Decontaminate the hypothalamic counts (scCDC / CellBender),
+   add a depth covariate to the state test, and re-test the enrichment.
+
+## Background
+
+D-SPIN gave us a regulatory-network view of how the microbiome perturbs supertype-level gene
+programs. It assumes, though, that each supertype is a single population whose program
+activities shift. Allen types are reference-defined. Within them, nuclei may occupy distinct
+functional states that the taxonomy does not resolve, and a microbiome effect could act by
+changing the **proportions** of those states rather than shifting a whole cell type.
+
+PopAlign (Chen, Rivaud, Park, Tsou & Thomson, PNAS) models each sample as a Gaussian mixture over
+interpretable oNMF gene programs. It aligns subpopulations across samples by Jeffrey's divergence
+and quantifies abundance (Δw), mean-state (Δμ) and covariance (ΔΣ) changes. Running it at three
+taxonomy depths asks three things. Do class-level subpopulations recover subclasses? Do subclass
+subpopulations recover supertypes? And which states exist *within* a supertype that the
+microbiome moves?
+
+## Results
+
+### The microbiome signal concentrates in one circuit {#sec-circuit}
+
+[HEADLINE]{.eyebrow}
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-circuit
+#| echo: false
+#| results: asis
+show_fig("circuit_enrichment")
+```
+
+::: {.fig-caption}
+[**Figure A.**]{.fig-num} Share of units carrying a nominal microbiome state shift (any robust,
+uncontaminated component with p < 0.05), for units from the medial amygdala, BST and medial
+hypothalamic nuclei (orange) vs all other units (grey). Each unit counts once. Fisher's exact
+test. The network is defined once, by Allen region names (MEA, BST, PVH, DMH, AHN, TMd, MPN, MPO,
+VMH, SBPV), following the relay hypothesis of the VR analyses. It was defined once and not
+iterated, but after the lead list had been seen, so treat this as a hypothesis-driven test rather
+than a pre-registered one.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **`r sprintf("%.1f", E("all levels", "rate_in") / E("all levels", "rate_out"))`× the rate of state shifts.**
+  `r pct(E("all levels", "rate_in"))` of network units vs `r pct(E("all levels", "rate_out"))` of all
+  others (odds ratio `r ORf(E("all levels", "odds_ratio"))`,
+  p = `r Pf(E("all levels", "p"))`). For the strongest shifts (p ≤ 0.0065) it is
+  `r E("all levels", "in_group_hits", "strong")` vs `r E("all levels", "out_group_hits", "strong")`
+  units (OR `r ORf(E("all levels", "odds_ratio", "strong"))`).
+- **Not an artefact of unit size or test count.** Adjusting for number of subpopulations, nuclei,
+  level and tissue gives OR `r ORf(E("unit level, adjusted (n_comp, n_cells, level, tissue)", "odds_ratio"))`
+  (p = `r Pf(E("unit level, adjusted (n_comp, n_cells, level, tissue)", "p"))`). At component
+  level it is OR `r ORf(E("component level, adjusted (n_cells, level, tissue)", "odds_ratio"))`.
+- **Holds within each level, and points the same way in both tissues.** Subclass OR
+  `r ORf(E("subclass only", "odds_ratio"))` (p = `r Pf(E("subclass only", "p"))`); supertype OR
+  `r ORf(E("supertype only", "odds_ratio"))` (p = `r Pf(E("supertype only", "p"))`); hypothalamus
+  OR `r ORf(E("HYP only", "odds_ratio"))` (p = `r Pf(E("HYP only", "p"))`); amygdala OR
+  `r ORf(E("AMY only", "odds_ratio"))` (p = `r Pf(E("AMY only", "p"))`, fewer units).
+- **It is anatomical, not a GABA effect.** Grouping by transmitter instead (GABA vs the rest) shows
+  no enrichment. The network includes glutamatergic types (MEA-BST Otp Zic2, VMH Fezf1, PVH Otp).
+:::
+
+[Source: cell `cell-report-assets`](#cell-report-assets){.provenance} · tables:
+[popAlign_circuit_enrichment.csv]{.path}, [popAlign_circuit_units.csv]{.path}
+:::
+
+### Composition is stable, even where DEGs are abundant {#sec-deg}
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-deg
+#| echo: false
+#| results: asis
+show_fig("deg_vs_composition")
+```
+
+::: {.fig-caption}
+[**Figure B.**]{.fig-num} Each point is a unit. The x-axis is the number of MAST DEGs (WildR vs SPF,
+padj < 0.1) from the earlier differential-expression analysis. The y-axis is the evidence that the
+unit's subpopulation mix differs between WildR and SPF (popAlign omnibus test). Dashed line:
+p = 0.05.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **DEG-rich units keep their cell mix.** None of the `r if (!is.null(dvc)) nrow(dvc_top) else "—"`
+  top-quartile DEG units shows a composition shift. Across all units, more DEGs go with slightly
+  *less* compositional signal (Spearman ρ = `r if (!is.null(dvc)) sprintf("%.2f", deg_rho$estimate) else "—"`).
+- **So the MAST DEGs are regulation within populations,** not a by-product of subpopulations
+  growing or shrinking. That strengthens the interpretation of the DEG analysis.
+:::
+
+[Source: cell `cell-report-assets`](#cell-report-assets){.provenance} · table: [popAlign_deg_vs_composition.csv]{.path}
+:::
+
+### Priority follow-ups
+
+[TOP HITS]{.eyebrow}
+
+No microbiome effect survives FDR correction. With 6 vs 6 animals the smallest attainable exact
+p is 2/924 ≈ 0.0022, which caps power. The leads below are therefore ranked by **internal
+replication**, not by p alone. Each is a robust (bootstrap-stable), uncontaminated subpopulation
+whose state or abundance differs between WildR and SPF at the animal level. Leads where the
+*same* cell lineage is flagged by two separately fit models (its subclass **and** its supertype
+run) come first. These models share nuclei and animals, so agreement shows robustness to
+modelling rather than independent replication. Those leads are the best candidates for spatial
+validation.
+
+```{r}
+#| label: tbl-leads
+#| echo: false
+if (!is.null(leads)) {
+  leads %>%
+    mutate(
+      Rank = row_number(),
+      `Cell type` = glue("{tissue} · {lineage}"),
+      Level = str_to_title(level),
+      Effect = if_else(effect == "state shift", "State shift", glue("Abundance {direction}")),
+      Evidence = if_else(effect == "state shift",
+                         glue("p = {signif(p, 2)} (q = {signif(q, 2)})"),
+                         glue("p = {signif(p, 2)}, {separation}/6 animals separated; depth-adj. p = {signif(p_abund_glm_depthadj, 2)}")),
+      `Share of unit` = paste0(share_pct, "%"),
+      Stability = sprintf("%.2f", stability),
+      `What changes` = if_else(effect == "state shift",
+                               glue("Program: {shifted_program_genes}"),
+                               glue("{round(100 * mean_frac_SPF)}% → {round(100 * mean_frac_WildR)}% of nuclei (SPF → WildR)")),
+      `Defining markers` = markers,
+      Replicated = if_else(convergent, glue("★ {levels_hit}"), "—")
+    ) %>%
+    mutate(QC = if_else(depth_flag, "depth-associated", "clean")) %>%
+    dplyr::select(Rank, `Cell type`, Level, Replicated, Effect, Evidence, `Share of unit`, Stability, QC, `What changes`, `Defining markers`) %>%
+    kable(format = "html", escape = TRUE,
+          caption = "Follow-up leads: robust, uncontaminated subpopulations (state p ≤ 0.0065, or abundance p < 0.05 with ≥5/6 animals separated and surviving depth adjustment). ★ = the same lineage is flagged in ≥2 separately fit units (nuclei overlap across levels). QC 'depth-associated' = the component differs from the rest of its unit by ≥26% in UMI depth; state tests carry no depth covariate, so treat those state leads with extra caution.")
+}
+```
+
+::: {.takeaways}
+**Key takeaways: what to follow up first** (grouped by biology; ★ rows in the table above)
+
+- **AMY MEA-BST Lhx6 Nr2e1 GABA. Strongest lead.** A state shift was flagged by both the
+  subclass model (p = 0.0065) and the separately fit supertype 0355 model (p = 0.0043). Both components carry the same
+  identity (*Reln, Cadps2, Zbtb20, Npas3, Dab1*) and are among the most stable in the dataset
+  (stability 0.99). This is the MeA→BST relay studied in VR-1–VR-4. Next: test whether the shifted
+  program tracks the VR relay scores per animal, and map the component in seqFISH.
+- **HYP DMH Hmx2 GABA.** A state shift at the minimum attainable p in both the subclass
+  (component 4) and supertype 0488 runs. The moving program contains *Erbb4* and *Htr2c* in both,
+  so it is the same biology seen twice. The supertype component is depth-associated (≈25% lower
+  UMI depth); the subclass hit is clean and carries the lead. A dorsomedial hypothalamic
+  inhibitory population is a plausible microbiome-sensitive node (feeding / thermoregulation).
+- **HYP MEA-BST Lhx6 Sp9, TMd-DMH Foxd2 and PVHd-DMH Lhx6 GABA.** Each has a large (46–56% of
+  unit), stable, depth-clean component shifted at the minimum p. Together with DMH Hmx2, **all 5 state shifts
+  at the minimum attainable p fall in the MeA–BST–medial-hypothalamus network**. They happen to be
+  GABAergic, but the network enrichment (Fig. A) is not GABA-specific.
+- **HYP PVH-SO-PVa Otp Glut (*Avp*). Neuroendocrine.** A state shift in the *Avp*-expressing
+  component (p = 0.0043), affecting synaptic programs (*Nrg1, Kcnc2, Erbb4*). It is the most
+  direct link to the stress / HPA axis among the leads.
+- **AMY MEA-BST Otp Zic2 Glut. Best abundance lead.** The component grows from 32% to 43% of
+  nuclei in WildR (5 of 6 animals separated). It survives depth adjustment (p = 0.002), and it
+  sits in the same medial-amygdala relay as the MEA-BST Lhx6 Nr2e1 lead.
+- **Caveat.** Individually these are leads, not findings (best q = 0.19). The stronger evidence is
+  collective: shifts cluster in one circuit far more than chance allows (Fig. A).
+:::
+
+[Source: cell `cell-report-assets`](#cell-report-assets){.provenance} · full table:
+[tables/popAlign/snRNASeq/run_2026-10-04_synth-2026-10-05/popAlign_followup_leads.csv]{.path}
+
+:::: {.section-rule}
+::::
+
+### How many subpopulations does each cell type contain?
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-overview
+#| echo: false
+#| results: asis
+show_fig("unit_overview")
+```
+
+::: {.fig-caption}
+[**Figure 1.**]{.fig-num} Left: atlas GMM components per unit, chosen by held-out BIC from K = 1,
+against unit size. The atlas is fit on up to 1,000 / 700 / 400 nuclei per animal (class /
+subclass / supertype). Right: the fraction of 20 bootstraps (80% of the pool) that re-select
+the same K.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **Substructure is the rule, not the exception.** Units contain a median of `r k_med[["class"]]`
+  (class), `r k_med[["subclass"]]` (subclass) and `r k_med[["supertype"]]` (supertype)
+  subpopulations. Only `r k1[["subclass"]]` subclass and `r k1[["supertype"]]` supertype units are
+  homogeneous (K = 1).
+- **The exact K is soft at class level.** Bootstraps re-select the same K in a median of
+  `r pct(kagree[["class"]])` of refits for classes, against `r pct(kagree[["supertype"]])` for
+  supertypes. Interpret class-level components through their per-component stability (Fig. 5),
+  not through K.
+:::
+
+[Source: cell `cell-synthesis`](#cell-synthesis){.provenance}
+:::
+
+### Is subpopulation structure technical? Depth and contamination QC
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-depth
+#| echo: false
+#| results: asis
+show_fig("depth_qc")
+```
+
+::: {.fig-caption}
+[**Figure 2.**]{.fig-num} Each component's median log10 UMI minus the rest of its unit. Real cell
+types differ in RNA content (large cholinergic or projection neurons carry more), so depth
+association alone is not grounds for exclusion. Components beyond ±0.1 log10 (≈26%) are flagged.
+A flagged component's abundance shift counts only if it survives a quasi-binomial GLM with
+per-animal median depth as a covariate. WildR and SPF differ by ≈5% in depth within tissue.
+Sub-libraries are fully balanced.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **Depth tracks subpopulations mainly at coarse levels.** Component explains a median
+  `r pct(eta[["class"]])` of per-nucleus depth variance in class units, falling to
+  `r pct(eta[["supertype"]])` in supertypes. `r n_depth` components are depth-flagged. Every
+  *abundance* lead survives the depth covariate; *state* leads in depth-associated components are
+  marked in the leads table.
+- **`r n_contam` components are cross-lineage contamination**, mostly myelin (*Plp1, Mbp, Mobp*)
+  in hypothalamic neuronal units. They are labelled and excluded from all microbiome conclusions.
+  None was a microbiome hit.
+:::
+
+[Source: cell `cell-synthesis`](#cell-synthesis){.provenance}
+:::
+
+### Which subpopulations change in abundance with the microbiome?
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-abundance
+#| echo: false
+#| results: asis
+show_fig("abundance_volcano")
+```
+
+::: {.fig-caption}
+[**Figure 3.**]{.fig-num} Component abundance (Δw) tests on per-animal logit fractions, by exact
+permutation over all 924 balanced relabelings of the 12 animals. In K = 2 units only the minority
+component is tested. A unit-level omnibus (CLR fraction vectors) and a quasi-binomial GLM are in
+the catalogue. BH correction is applied within each level. Dotted line: smallest attainable p.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **Abundance is essentially unchanged by the microbiome.** `r n_ab05` of `r n_ab` component tests
+  (`r pct(n_ab05 / n_ab, 1)`) reach p < 0.05, *below* the 5% expected by chance. At the unit
+  level, `r n_om05` of `r n_om` omnibus tests do (best q = `r round(minq_om, 2)`).
+- **The few abundance leads are small, consistent shifts** (Fig. 4): 2–11 percentage points
+  with 5/6 animals separated, not large population changes. The microbiome does not appear to
+  reshape cell-type composition at this resolution.
+:::
+
+[Source: cell `cell-synthesis`](#cell-synthesis){.provenance}
+:::
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-abundance-animals
+#| echo: false
+#| results: asis
+show_fig("top_abundance_animals")
+```
+
+::: {.fig-caption}
+[**Figure 4.**]{.fig-num} Per-animal fractions for the eight strongest abundance shifts. Each
+point is one animal.
+:::
+
+[Source: cell `cell-synthesis`](#cell-synthesis){.provenance}
+:::
+
+### Are subpopulations known Allen types or new cross-type states?
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-purity
+#| echo: false
+#| results: asis
+show_fig("purity_stability")
+```
+
+::: {.fig-caption}
+[**Figure 5.**]{.fig-num} The x-axis is purity: the share of a component's nuclei carrying its most
+common next-finer Allen label (subclass for class units, supertype for subclass units, cluster for
+supertype units). The y-axis is clusterboot stability: the mean Jaccard overlap of its nuclei with
+the best-matching component across 20 bootstraps that re-select K. Dotted line: 0.75 ("stable").
+Crosses are depth-flagged.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **At coarse levels popAlign rediscovers the taxonomy.** Of the robust, clean components,
+  `r kinds$"Allen-aligned subtype"[kinds$level == "class"]` / `r sum(rc$level == "class")` (class) and
+  `r kinds$"Allen-aligned subtype"[kinds$level == "subclass"]` / `r sum(rc$level == "subclass")`
+  (subclass) map onto a single finer Allen type. This independently validates both the method and
+  the MapMyCells labels.
+- **Within supertypes, new structure appears.** `r kinds$"cross-type state"[kinds$level == "supertype"]`
+  of `r sum(rc$level == "supertype")` robust supertype components are *cross-type states* that cut
+  across Allen clusters. These are the candidate functional states the taxonomy does not resolve.
+  The strongest state leads, by contrast, are mostly known types whose expression state moves:
+  3 of the 5 minimum-p leads are Allen-aligned (purity 0.86–1.0), and 2 are mixed or cross-type
+  (0.64, 0.46).
+:::
+
+[Source: cell `cell-synthesis`](#cell-synthesis){.provenance}
+:::
+
+### Which subpopulations shift expression state?
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-state
+#| echo: false
+#| results: asis
+show_fig("state_shift")
+```
+
+::: {.fig-caption}
+[**Figure 6.**]{.fig-num} Within-component state test (Δμ). The statistic is the distance between the
+WildR and SPF mean per-animal centroids in oNMF space, with each feature standardised by its
+pooled within-group SD, tested by exact permutation. For K = 1 units this is a whole-population
+shift.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **State is where the microbiome signal is.** `r n_st05` of `r n_st` state tests
+  (`r pct(n_st05 / n_st, 1)`) reach p < 0.05, against 5% expected and against only
+  `r pct(n_ab05 / n_ab, 1)` for abundance. That is a modest excess. Tests within a unit are not
+  independent, so treat it as suggestive. Its strongest members sit in the MeA–BST–medial
+  hypothalamus network (Fig. A). None survives FDR (best q = `r round(minq_st, 2)`).
+- **Interpretation:** the microbiome is more likely to *tune the expression state* of specific
+  inhibitory populations than to change how many cells of each kind there are.
+:::
+
+[Source: cell `cell-synthesis`](#cell-synthesis){.provenance}
+:::
+
+### Recurrent meta-programs across cell types
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-meta
+#| echo: false
+#| results: asis
+show_fig("meta_programs_top")
+```
+
+::: {.fig-caption}
+[**Figure 7.**]{.fig-num} The 20 largest meta-programs, each present in ≥ 4 units (click to
+enlarge). Specificity-ranked marker sets (top 50 by AUC ≥ 0.6) are linked across all units by
+Jaccard ≥ 0.15 and clustered with Leiden. Each tile marks a unit (column) containing a component
+of that meta-program (row), coloured by Allen level. Tissues are shown separately. The table below
+lists every meta-program present in ≥ 4 units; all `r if (!is.null(mp_sum)) nrow(mp_sum) else "—"`
+are in [popAlign_meta_program_summary.csv]{.path}.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **The two largest "programs" are contamination, not biology.** MP56 and MP46 (*Plp1, Mbp, Mobp*)
+  span the most units, but most of their members are flagged myelin contamination in hypothalamic
+  neurons. They are ambient RNA / doublet signatures and should be ignored as states.
+- **Genuine shared programs are lineage-restricted.** Most real meta-programs stay inside one
+  tissue and one family of related types: MP16 across amygdalar cortical-type GABA interneurons
+  (Vip, Sst, Pvalb, Lamp5, Sncg); MP2 and MP3 (*Bdnf, Mapk4*, an activity-linked program) across
+  amygdalar glutamatergic types (LA-BLA-BMA-PA, L2/3 IT PIR-ENTl, MEA). Programs that cut across
+  lineages are rare.
+:::
+
+[Source: cell `cell-report-assets`](#cell-report-assets){.provenance}
+:::
+
+```{r}
+#| label: tbl-meta-programs
+#| echo: false
+if (!is.null(mp_sum)) {
+  mp_sum %>%
+    filter(n_units >= 4) %>%
+    transmute(`Meta-program` = glue("MP{meta_program}"), Units = n_units,
+              `Class / subclass / supertype` = glue("{n_class} / {n_subclass} / {n_supertype}"),
+              Tissue = tissues,
+              `Contaminated members` = pct(frac_contaminated),
+              `Most-shared genes` = top_genes) %>%
+    kable(format = "html", caption = "Meta-programs present in ≥ 4 units. 'Contaminated members' = share of member components flagged as cross-lineage contamination.")
+}
+```
+
+### Coarse ↔ fine consistency
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-cross
+#| echo: false
+#| results: asis
+show_fig("cross_level")
+```
+
+::: {.fig-caption}
+[**Figure 8.**]{.fig-num} The levels share nuclei. For each class-level component (left) or
+subclass-level component (right), the x-axis shows the largest share of its nuclei that fall in
+a single finer-level component. Colour shows how many finer units hold ≥10% of it.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **Coarse subpopulations largely resolve into single finer states.**
+  `r pct(xl_share$class$frac50)` of class components and `r pct(xl_share$subclass$frac50)` of
+  subclass components put at least half their nuclei into one finer-level component. The three
+  runs describe one consistent hierarchy, which is why agreement between levels (the ★ leads) is
+  meaningful.
+:::
+
+[Source: cell `cell-synthesis`](#cell-synthesis){.provenance}
+:::
+
+### Subpopulation catalogue
+
+All `r if (has_results) nrow(catalog) else "—"` subpopulations. The 10 most useful columns are
+shown; click **Columns** to reveal statistics (p / q values, depth, contamination, D-SPIN, MAST,
+meta-program), and **CSV** to download. Use the boxes under each header to filter, for example
+*Microbiome effect* = "nominal" or *Kind* = "cross-type state".
+
+```{r}
+#| label: show-tbl-catalog
+#| echo: false
+if (has_results) {
+  shorten <- function(x, n) map_chr(str_split(coalesce(x, ""), ",\\s*"), ~ paste(head(.x[nzchar(.x)], n), collapse = ", "))
+  cat_tbl <- catalog %>%
+    mutate(level = factor(level, lv_order)) %>%
+    arrange(level, desc(interpretability), p_state) %>%
+    transmute(
+      Level = level, Tissue = tissue, `Cell type` = str_remove(name, "^\\d+ "), `Sub-pop` = comp,
+      `Share %` = round(100 * atlas_weight), Stability = round(stability, 2),
+      Kind = str_replace(kind, "possible contamination", "contamination"),
+      `Microbiome effect` = microbiome_effect,
+      `Top markers` = shorten(top_markers, 5),
+      `Top GO term` = str_remove(coalesce(top_go, ""), " \\|.*$"),
+      # hidden by default (Columns button)
+      `p state` = signif(p_state, 2), `q state` = signif(q_state, 2),
+      `p abundance` = signif(p_abund, 2), `q abundance` = signif(q_abund, 2),
+      `SPF → WildR %` = if_else(is.na(mean_frac_SPF), NA_character_,
+                                glue("{round(100 * mean_frac_SPF)} → {round(100 * mean_frac_WildR)}")),
+      `Animals separated` = separation, `Depth Δlog10` = round(delta_log10_umi, 2),
+      Contamination = contamination_type, Purity = round(purity, 2),
+      `D-SPIN program` = best_dspin_program, `MAST overlap` = n_markers_mast,
+      `Meta-program` = meta_program, Score = interpretability)
+  n_show <- 10
+  datatable(
+    cat_tbl, rownames = FALSE, filter = "top", class = "compact stripe hover",
+    extensions = "Buttons",
+    options = list(
+      pageLength = 15, lengthMenu = c(15, 50, 200), scrollX = TRUE, autoWidth = FALSE,
+      dom = "Bfrtip", buttons = list("colvis", "csv"),
+      columnDefs = list(
+        list(visible = FALSE, targets = seq(n_show, ncol(cat_tbl) - 1)),
+        list(width = "190px", targets = 2), list(width = "240px", targets = c(8, 9)),
+        list(className = "dt-center", targets = c(0, 1, 3, 4, 5)))
+    )
+  )
+} else {
+  cat("Catalogue not yet built.")
+}
+```
+
+`robust` requires substructure (K > 1), stability ≥ 0.75, weight ≥ 2% and ≥10 markers. A microbiome
+hit is reported only for robust, uncontaminated components; depth-flagged components must also
+pass the depth-adjusted GLM. *Score* adds robust and clean (1) + GO-annotated (1) + ≥25 markers
+(0.5) + meta-program member (0.5) + D-SPIN overlap (0.5). Full table:
+[tables/popAlign/snRNASeq/run_2026-10-04_synth-2026-10-05/popAlign_subpopulation_catalog.csv]{.path}.
+
+[Source: cell `cell-synthesis`](#cell-synthesis){.provenance}
+
+### Methods at a glance
+
+[METHODS]{.eyebrow}
+
+```{r}
+#| label: tbl-design
+#| echo: false
+if (n_units > 0) {
+  manifest %>%
+    mutate(level = factor(level, lv_order)) %>%
+    group_by(Level = level, Tissue = tissue) %>%
+    summarise(Units = n(),
+              `Nuclei exported` = format(sum(n_cells_exported), big.mark = ","),
+              `Median nuclei / unit` = round(median(n_cells_exported)),
+              `Min nuclei in any animal` = min(min_cells_per_animal), .groups = "drop") %>%
+    kable(caption = "Analysis units (run 2026-10-04). Inclusion: ≥25 nuclei in every one of the 12 animals of the tissue; capped at 2,500 nuclei per animal (uniform within animal).")
+}
+```
+
+| Step | What | Where it runs |
+|---|---|---|
+| 1. Manifest | Unit inclusion at class / subclass / supertype from `cell_meta_keep_cell.csv` | direct (seconds) |
+| 2. Export | Raw-UMI 10x mtx per unit; gene QC (≥10 nuclei; drop mt-/Rpl/Rps). Inputs shared across runs; only missing units exported | SLURM, 400 GB |
+| 3. popAlign | β = unit median UMI → variable genes → oNMF (*m* searched widely) → per-animal GMMs (10 replicates) → atlas GMM (K from 1, held-out BIC) → clusterboot stability (K re-selected per bootstrap) → conservative JD alignment → native Δ / LLR → specificity-ranked markers | SLURM array, 244 tasks |
+| 4. Synthesis | Unit omnibus + component abundance tests (exact permutation, quasi-binomial secondary), state shift, depth QC, Allen purity, GO, D-SPIN / MAST overlap, meta-programs, class→subclass→supertype maps, catalogue | SLURM, 1 job |
+
+Manifest: [data/interim/popalign/snRNASeq/manifest_2026-10-04.csv]{.path} · results:
+[data/interim/popalign/snRNASeq/results_2026-10-04/&lt;level&gt;/&lt;tissue&gt;__&lt;label&gt;/]{.path}
+
+```{r}
+#| label: show-status
+#| echo: false
+#| results: asis
+if (!is.null(unit_status)) {
+  unit_status %>%
+    mutate(level = factor(level, lv_order)) %>%
+    group_by(level) %>%
+    summarise(units = n(), ok = sum(status == "ok"),
+              `K = 1 (no substructure)` = sum(atlas_K == 1, na.rm = TRUE),
+              `median K` = median(atlas_K, na.rm = TRUE),
+              `median β (UMI)` = round(median(beta, na.rm = TRUE)),
+              `median bootstrap K agreement` = round(median(boot_K_agreement, na.rm = TRUE), 2),
+              `oNMF m at search bound` = sum(n_features_at_bound, na.rm = TRUE), .groups = "drop") %>%
+    kable(caption = "Run status and model-selection diagnostics per level.")
+} else cat("*popAlign run 2026-10-04 not yet complete — status table appears after synthesis.*")
+```
+
+:::: {.section-rule}
+::::
+
+
+## Synthesis & Discussion
+
+[SYNTHESIS]{.eyebrow}
+
+**The question.** Does a wild-type microbiome change *which* cells make up the amygdala and
+hypothalamus, or *how* those cells are tuned? And if so, where?
+
+**What we learned.**
+
+- *Composition is resilient.* Down to sub-supertype resolution, the relative sizes of
+  subpopulations are indistinguishable between WildR and SPF animals. This is a substantive
+  negative result: whatever the microbiome does to these brain regions, it does not reshape their
+  cellular make-up at a scale 12 animals can detect. It also tells us something about the earlier
+  differential-expression results. The cell types with the most DEGs are exactly as stable in
+  composition as the rest (Fig. B), so those DEGs report regulation within cells, not changes in
+  the cell mix.
+- *The signal is in cell state, and it has an address.* State shifts are only modestly more common
+  than chance overall (`r pct(n_st05 / n_st, 1)` vs 5%). They are far from randomly placed,
+  though: they occur at about 2.6× the background rate (odds ratio about 4) in the medial
+  amygdala → BST → medial hypothalamus network (Fig. A), which holds 11 of the 13 strongest. With
+  n = 6 per group, a hypothesis-driven enrichment across many units is a more appropriate test
+  than per-unit FDR, and it is the strongest statistical result in this analysis.
+- *The taxonomy is real, and has more below it.* popAlign, which never sees the Allen labels,
+  recovers them at class and subclass level. Within supertypes, about a third of robust
+  subpopulations are states that cut across clusters. The method therefore resolves biology finer
+  than the reference; for this question, that finer structure did not turn out to be where the
+  microbiome acts.
+
+**Why the circuit result is credible.**
+
+1. It aggregates many sub-threshold units instead of relying on one, which suits a 6-vs-6 design.
+2. It survives adjustment for the obvious confounds: unit size, number of subpopulations, level
+   and tissue.
+3. It is anatomical rather than defined by cell class. A GABA-vs-rest grouping shows nothing.
+4. The network is motivated by the earlier VR relay analyses, not by searching for the best
+   grouping.
+5. The programs that move are coherent: synaptic receptor and adhesion genes, with no
+   immediate-early activity genes.
+
+**Why it is not yet proof.**
+
+1. Subclass and supertype units share nuclei and animals, so the per-level results are two views
+   of one dataset, not two replications.
+2. The network is defined by Allen region names. That is principled, but these regions are
+   heterogeneous, and the set (MEA, BST, PVH, DMH, AHN, TMd, MPN, MPO, VMH, SBPV) is one reasonable
+   choice among several.
+3. The state test has no depth covariate, and three state leads sit in depth-associated components.
+4. Hypothalamic counts carry myelin ambient RNA or doublets. They are flagged, not removed.
+5. The network grouping was defined after the leads had been seen (one definition, a GABA grouping
+   tested first and found null). It is hypothesis-driven, not pre-registered. A confirmatory test
+   needs new data.
+6. Everything rests on one cohort of 12 animals.
+
+**What it could mean.** This network is the main route by which chemosensory social cues, including
+vomeronasal input, reach neuroendocrine and behavioural output: social, defensive and
+reproductive behaviour, and stress via PVH *Avp* neurons. The microbiome is widely reported to
+influence social behaviour and stress-axis reactivity. Two non-exclusive routes would explain a
+microbiome effect focused here:
+
+- an altered **chemosensory environment**: microbially shaped odours and pheromonal cues read
+  through the vomeronasal relay, which is the hypothesis behind VR-1–VR-4;
+- **direct signalling** to this hormone- and metabolite-sensitive circuit.
+
+Either way, the data point to retuning of synaptic receptor and adhesion programs, a lasting change
+in how these cells process input, rather than a change in how active they were when sampled.
+
+**How it fits with the other analyses.**
+
+- *VR relay notebooks:* the convergence is anatomical; popAlign independently highlights the same
+  MeA–BST relay populations.
+- *MAST and D-SPIN:* at the gene level the overlap is weak. Lead identity markers rarely contain
+  MAST hits (12% vs 25% overall), and overlap with D-SPIN programs is weak (Jaccard ≤ 0.10). Part
+  of this is expected, because markers describe identity, not change. The decisive comparison,
+  between shifted-program genes and MAST / D-SPIN, has not been done yet.
+
+**Bottom line.** The microbiome does not rebuild these brain regions; at most it retunes them, and
+the retuning points to one circuit. That is a specific, falsifiable hypothesis, and the next
+experiments test it directly: seqFISH within the network, and gene-level links to MAST, D-SPIN
+and the VR scores.
+
+## Next Steps
+
+- We modelled 244 units at three Allen levels and tested every subpopulation at the animal level.
+  Composition is unchanged. State shifts concentrate in the MeA → BST → medial hypothalamus network
+  (Fig. A), which is now the hypothesis to test.
+- **Validate the leads spatially (highest priority).** Score the identity markers and shifted
+  programs of the ★ leads (MEA-BST Lhx6 Nr2e1, DMH Hmx2) and the medial-hypothalamic Lhx6 / Foxd2
+  GABA leads on the seqFISH data, to locate them anatomically and test the WildR vs SPF difference in
+  an independent modality.
+- **Compare shifted programs, not markers, with MAST / D-SPIN.** For each lead, test whether the
+  genes in the moving oNMF program are enriched among MAST hits and D-SPIN-responsive programs of
+  the same unit. That is the gene-level bridge this report does not yet make.
+- **Link to the VR relay analyses.** Correlate per-animal component state scores of the MeA–BST
+  leads with the VR-1 input/output coupling scores and VR-2 program identity scores.
+- **Firm up the state test.** Add a per-animal depth covariate to the state shift test, and re-run
+  hypothalamic units on decontaminated counts (scCDC / CellBender) to remove the myelin signal.
+- **Sensitivity.** Re-run the leads with `criteria='aic'` and leave-one-animal-out atlases, to
+  confirm no single animal or model-selection choice drives them.
+- **Cell-cap sensitivity.** Eight units were capped at 2,500 nuclei per animal (uniform random
+  within animal, seed 42; 113,769 nuclei not exported):
+  - *class:* AMY 01 IT-ET Glut (34% of nuclei kept), AMY 11 CNU-HYa GABA (98%), HYP 12 HY GABA (61%),
+    HYP 14 HY Glut (63%), HYP 31 OPC-Oligo (79%);
+  - *subclass:* AMY 009 L2/3 IT PIR-ENTl Glut (83%), HYP 327 Oligo NN (89%);
+  - *supertype:* HYP 1184 MOL NN_4 (91%).
+
+  The atlas GMM is fit on at most 1,000 / 700 / 400 nuclei per animal anyway, so the cap mainly
+  limits how many nuclei are assigned when per-animal fractions are estimated. It does not limit
+  model fitting. Uniform within-animal sampling keeps those fractions unbiased, but states below
+  ~1% of a unit get few nuclei. Re-run these eight at 5,000 per animal (AMY 01 IT-ET Glut alone
+  loses two-thirds of its nuclei).
+
+# Code & Provenance {.code-appendix}
+
+All heavy computation runs in scripts and is submitted to SLURM. **None of the chunks below run
+on render**: they are gated on `run_analysis` (set in `setup-display`). To reproduce, run them in
+order with `run_analysis <- TRUE`, or run the commands by hand. Logs and job IDs are in
+[.cluster_runs/popalign/]{.path} (`submissions.log`).
+
+### Run history
+
+| Run | Date | Units | Status |
+|---|---|---|---|
+| `results/` (manifest.csv) | 2026-10-02 | 160 (class, supertype) | **Superseded.** Kept on disk for comparison; do not interpret. |
+| `results_2026-10-04/`, synthesis `run_2026-10-04/` | 2026-10-05 | 244 (class, subclass, supertype) | Superseded synthesis: GO keyed on ambiguous symbols; no contamination flag |
+| `results_2026-10-04/`, synthesis `run_2026-10-04_synth-2026-10-05/` | 2026-10-05 | 244 | **Current** |
+
+**Re-synthesis 2026-10-05 (popAlign runs unchanged).**
+
+1. **Gene identity.** Seurat row names carry a genome tag plus de-duplication suffixes
+   (`Arhgap26-GRCm39-1`). 288 features share a `gene_name` with another Ensembl ID; for example,
+   `Arhgap26-GRCm39-1` is ENSMUSG00000118193, a lncRNA distinct from protein-coding *Arhgap26*.
+   Symbol-based GO therefore conflated distinct genes and dropped suffixed ones. The RNA
+   `meta.features` (`gene_id`, `gene_name`, `gene_type`) was exported to
+   [data/interim/seurat/snRNASeq/seurat_gene_metadata_2026-10-05.csv]{.path}. All 32,684 genes
+   used across the 244 units map 1:1 to Ensembl IDs. GO now runs on `gene_id`
+   (`keyType = "ENSEMBL"`, with each unit's own background), and markers are displayed by
+   `gene_name`.
+2. **Cross-lineage contamination flag.** About 6% of neuronal components (46 / 750) carry
+   another lineage's genes among their top markers, almost all myelin in hypothalamic units (43 of 44
+   myelin flags in neuronal units), and an OPC subclass component had a neuronal signature
+   (*Snhg11, Rian, Syt1, Rbfox3*). This is likely ambient RNA or doublets rather than states. A
+   component is flagged when ≥2 canonical genes of a lineage the unit does not belong to are in
+   its top-50 markers. The lineage sets are oligodendrocyte, OPC, astrocyte, microglia,
+   endothelial and neuronal; the unit's own lineage comes from its Allen name. Flagged components
+   are kept but excluded from microbiome conclusions and the interpretability score. GO on
+   flagged myelin components returns "myelination", which independently supports the flag.
+
+**Why the 2026-10-02 run was superseded.** An audit against the paper and the official tutorial
+(`tutorials/PopAlign_Tutorial_v1.ipynb`), and against that run's own outputs, found:
+
+1. **Forced splits.** The atlas K search started at 2 (supertype) and 3 (class). 127/139 supertype
+   and 9/21 class units sat at that floor, and when K = 1 was allowed, 18 of 40 sampled supertype
+   units preferred it. *Fix: K from 1.*
+2. **Uninformative stability.** Bootstraps reused the same K and scored mutual-best JD matches,
+   which is near-automatic for K = 2 (mean 0.98). *Fix: clusterboot. K is re-selected in each
+   bootstrap, and each component is scored by the Jaccard overlap of its nuclei; ≥ 0.75 = stable.*
+3. **β too low.** The paper and tutorial set β = 1000 because it is *"roughly the median number
+   of total transcript counts in a cell"*. Our nuclei carry about 7–30k (neurons) and 1.3–6k
+   (glia) UMIs, so β = 1000 made the log transform nearly linear. *Fix: β = unit median UMI per
+   nucleus (median 12.6k across units, IQR 9.7–14.9k).*
+4. **oNMF *m* hit the search bound.** The supertype median of 12 was the maximum searched, and
+   class units reached 16, also the maximum. *Fix: m ∈ 6–24 / 4–22 / 4–20 (class / subclass /
+   supertype); hitting a bound is now recorded per unit.*
+5. **Depth.** WildR vs SPF depth differs by about 5% within tissue, and some class components
+   tracked depth (up to 57% of log-UMI variance). *Fix: per-nucleus depth is recorded and
+   components with |Δ log10 UMI| ≥ 0.1 are flagged. A flagged component's abundance shift must
+   survive a depth-adjusted quasi-binomial GLM (per-animal median depth covariate), and any hit
+   requires a robust component.*
+6. **Markers favoured broadly expressed long genes.** 375/396 components fell into 14 generic
+   meta-programs. *Fix: candidates need log2FC ≥ 0.5, Δ expressing fraction ≥ 0.05 and
+   pct ≥ 0.10, ranked by AUC (≥ 0.6).*
+7. **Redundant K = 2 tests.** *Fix: only the minority component is tested; a unit omnibus test is
+   added.*
+8. **Power ceiling not stated.** *Fix: the minimum attainable p is shown; complete separation and
+   effect size are reported; a quasi-binomial GLM gives continuous p as a secondary test.*
+9. **Atlas pools equalised to the smallest animal** (312–582 nuclei for 12-D full-covariance
+   GMMs). *Fix: cap each animal (1,000 / 700 / 400) without equalising; the 6 vs 6 design keeps
+   groups balanced.*
+
+The audit also found that popAlign's `JeffreyDiv` returns **log10** JD (negative = JD < 1). The
+synthesis now handles that scale correctly.
+
+**Checked and unchanged.**
+
+- *Inputs:* raw integer counts; barcode and metadata order verified; mt-/Rpl/Rps removed upstream,
+  because popAlign's prefix filter is human-only and `load_genes` upper-cases symbols (original
+  case is restored on output).
+- *Inclusion and cap:* ≥25 nuclei per animal; 2,500 per-animal cap; balanced sub-libraries.
+- *Gene filter:* supra-Poisson CV filter with offset 1.0 (the tutorial uses 1.3; the paper does
+  not specify), unaffected by β.
+- *Model fitting:* oNMF training cells and `choose_featureset(alpha=3, multiplier=3)` as in the
+  tutorial; held-out BIC; covariance regularisation = popAlign default (top program variance /
+  100).
+- *Reproducibility:* popAlign's per-animal GMMs reseed from entropy (`np.random.seed()` inside
+  `build_single_GMM`), so the native alignment and Δ outputs are not bit-reproducible. The
+  primary atlas analysis is seeded.
+
+**Environment.** popAlign is the lab fork `jboktor/popalign` at commit `d9a0c1a`, cloned at
+[/resnick/groups/mthomson/jboktor/spatial_genomics/popalign]{.path}. Jobs put it on `PYTHONPATH`
+in a dedicated `popalign` conda env (Python 3.9). The runner works around three
+environment issues without editing popAlign:
+
+- forked Pool workers hang, so the runner uses a forkserver Pool;
+- matplotlib ≥ 3.9 renamed `legendHandles`, so the runner adds an alias;
+- `rank()` fails on animals below `mincells`, so the runner sets `mincells` below the smallest
+  animal.
+
+R steps use the `spatialomics` env.
+
+```{r}
+#| label: cell-env
+#| eval: !expr run_analysis
+# One-time: create the popalign env (additive; does not modify spatialomics)
+system(glue("bash {wkdir}/notebooks/shell_scripts/setup_popalign_env.sh"))
+```
+
+```{r}
+#| label: cell-manifest
+#| eval: !expr run_analysis
+# Step 1 — unit manifest (light, runs directly) → manifest_2026-10-04.csv (244 units)
+rscript <- "/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript"
+system(glue("{rscript} {wkdir}/notebooks/R_scripts/export_popalign_inputs_sn.R --mode manifest --run-tag {run_tag}"))
+```
+
+```{r}
+#| label: cell-submit
+#| eval: !expr run_analysis
+# Steps 2–4 — chained SLURM submission: export (missing inputs only) → popAlign array → synthesis
+sb <- function(cmd) {
+  out <- system(glue("cd {wkdir} && {cmd}"), intern = TRUE)
+  message(out); sub(".*?([0-9]+).*", "\\1", tail(out, 1))
+}
+man_rel <- glue("data/interim/popalign/snRNASeq/manifest_{run_tag}.csv")
+n_task <- nrow(read_csv(file.path(wkdir, man_rel), show_col_types = FALSE))
+j_export <- sb(glue("sbatch --parsable notebooks/shell_scripts/run_popalign_export_sn.sh {run_tag}"))
+j_array <- sb(glue("sbatch --parsable --array=0-{n_task - 1}%40 --dependency=afterok:{j_export} ",
+                   "notebooks/shell_scripts/run_popalign_array_sn.sh {man_rel}"))
+j_synth <- sb(glue("sbatch --parsable --dependency=afterany:{j_array} ",
+                   "notebooks/shell_scripts/run_popalign_synthesis_sn.sh --run-tag {run_tag}"))
+tibble(step = c("export", "popalign_array", "synthesis"), job_id = c(j_export, j_array, j_synth))
+# Run 2026-10-04 as actually submitted: see .cluster_runs/popalign/submissions.log
+```
+
+```{r}
+#| label: cell-gene-metadata
+#| eval: !expr run_analysis
+# Seurat RNA feature metadata → gene map used for Ensembl-keyed GO (400 GB, ~2 min)
+system(glue("sbatch {wkdir}/notebooks/shell_scripts/run_export_seurat_gene_metadata_sn.sh"))
+```
+
+```{r}
+#| label: cell-synthesis
+#| eval: !expr run_analysis
+# Step 4 (re-run by hand, e.g. after re-running failed units). Writes every figure/table above.
+# Each re-synthesis gets its own --synth-tag so earlier synthesis outputs are never overwritten.
+system(glue("sbatch {wkdir}/notebooks/shell_scripts/run_popalign_synthesis_sn.sh --run-tag {run_tag} --synth-tag {synth_tag}"))
+# quicker re-run that reuses the cached GO results:
+# system(glue("sbatch {wkdir}/notebooks/shell_scripts/run_popalign_synthesis_sn.sh --run-tag {run_tag} --skip-go"))
+```
+
+```{r}
+#| label: cell-report-assets
+#| eval: !expr run_analysis
+# Report assets (light, runs directly, seconds): follow-up leads table, meta-program summary,
+# spaced meta-program heatmap → written into the synthesis' own tables/figures folders.
+rscript <- "/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript"
+system(glue("{rscript} {wkdir}/notebooks/R_scripts/build_popalign_report_assets_sn.R --run-tag {run_tag} --synth-tag {synth_tag}"))
+```
+
+### Script record
+
+The scripts are reproduced here so this notebook is a complete record (display only).
+
+```{r}
+#| label: src-export
+#| eval: false
+#| file: R_scripts/export_popalign_inputs_sn.R
+```
+
+```{python}
+#| label: src-run-unit
+#| eval: false
+#| file: python_scripts/popalign_run_unit_sn.py
+```
+
+```{r}
+#| label: src-helpers
+#| eval: false
+#| file: R_scripts/popalign_sn_helpers.R
+```
+
+```{r}
+#| label: src-synthesis
+#| eval: false
+#| file: R_scripts/run_popalign_synthesis_sn.R
+```
+
+```{r}
+#| label: src-report-assets
+#| eval: false
+#| file: R_scripts/build_popalign_report_assets_sn.R
+```
+
+```{bash}
+#| label: src-array
+#| eval: false
+#| file: shell_scripts/run_popalign_array_sn.sh
+```

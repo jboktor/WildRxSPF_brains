@@ -1,0 +1,496 @@
+---
+title: "VR-4: What Drives the Relay Transcriptionally?"
+subtitle: "Zbtb16 resolution, relay-regulon scan, two-limb contrast, RA module — pySCENIC"
+date: today
+author: "Joe Boktor"
+categories: [snRNA-seq, SCENIC, Relay, VR-4]
+format:
+  html:
+    theme:
+      - cosmo
+      - ../quarto-aesthetic-kit/theme/aesthetic.scss
+    include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    page-layout: article
+    code-fold: true
+    code-tools: true
+    code-copy: true
+    embed-resources: true
+    fig-cap-location: bottom
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: auto
+---
+
+```{r}
+#| label: setup-display
+#| include: false
+
+# Prefer running step 1 (Zbtb16 resolution) first — cheapest, largest branch.
+run_analysis <- FALSE
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(readr)
+  library(knitr)
+  library(glue)
+})
+
+wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
+# Repo layout: tables + markdown result notes → tables/VR/VR4; figures → figures/VR/VR4
+out_dir <- file.path(wkdir, "tables/VR/VR4")
+fig_dir <- file.path(wkdir, "figures/VR/VR4")
+tbl_dir <- out_dir
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(tbl_dir, recursive = TRUE, showWarnings = FALSE)
+
+zbtb_md <- file.path(out_dir, "VR4_zbtb16_resolution.md")
+zbtb_csv <- file.path(tbl_dir, "VR4_zbtb16_supertype_test.csv")
+scan_csv <- file.path(tbl_dir, "VR4_relay_regulon_scan.csv")
+limb_csv <- file.path(tbl_dir, "VR4_two_limb_contrast.csv")
+ra_md <- file.path(out_dir, "VR4_ra_module.md")
+has_zbtb <- file.exists(zbtb_md)
+```
+
+# VR-4: What Drives the Relay Transcriptionally?
+
+## Overview
+
+This notebook resolves why `Zbtb16`/PLZF is absent from pySCENIC summaries, tests whether any called regulon tracks the olfactory–amygdalar chemosensory relay along chain positions 1–4, looks for opposite-direction regulons across glutamatergic input vs GABAergic output limbs, and scores a retinoic-acid target module. AUCell is never pooled raw across tissue×class runs.
+
+```{r}
+#| label: display-stats
+#| echo: false
+#| results: asis
+
+if (has_zbtb) {
+  first <- readLines(zbtb_md, warn = FALSE)[1:min(8, length(readLines(zbtb_md, warn = FALSE)))]
+  cat("::: {.stat-row}\n")
+  cat("::: {.stat}\n[step 1]{.stat-value}\n[Zbtb16 case]{.stat-label}\n:::\n")
+  cat("::: {.stat}\n[09/11/13]{.stat-value}\n[AMY classes checked]{.stat-label}\n:::\n")
+  cat(":::\n")
+} else {
+  cat("::: {.callout-note}\n**Artifacts not yet computed.** Inventory pre-check found `Zbtb16` **not** called as a TF in AMY CLAS_09/11/13 AUC matrices (likely case **a**). Confirm by setting `run_analysis <- TRUE`. [`analysis_md/00_input_inventory.md`]{.path}\n:::\n")
+}
+```
+
+## Background
+
+`Zbtb16` was the most attractive master-regulator hypothesis and is missing from SCENIC hit tables. Absence can mean (a) never called, (b) called but not class-significant, or (c) called and significant but missed in summaries — with very different consequences. Independently, an unbiased relay-regulon scan asks which TFs, if any, show a monotone gradient along the chain after adjusting for `n_cells` and median UMI.
+
+## Results
+
+### Zbtb16 resolution (step 1 — run first)
+
+```{r}
+#| label: display-zbtb
+#| echo: false
+#| results: asis
+#| eval: !expr file.exists(zbtb_md)
+
+cat(paste(readLines(zbtb_md, warn = FALSE), collapse = "\n"))
+```
+
+[Source: cell `cell-tbl-zbtb`](#cell-tbl-zbtb){.provenance} · [tables/VR/VR4/VR4_zbtb16_resolution.md]{.path}
+
+```{r}
+#| label: display-zbtb-csv
+#| echo: false
+#| eval: !expr file.exists(zbtb_csv)
+
+read_csv(zbtb_csv, show_col_types = FALSE) %>%
+  knitr::kable(digits = 3, caption = "Per-animal AUCell means for Zbtb16(+) in MeA/COAp (only if regulon was called).")
+```
+
+:::: {.section-rule}
+::::
+
+### Relay-regulon scan and two-limb contrast
+
+```{r}
+#| label: display-scan
+#| echo: false
+#| eval: !expr file.exists(scan_csv)
+
+read_csv(scan_csv, show_col_types = FALSE) %>%
+  arrange(rank_adj) %>%
+  head(20) %>%
+  knitr::kable(digits = 3, caption = "Top 20 regulons by adjusted relay-gradient slope (effect size + CI). Full table on disk.")
+```
+
+Full scan: [tables/VR/VR4/VR4_relay_regulon_scan.csv]{.path}
+
+[Source: cell `cell-tbl-scan`](#cell-tbl-scan){.provenance}
+
+```{r}
+#| label: display-limb
+#| echo: false
+#| eval: !expr file.exists(limb_csv)
+
+read_csv(limb_csv, show_col_types = FALSE) %>%
+  knitr::kable(digits = 3, caption = "Top-20 regulons: WildR−SPF direction in glut input limb (pos 2–3) vs GABA output limb (3G). Opposite directions are flagged.")
+```
+
+[Source: cell `cell-tbl-limb`](#cell-tbl-limb){.provenance}
+
+:::: {.section-rule}
+::::
+
+### Retinoic-acid module
+
+```{r}
+#| label: display-ra
+#| echo: false
+#| results: asis
+#| eval: !expr file.exists(ra_md)
+
+cat(paste(readLines(ra_md, warn = FALSE), collapse = "\n"))
+```
+
+[Source: cell `cell-tbl-ra`](#cell-tbl-ra){.provenance}
+
+::: {.callout-note}
+`Cyp26b1` already appears in the MAST catalogue and as a D-SPIN star program at `0368 CEA-BST Six3 Cyp26b1 Gaba_2`. Coherent RA-module movement keeps a gut-to-brain retinoid route alive even if `Zbtb16` fails.
+:::
+
+## Next Steps
+
+- **Done:** wired pre-filter `regulons.csv` + `auc_mtx.csv` for AMY classes 09/11/13 with within-class z-scoring.
+- Run step 1 immediately; if case (a), stop treating SCENIC absence as evidence against `Zbtb16` and shift thread-1 weight to `Eps8l1`.
+- Any opposite-direction two-limb regulon becomes the transcriptional headline ahead of `Zbtb16`.
+- Report ranks of `Mllt10` and `Ube2k` on the relay gradient specifically.
+
+# Code & Provenance {.code-appendix}
+
+```{r}
+#| label: setup
+#| eval: !expr run_analysis
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(glue)
+  library(data.table)
+})
+source(file.path(wkdir, "notebooks/R_scripts/vr_relay_helpers.R"))
+paths <- vr_paths(wkdir)
+
+amy_classes <- c(
+  "09" = "snRNASeq_AMY_CS20230722_CLAS_09",
+  "11" = "snRNASeq_AMY_CS20230722_CLAS_11",
+  "13" = "snRNASeq_AMY_CS20230722_CLAS_13"
+)
+```
+
+```{r}
+#| label: cell-tbl-zbtb
+#| eval: !expr run_analysis
+
+parse_regulon_tfs <- function(regulons_csv) {
+  # pySCENIC ctx export: rows after header; TF in first column
+  raw <- readLines(regulons_csv, warn = FALSE)
+  # Find data rows where first field looks like a TF symbol
+  tfs <- character()
+  for (ln in raw) {
+    fields <- strsplit(ln, ",", fixed = TRUE)[[1]]
+    if (!length(fields)) next
+    tf <- fields[[1]]
+    if (grepl("^[A-Za-z][A-Za-z0-9]+$", tf) && !tf %in% c("TF", "MotifID")) {
+      tfs <- c(tfs, tf)
+    }
+  }
+  unique(tfs)
+}
+
+auc_has_tf <- function(auc_csv, tf = "Zbtb16") {
+  hdr <- strsplit(readLines(auc_csv, n = 1), ",", fixed = TRUE)[[1]]
+  any(grepl(paste0("^", tf, "\\(\\+\\)$"), hdr))
+}
+
+cases <- lapply(names(amy_classes), function(cl) {
+  d <- file.path(paths$scenic_by_class, amy_classes[[cl]])
+  reg <- file.path(d, "regulons.csv")
+  auc <- file.path(d, "auc_mtx.csv")
+  diff <- file.path(d, "diff_regulons_WildR_vs_SPF.csv")
+  tfs <- if (file.exists(reg)) parse_regulon_tfs(reg) else character()
+  called <- "Zbtb16" %in% tfs
+  in_auc <- file.exists(auc) && auc_has_tf(auc, "Zbtb16")
+  sig <- FALSE
+  if (file.exists(diff)) {
+    dr <- read_csv(diff, show_col_types = FALSE)
+    rcol <- intersect(names(dr), c("regulon", "Regulon", "tf"))[1]
+    pcol <- intersect(names(dr), c("padj", "p_adj", "fdr"))[1]
+    if (!is.na(rcol)) {
+      hit <- grepl("Zbtb16", dr[[rcol]])
+      if (any(hit) && !is.na(pcol)) sig <- any(dr[[pcol]][hit] < 0.05, na.rm = TRUE)
+      if (any(hit) && is.na(pcol)) sig <- TRUE
+    }
+  }
+  tibble(class = cl, dir = amy_classes[[cl]], called = called, in_auc = in_auc, class_significant = sig)
+}) %>% bind_rows()
+
+# Decision: (a) never called; (b) called not sig; (c) called and sig
+overall <- if (!any(cases$called) && !any(cases$in_auc)) {
+  "a"
+} else if (any(cases$called | cases$in_auc) && !any(cases$class_significant)) {
+  "b"
+} else {
+  "c"
+}
+
+case_sentence <- switch(
+  overall,
+  a = "**Case (a): Regulon never called** in AMY classes 09 CNU-LGE GABA, 11 CNU-HYa GABA, or 13 CNU-HYa Glut — motif enrichment did not yield a `Zbtb16(+)` regulon, so SCENIC absence carries **no information** about activity; `Zbtb16` reverts to a plain DE hit.",
+  b = "**Case (b): Regulon called but not significant at class level** — proceed to supertype-resolution AUCell test in MeA/COAp.",
+  c = "**Case (c): Regulon called and significant at class level** — prior summary was resolution-limited; still run supertype test."
+)
+
+lines <- c(
+  case_sentence,
+  "",
+  "## Evidence by class",
+  "",
+  paste(capture.output(print(cases)), collapse = "\n"),
+  "",
+  "## Implication",
+  if (overall == "a") {
+    "- Do **not** report SCENIC absence as evidence against the TF hypothesis. Elevate `Eps8l1` as the primary thread-1 signal pending other support."
+  } else {
+    "- See `VR4_zbtb16_supertype_test.csv` for per-animal MeA/COAp AUCell contrast."
+  },
+  ""
+)
+write_md(zbtb_md, lines)
+
+# Supertype test only if called
+if (overall %in% c("b", "c")) {
+  cell_meta <- read_csv(paths$scenic_cell_meta, show_col_types = FALSE) %>%
+    mutate(
+      cell_id = as.character(cell_id),
+      animal = gsub("_(AMY|HYP)$", "", sample),
+      group = microbiome,
+      chain_position = assign_chain_position(supertype_name)
+    )
+  # Load AUC from classes that have Zbtb16(+)
+  auc_rows <- list()
+  for (i in seq_len(nrow(cases))) {
+    if (!isTRUE(cases$in_auc[i])) next
+    auc <- fread(file.path(paths$scenic_by_class, cases$dir[i], "auc_mtx.csv"))
+    zcol <- grep("^Zbtb16\\(\\+\\)$", names(auc), value = TRUE)[1]
+    auc_rows[[length(auc_rows) + 1]] <- tibble(
+      cell_id = as.character(auc[[1]]),
+      auc = as.numeric(auc[[zcol]]),
+      class = cases$class[i]
+    )
+  }
+  if (length(auc_rows)) {
+    aa <- bind_rows(auc_rows) %>%
+      inner_join(cell_meta, by = "cell_id") %>%
+      filter(tissue == "AMY", grepl("MEA|COAp", supertype_name)) %>%
+      # z within class
+      group_by(class) %>%
+      mutate(auc_z = as.numeric(scale(auc))) %>%
+      ungroup() %>%
+      group_by(animal, group) %>%
+      summarise(auc_mean = mean(auc_z, na.rm = TRUE), n_cells = n(), .groups = "drop")
+    cd <- cliffs_delta(aa$auc_mean[aa$group == "WildR"], aa$auc_mean[aa$group == "SPF"])
+    sep <- complete_separation(aa$auc_mean, aa$group)
+    aa$cliff_delta <- cd$delta
+    aa$cliff_ci_low <- cd$ci_low
+    aa$cliff_ci_high <- cd$ci_high
+    aa$n_wildr_exceed_all_spf <- sep$n_exceed_all
+    write_csv(aa, zbtb_csv)
+  }
+} else {
+  write_csv(tibble(note = "Zbtb16 regulon not called; supertype AUCell test not applicable"), zbtb_csv)
+}
+```
+
+```{r}
+#| label: cell-tbl-scan
+#| eval: !expr run_analysis
+
+cell_meta <- read_csv(paths$scenic_cell_meta, show_col_types = FALSE) %>%
+  mutate(
+    cell_id = as.character(cell_id),
+    animal = gsub("_(AMY|HYP)$", "", sample),
+    group = microbiome,
+    chain_position = assign_chain_position(supertype_name)
+  )
+
+# Per-class AUCell → within-class z → per-animal × chain-position means
+load_class_auc_long <- function(class_dir, class_id) {
+  auc_f <- file.path(paths$scenic_by_class, class_dir, "auc_mtx.csv")
+  if (!file.exists(auc_f)) return(NULL)
+  auc <- fread(auc_f)
+  cell <- as.character(auc[[1]])
+  mat <- as.matrix(auc[, -1])
+  # z-score each regulon across cells in this class
+  mat_z <- scale(mat)
+  colnames(mat_z) <- colnames(mat)
+  as_tibble(mat_z) %>%
+    mutate(cell_id = cell, class = class_id) %>%
+    pivot_longer(-c(cell_id, class), names_to = "regulon", values_to = "auc_z")
+}
+
+auc_long <- bind_rows(lapply(names(amy_classes), function(cl) {
+  load_class_auc_long(amy_classes[[cl]], cl)
+}))
+
+joined <- auc_long %>%
+  inner_join(cell_meta %>% select(cell_id, animal, group, tissue, supertype_name,
+                                  chain_position), by = "cell_id") %>%
+  filter(tissue == "AMY", chain_position %in% c("1", "2", "3", "4", "3G"))
+
+# Covariates per animal × position
+covar <- joined %>%
+  distinct(cell_id, animal, chain_position, .keep_all = TRUE) %>%
+  count(animal, chain_position, name = "n_cells")
+
+# Per-animal mean AUCell by position (positions 1–4 for gradient)
+anim_pos <- joined %>%
+  filter(chain_position %in% c("1", "2", "3", "4")) %>%
+  group_by(regulon, animal, group, chain_position) %>%
+  summarise(auc = mean(auc_z, na.rm = TRUE), .groups = "drop") %>%
+  mutate(pos = as.integer(chain_position)) %>%
+  left_join(covar, by = c("animal", "chain_position"))
+
+# WildR − SPF difference per regulon × position, then regress on position
+grad <- anim_pos %>%
+  group_by(regulon, pos, chain_position) %>%
+  summarise(
+    delta = mean(auc[group == "WildR"], na.rm = TRUE) - mean(auc[group == "SPF"], na.rm = TRUE),
+    med_n = median(n_cells, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+fit_slope <- function(df, adjusted = FALSE) {
+  if (nrow(df) < 3) return(tibble(slope = NA_real_, ci_low = NA_real_, ci_high = NA_real_))
+  if (adjusted) {
+    fit <- tryCatch(lm(delta ~ pos + med_n, data = df), error = function(e) NULL)
+  } else {
+    fit <- tryCatch(lm(delta ~ pos, data = df), error = function(e) NULL)
+  }
+  if (is.null(fit)) return(tibble(slope = NA_real_, ci_low = NA_real_, ci_high = NA_real_))
+  cf <- suppressWarnings(confint(fit))
+  tibble(
+    slope = unname(coef(fit)[["pos"]]),
+    ci_low = unname(cf["pos", 1]),
+    ci_high = unname(cf["pos", 2])
+  )
+}
+
+scan <- grad %>%
+  group_by(regulon) %>%
+  group_modify(~ {
+    u <- fit_slope(.x, FALSE)
+    a <- fit_slope(.x, TRUE)
+    tibble(
+      slope = u$slope, ci_low = u$ci_low, ci_high = u$ci_high,
+      slope_adj = a$slope, ci_low_adj = a$ci_low, ci_high_adj = a$ci_high
+    )
+  }) %>%
+  ungroup() %>%
+  mutate(
+    abs_adj = abs(slope_adj),
+    rank_adj = dense_rank(desc(abs_adj))
+  ) %>%
+  arrange(rank_adj)
+
+write_csv(scan, scan_csv)
+
+# Sanity: Mllt10 / Ube2k ranks
+focal <- scan %>%
+  filter(grepl("Mllt10|Ube2k", regulon)) %>%
+  select(regulon, rank_adj, slope_adj, ci_low_adj, ci_high_adj)
+write_csv(focal, file.path(tbl_dir, "VR4_recurrent_tf_ranks.csv"))
+```
+
+```{r}
+#| label: cell-tbl-limb
+#| eval: !expr run_analysis
+
+top20 <- scan %>% filter(rank_adj <= 20) %>% pull(regulon)
+
+limb <- joined %>%
+  filter(regulon %in% top20) %>%
+  mutate(limb = case_when(
+    chain_position %in% c("2", "3") ~ "input_glut",
+    chain_position == "3G" ~ "output_gaba",
+    TRUE ~ NA_character_
+  )) %>%
+  filter(!is.na(limb)) %>%
+  group_by(regulon, animal, group, limb) %>%
+  summarise(auc = mean(auc_z, na.rm = TRUE), .groups = "drop") %>%
+  group_by(regulon, limb) %>%
+  summarise(
+    delta = mean(auc[group == "WildR"], na.rm = TRUE) - mean(auc[group == "SPF"], na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_wider(names_from = limb, values_from = delta) %>%
+  mutate(
+    opposite_direction = !is.na(input_glut) & !is.na(output_gaba) &
+      (sign(input_glut) != sign(output_gaba)) & abs(input_glut) > 0 & abs(output_gaba) > 0
+  ) %>%
+  arrange(desc(opposite_direction), regulon)
+
+write_csv(limb, limb_csv)
+```
+
+```{r}
+#| label: cell-tbl-ra
+#| eval: !expr run_analysis
+
+ra_genes <- c("Rarb", "Crabp1", "Crabp2", "Dhrs3", "Rbp1", "Cyp26b1")
+# Score via glut+gaba relay h5ads (Python subprocess — reticulate broken here)
+relay_labels <- c(
+  "CS20230722_SUPT_0039", "CS20230722_SUPT_0040", "CS20230722_SUPT_0041",
+  "CS20230722_SUPT_0042", "CS20230722_SUPT_0055", "CS20230722_SUPT_0056",
+  "CS20230722_SUPT_0057", "CS20230722_SUPT_0058", "CS20230722_SUPT_0061",
+  "CS20230722_SUPT_0338", "CS20230722_SUPT_0355", "CS20230722_SUPT_0359",
+  "CS20230722_SUPT_0507"
+)
+
+ra_cell <- bind_rows(lapply(relay_labels, function(lab) {
+  df <- score_unit_via_python(lab, ra_genes, character(), paths = paths)
+  if (is.null(df)) return(NULL)
+  df %>%
+    mutate(
+      ra_score = score_pos_only,
+      genes_used = length(ra_genes)
+    )
+}))
+
+ra_animal <- ra_cell %>%
+  group_by(animal, group) %>%
+  summarise(ra_score = mean(ra_score, na.rm = TRUE), n_cells = n(),
+            genes_used = max(genes_used), .groups = "drop")
+
+cd <- cliffs_delta(ra_animal$ra_score[ra_animal$group == "WildR"],
+                   ra_animal$ra_score[ra_animal$group == "SPF"])
+sep <- complete_separation(ra_animal$ra_score, ra_animal$group)
+wx <- wilcox.test(ra_score ~ group, data = ra_animal, exact = FALSE)
+
+write_csv(ra_animal, file.path(tbl_dir, "VR4_ra_per_animal.csv"))
+lines <- c(
+  "# VR-4 retinoic-acid module",
+  "",
+  sprintf("- Genes scored: %s (intersection with expressed panel per unit).", paste(ra_genes, collapse = ", ")),
+  sprintf("- Cliff's δ (WildR vs SPF): **%.3f** (95%% CI %.3f – %.3f).", cd$delta, cd$ci_low, cd$ci_high),
+  sprintf("- Per-animal separation: %d / %d WildR exceed all SPF.", sep$n_exceed_all, sep$n_hi),
+  sprintf("- Wilcoxon p (not headline): %.4g.", wx$p.value),
+  "",
+  "- Note: `Cyp26b1` is also a MAST hit and D-SPIN star program at `0368 CEA-BST Six3 Cyp26b1 Gaba_2`.",
+  "",
+  "Per-animal scores: `tables/VR4_ra_per_animal.csv`.",
+  ""
+)
+write_md(ra_md, lines)
+```

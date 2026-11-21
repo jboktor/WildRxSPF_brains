@@ -1,0 +1,2 @@
+n_units,n_programs,n_q_prog_lt_0.1,n_q_unit_lt_0.1,n_unit_p_lt_0.05,n_leads,n_lead_units,median_abs_h_ratio,frac_units_WildR_gt_SPF,paired_wilcox_p_absh,median_abs_h_ratio_loo,frac_units_WildR_gt_SPF_loo,paired_wilcox_p_absh_loo,spearman_rho_absh_vs_cells,spearman_p_absh_vs_cells,n_programs_with_go,n_leads_mast_agree,n_leads_with_mast
+140,2800,0,0,3,13,13,1.0932852324988533,0.7428571428571429,9.931401071126003e-11,0.9054951193967155,0.25,7.675142953500422e-12,-0.7848377800436396,1.8017290018796055e-30,472,0,0

@@ -1,0 +1,7 @@
+Level,Tissue,GRNs,Median nuclei,GRNs at 6 vs 6,Median regulons,Tests,p < 0.05,Expected (5%),Permutation median,Permutation p (excess),Complete separation (6 vs 6),Expected separations,FDR < 0.10 (split),FDR < 0.10 (global)
+class,AMY,19,2163,13,182,2795,63,140,114,1,0,4,1,0
+class,HYP,16,3182,13,156,2349,80,117,102,0.84,4,4,2,0
+subclass,AMY,58,1312,48,186,9454,339,473,392,0.76,14,17,4,0
+subclass,HYP,79,1444,60,193,13599,511,680,608,0.88,14,21,4,0
+supertype,AMY,153,532,112,208,28222,1008,1411,1200,0.87,32,44,6,0
+supertype,HYP,211,460,134,215,43660,1804,2183,1938,0.78,39,60,25,0

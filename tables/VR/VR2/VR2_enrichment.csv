@@ -1,0 +1,6 @@
+category,n_in_union,category_size,union_size,background_size,background,hypergeom_p,enrichment
+gaba_identity,0,0,15,266,genes in any program of 0338/0355/0359 units,NA,0
+gaba_a_receptor,0,2,15,266,genes in any program of 0338/0355/0359 units,1,0
+synaptic_organisers,1,4,15,266,genes in any program of 0338/0355/0359 units,0.20826914183305356,4.433333333333334
+neuropeptides,0,0,15,266,genes in any program of 0338/0355/0359 units,NA,0
+axon_guidance,0,4,15,266,genes in any program of 0338/0355/0359 units,1,0

@@ -1,0 +1,58 @@
+modality,stratum,level,cell_type,n_rep_SPF,n_rep_WildR
+SN,SN AMY,class,01 IT-ET Glut,6,6
+SN,SN AMY,class,02 NP-CT-L6b Glut,6,6
+SN,SN AMY,class,03 OB-CR Glut,3,4
+SN,SN AMY,class,04 DG-IMN Glut,6,6
+SN,SN AMY,class,06 CTX-CGE GABA,6,6
+SN,SN AMY,class,07 CTX-MGE GABA,6,6
+SN,SN AMY,class,08 CNU-MGE GABA,6,6
+SN,SN AMY,class,09 CNU-LGE GABA,6,6
+SN,SN AMY,class,11 CNU-HYa GABA,6,6
+SN,SN AMY,class,13 CNU-HYa Glut,6,6
+SN,SN AMY,class,24 MY Glut,6,5
+SN,SN AMY,class,30 Astro-Epen,6,6
+SN,SN AMY,class,31 OPC-Oligo,6,6
+SN,SN AMY,class,33 Vascular,4,5
+SN,SN AMY,class,34 Immune,5,4
+SN,SN HYP,class,08 CNU-MGE GABA,6,6
+SN,SN HYP,class,09 CNU-LGE GABA,5,3
+SN,SN HYP,class,11 CNU-HYa GABA,6,6
+SN,SN HYP,class,12 HY GABA,6,6
+SN,SN HYP,class,13 CNU-HYa Glut,6,6
+SN,SN HYP,class,14 HY Glut,6,6
+SN,SN HYP,class,16 HY MM Glut,5,5
+SN,SN HYP,class,18 TH Glut,5,6
+SN,SN HYP,class,19 MB Glut,6,6
+SN,SN HYP,class,20 MB GABA,6,6
+SN,SN HYP,class,24 MY Glut,6,6
+SN,SN HYP,class,30 Astro-Epen,6,6
+SN,SN HYP,class,31 OPC-Oligo,6,6
+SN,SN HYP,class,33 Vascular,6,5
+SN,SN HYP,class,34 Immune,6,6
+seqFISH,seqFISH,class,01 IT-ET Glut,8,8
+seqFISH,seqFISH,class,02 NP-CT-L6b Glut,8,8
+seqFISH,seqFISH,class,03 OB-CR Glut,8,8
+seqFISH,seqFISH,class,04 DG-IMN Glut,8,8
+seqFISH,seqFISH,class,05 OB-IMN GABA,8,8
+seqFISH,seqFISH,class,06 CTX-CGE GABA,8,8
+seqFISH,seqFISH,class,07 CTX-MGE GABA,8,8
+seqFISH,seqFISH,class,08 CNU-MGE GABA,8,8
+seqFISH,seqFISH,class,09 CNU-LGE GABA,8,8
+seqFISH,seqFISH,class,10 LSX GABA,5,5
+seqFISH,seqFISH,class,11 CNU-HYa GABA,8,8
+seqFISH,seqFISH,class,12 HY GABA,8,8
+seqFISH,seqFISH,class,13 CNU-HYa Glut,8,8
+seqFISH,seqFISH,class,14 HY Glut,8,8
+seqFISH,seqFISH,class,17 MH-LH Glut,7,6
+seqFISH,seqFISH,class,18 TH Glut,8,8
+seqFISH,seqFISH,class,19 MB Glut,8,8
+seqFISH,seqFISH,class,20 MB GABA,8,8
+seqFISH,seqFISH,class,23 P Glut,6,5
+seqFISH,seqFISH,class,24 MY Glut,8,8
+seqFISH,seqFISH,class,26 P GABA,7,7
+seqFISH,seqFISH,class,27 MY GABA,8,8
+seqFISH,seqFISH,class,28 CB GABA,8,8
+seqFISH,seqFISH,class,30 Astro-Epen,8,8
+seqFISH,seqFISH,class,31 OPC-Oligo,8,8
+seqFISH,seqFISH,class,33 Vascular,8,8
+seqFISH,seqFISH,class,34 Immune,8,8

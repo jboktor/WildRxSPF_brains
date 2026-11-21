@@ -1,0 +1,577 @@
+modality,stratum,level,cell_type,n_rep_SPF,n_rep_WildR
+SN,SN AMY,cluster,0002 CLA-EPd-CTX Car3 Glut_1,4,6
+SN,SN AMY,cluster,0003 CLA-EPd-CTX Car3 Glut_1,3,4
+SN,SN AMY,cluster,0007 IT EP-CLA Glut_1,6,6
+SN,SN AMY,cluster,0017 IT EP-CLA Glut_2,6,6
+SN,SN AMY,cluster,0018 IT EP-CLA Glut_3,5,4
+SN,SN AMY,cluster,0128 L2/3 IT ENT Glut_3,6,4
+SN,SN AMY,cluster,0136 L2/3 IT ENT Glut_6,6,6
+SN,SN AMY,cluster,0138 L2/3 IT PIR-ENTl Glut_1,6,6
+SN,SN AMY,cluster,0139 L2/3 IT PIR-ENTl Glut_1,6,6
+SN,SN AMY,cluster,0140 L2/3 IT PIR-ENTl Glut_1,6,6
+SN,SN AMY,cluster,0141 L2/3 IT PIR-ENTl Glut_1,6,6
+SN,SN AMY,cluster,0142 L2/3 IT PIR-ENTl Glut_1,6,6
+SN,SN AMY,cluster,0143 L2/3 IT PIR-ENTl Glut_1,6,6
+SN,SN AMY,cluster,0145 L2/3 IT PIR-ENTl Glut_2,6,6
+SN,SN AMY,cluster,0147 L2/3 IT PIR-ENTl Glut_2,6,6
+SN,SN AMY,cluster,0149 L2/3 IT PIR-ENTl Glut_3,4,6
+SN,SN AMY,cluster,0152 L2/3 IT PIR-ENTl Glut_3,6,6
+SN,SN AMY,cluster,0156 L2/3 IT PIR-ENTl Glut_4,6,6
+SN,SN AMY,cluster,0157 L2/3 IT PIR-ENTl Glut_4,6,6
+SN,SN AMY,cluster,0159 L2/3 IT PIR-ENTl Glut_4,6,6
+SN,SN AMY,cluster,0160 L2/3 IT PIR-ENTl Glut_4,6,6
+SN,SN AMY,cluster,0163 L2/3 IT PIR-ENTl Glut_6,3,3
+SN,SN AMY,cluster,0165 L2/3 IT PIR-ENTl Glut_7,4,4
+SN,SN AMY,cluster,0168 IT AON-TT-DP Glut_1,4,6
+SN,SN AMY,cluster,0192 MEA Slc17a7 Glut_1,6,4
+SN,SN AMY,cluster,0193 MEA Slc17a7 Glut_1,6,6
+SN,SN AMY,cluster,0194 MEA Slc17a7 Glut_1,6,6
+SN,SN AMY,cluster,0195 MEA Slc17a7 Glut_1,6,6
+SN,SN AMY,cluster,0196 MEA Slc17a7 Glut_1,6,6
+SN,SN AMY,cluster,0197 MEA Slc17a7 Glut_1,6,6
+SN,SN AMY,cluster,0198 MEA Slc17a7 Glut_1,6,5
+SN,SN AMY,cluster,0199 MEA Slc17a7 Glut_1,3,3
+SN,SN AMY,cluster,0203 MEA Slc17a7 Glut_2,5,5
+SN,SN AMY,cluster,0204 MEA Slc17a7 Glut_2,4,5
+SN,SN AMY,cluster,0205 MEA Slc17a7 Glut_2,6,6
+SN,SN AMY,cluster,0206 MEA Slc17a7 Glut_2,6,6
+SN,SN AMY,cluster,0207 MEA Slc17a7 Glut_2,6,6
+SN,SN AMY,cluster,0208 MEA Slc17a7 Glut_2,6,6
+SN,SN AMY,cluster,0209 MEA Slc17a7 Glut_2,6,6
+SN,SN AMY,cluster,0213 MEA Slc17a7 Glut_3,6,6
+SN,SN AMY,cluster,0214 MEA Slc17a7 Glut_3,6,6
+SN,SN AMY,cluster,0215 COAp Grxcr2 Glut_1,6,6
+SN,SN AMY,cluster,0216 COAp Grxcr2 Glut_2,6,5
+SN,SN AMY,cluster,0217 COAp Grxcr2 Glut_2,6,5
+SN,SN AMY,cluster,0219 COAp Grxcr2 Glut_2,6,3
+SN,SN AMY,cluster,0220 COAp Grxcr2 Glut_2,6,5
+SN,SN AMY,cluster,0221 LA-BLA-BMA-PA Glut_1,6,3
+SN,SN AMY,cluster,0222 LA-BLA-BMA-PA Glut_1,6,3
+SN,SN AMY,cluster,0228 LA-BLA-BMA-PA Glut_1,6,4
+SN,SN AMY,cluster,0230 LA-BLA-BMA-PA Glut_2,6,6
+SN,SN AMY,cluster,0231 LA-BLA-BMA-PA Glut_2,6,6
+SN,SN AMY,cluster,0234 LA-BLA-BMA-PA Glut_2,4,4
+SN,SN AMY,cluster,0235 LA-BLA-BMA-PA Glut_2,6,6
+SN,SN AMY,cluster,0236 LA-BLA-BMA-PA Glut_3,6,6
+SN,SN AMY,cluster,0237 LA-BLA-BMA-PA Glut_3,6,6
+SN,SN AMY,cluster,0238 LA-BLA-BMA-PA Glut_3,6,6
+SN,SN AMY,cluster,0239 LA-BLA-BMA-PA Glut_3,6,6
+SN,SN AMY,cluster,0240 LA-BLA-BMA-PA Glut_3,6,6
+SN,SN AMY,cluster,0241 LA-BLA-BMA-PA Glut_4,6,6
+SN,SN AMY,cluster,0242 LA-BLA-BMA-PA Glut_4,6,6
+SN,SN AMY,cluster,0244 LA-BLA-BMA-PA Glut_4,6,6
+SN,SN AMY,cluster,0245 LA-BLA-BMA-PA Glut_5,6,6
+SN,SN AMY,cluster,0248 LA-BLA-BMA-PA Glut_5,3,4
+SN,SN AMY,cluster,0249 LA-BLA-BMA-PA Glut_6,6,6
+SN,SN AMY,cluster,0250 LA-BLA-BMA-PA Glut_6,6,6
+SN,SN AMY,cluster,0251 LA-BLA-BMA-PA Glut_6,6,6
+SN,SN AMY,cluster,0302 CA3 Glut_2,6,3
+SN,SN AMY,cluster,0303 CA3 Glut_2,6,3
+SN,SN AMY,cluster,0305 CA3 Glut_2,3,3
+SN,SN AMY,cluster,0312 CA3 Glut_3,4,3
+SN,SN AMY,cluster,0316 CA3 Glut_5,4,3
+SN,SN AMY,cluster,0402 NLOT Rho Glut_1,3,3
+SN,SN AMY,cluster,0405 L6b EPd Glut_2,3,6
+SN,SN AMY,cluster,0407 L6b EPd Glut_3,4,6
+SN,SN AMY,cluster,0408 L6b EPd Glut_3,6,6
+SN,SN AMY,cluster,0502 DG Glut_1,6,6
+SN,SN AMY,cluster,0503 DG Glut_1,4,3
+SN,SN AMY,cluster,0516 DG-PIR Ex IMN_3,5,5
+SN,SN AMY,cluster,0625 Vip Gaba_1,5,5
+SN,SN AMY,cluster,0628 Vip Gaba_2,3,3
+SN,SN AMY,cluster,0634 Vip Gaba_3,6,5
+SN,SN AMY,cluster,0708 Lamp5 Gaba_1,4,6
+SN,SN AMY,cluster,0710 Lamp5 Gaba_1,6,6
+SN,SN AMY,cluster,0711 Lamp5 Gaba_1,6,6
+SN,SN AMY,cluster,0713 Lamp5 Gaba_1,3,5
+SN,SN AMY,cluster,0724 Lamp5 Lhx6 Gaba_1,6,6
+SN,SN AMY,cluster,0731 Lamp5 Lhx6 Gaba_1,5,5
+SN,SN AMY,cluster,0733 Pvalb chandelier Gaba_1,6,6
+SN,SN AMY,cluster,0738 Pvalb Gaba_2,6,6
+SN,SN AMY,cluster,0748 Pvalb Gaba_5,6,6
+SN,SN AMY,cluster,0762 Sst Gaba_2,3,3
+SN,SN AMY,cluster,0763 Sst Gaba_2,4,5
+SN,SN AMY,cluster,0764 Sst Gaba_2,6,6
+SN,SN AMY,cluster,0765 Sst Gaba_2,6,6
+SN,SN AMY,cluster,0789 Sst Gaba_6,5,3
+SN,SN AMY,cluster,0822 Sst Gaba_17,6,6
+SN,SN AMY,cluster,0823 Sst Gaba_17,6,6
+SN,SN AMY,cluster,0825 Sst Gaba_18,4,4
+SN,SN AMY,cluster,0832 STR Prox1 Lhx6 Gaba_1,6,6
+SN,SN AMY,cluster,0968 STR D2 Gaba_1,5,6
+SN,SN AMY,cluster,0970 STR D2 Gaba_1,4,5
+SN,SN AMY,cluster,0978 STR D2 Gaba_3,3,4
+SN,SN AMY,cluster,1003 STR-PAL Chst9 Gaba_1,6,6
+SN,SN AMY,cluster,1005 STR-PAL Chst9 Gaba_2,6,6
+SN,SN AMY,cluster,1007 STR-PAL Chst9 Gaba_2,4,4
+SN,SN AMY,cluster,1009 STR-PAL Chst9 Gaba_3,6,6
+SN,SN AMY,cluster,1011 STR-PAL Chst9 Gaba_4,6,6
+SN,SN AMY,cluster,1014 STR-PAL Chst9 Gaba_5,5,3
+SN,SN AMY,cluster,1015 STR-PAL Chst9 Gaba_5,6,6
+SN,SN AMY,cluster,1225 MEA-BST Sox6 Gaba_6,6,6
+SN,SN AMY,cluster,1227 MEA-BST Sox6 Gaba_7,6,6
+SN,SN AMY,cluster,1238 MEA-BST Lhx6 Sp9 Gaba_1,4,6
+SN,SN AMY,cluster,1242 MEA-BST Lhx6 Sp9 Gaba_1,6,6
+SN,SN AMY,cluster,1255 MEA-BST Lhx6 Sp9 Gaba_4,3,5
+SN,SN AMY,cluster,1280 MEA-BST Lhx6 Nr2e1 Gaba_3,4,6
+SN,SN AMY,cluster,1292 MEA-BST Lhx6 Nfib Gaba_2,6,6
+SN,SN AMY,cluster,1297 MEA-BST Lhx6 Nfib Gaba_3,6,6
+SN,SN AMY,cluster,1311 MEA-BST Lhx6 Nfib Gaba_6,3,5
+SN,SN AMY,cluster,1314 MEA-BST Lhx6 Nfib Gaba_6,3,5
+SN,SN AMY,cluster,1332 CEA-BST Six3 Cyp26b1 Gaba_2,6,6
+SN,SN AMY,cluster,1333 CEA-BST Six3 Cyp26b1 Gaba_2,4,6
+SN,SN AMY,cluster,1340 CEA-BST Six3 Cyp26b1 Gaba_4,6,6
+SN,SN AMY,cluster,1344 CEA-BST Six3 Cyp26b1 Gaba_5,3,3
+SN,SN AMY,cluster,1345 CEA-BST Six3 Cyp26b1 Gaba_5,6,6
+SN,SN AMY,cluster,1349 CEA-AAA-BST Six3 Sp9 Gaba_1,6,6
+SN,SN AMY,cluster,1355 CEA-AAA-BST Six3 Sp9 Gaba_2,4,5
+SN,SN AMY,cluster,1384 CEA-BST Ebf1 Pdyn Gaba_1,6,6
+SN,SN AMY,cluster,1391 CEA-BST Ebf1 Pdyn Gaba_3,3,4
+SN,SN AMY,cluster,1393 CEA-BST Ebf1 Pdyn Gaba_3,5,6
+SN,SN AMY,cluster,1402 CEA-BST Ebf1 Pdyn Gaba_6,3,5
+SN,SN AMY,cluster,1998 MEA-COA-BMA Ccdc42 Glut_1,6,6
+SN,SN AMY,cluster,1999 MEA-COA-BMA Ccdc42 Glut_1,3,3
+SN,SN AMY,cluster,2000 MEA-COA-BMA Ccdc42 Glut_1,5,6
+SN,SN AMY,cluster,2001 MEA-COA-BMA Ccdc42 Glut_1,6,6
+SN,SN AMY,cluster,2003 MEA-COA-BMA Ccdc42 Glut_1,3,4
+SN,SN AMY,cluster,2004 MEA-COA-BMA Ccdc42 Glut_2,5,6
+SN,SN AMY,cluster,2006 MEA-COA-BMA Ccdc42 Glut_3,6,6
+SN,SN AMY,cluster,2008 MEA-COA-BMA Ccdc42 Glut_3,6,6
+SN,SN AMY,cluster,2010 MEA-COA-BMA Ccdc42 Glut_4,6,6
+SN,SN AMY,cluster,2011 MEA-COA-BMA Ccdc42 Glut_4,5,6
+SN,SN AMY,cluster,2015 COAa-PAA-MEA Barhl2 Glut_1,5,6
+SN,SN AMY,cluster,2016 COAa-PAA-MEA Barhl2 Glut_1,4,6
+SN,SN AMY,cluster,2017 COAa-PAA-MEA Barhl2 Glut_1,3,6
+SN,SN AMY,cluster,2018 COAa-PAA-MEA Barhl2 Glut_1,4,5
+SN,SN AMY,cluster,2019 COAa-PAA-MEA Barhl2 Glut_1,6,6
+SN,SN AMY,cluster,2020 COAa-PAA-MEA Barhl2 Glut_1,4,6
+SN,SN AMY,cluster,2029 COAa-PAA-MEA Barhl2 Glut_3,6,5
+SN,SN AMY,cluster,2032 COAa-PAA-MEA Barhl2 Glut_4,6,6
+SN,SN AMY,cluster,2034 COAa-PAA-MEA Barhl2 Glut_4,3,4
+SN,SN AMY,cluster,2035 COAa-PAA-MEA Barhl2 Glut_5,3,3
+SN,SN AMY,cluster,2039 COAa-PAA-MEA Barhl2 Glut_6,6,6
+SN,SN AMY,cluster,2040 COAa-PAA-MEA Barhl2 Glut_6,4,5
+SN,SN AMY,cluster,2053 COAa-PAA-MEA Barhl2 Glut_9,3,6
+SN,SN AMY,cluster,2204 MEA Otp Foxp2 Glut_1,6,6
+SN,SN AMY,cluster,2218 LHA-MEA Otp Glut_1,4,6
+SN,SN AMY,cluster,4347 PGRN-PARN-MDRN Hoxb5 Glut_2,6,5
+SN,SN AMY,cluster,5214 Astro-NT NN_2,6,6
+SN,SN AMY,cluster,5225 Astro-TE NN_3,6,6
+SN,SN AMY,cluster,5227 Astro-TE NN_3,6,5
+SN,SN AMY,cluster,5269 OPC NN_1,6,6
+SN,SN AMY,cluster,5270 OPC NN_1,6,6
+SN,SN AMY,cluster,5272 COP NN_1,5,5
+SN,SN AMY,cluster,5282 MFOL NN_3,4,5
+SN,SN AMY,cluster,5284 MOL NN_4,5,5
+SN,SN AMY,cluster,5285 MOL NN_4,6,6
+SN,SN AMY,cluster,5287 MOL NN_4,5,6
+SN,SN AMY,cluster,5312 Microglia NN_1,5,4
+SN,SN HYP,cluster,1227 MEA-BST Sox6 Gaba_7,5,6
+SN,SN HYP,cluster,1466 MPO-ADP Lhx8 Gaba_3,4,4
+SN,SN HYP,cluster,1485 MPN-MPO-LPO Lhx6 Zfhx3 Gaba_1,5,3
+SN,SN HYP,cluster,1543 BST-MPN Six3 Nrgn Gaba_3,6,5
+SN,SN HYP,cluster,1548 BST-MPN Six3 Nrgn Gaba_4,6,6
+SN,SN HYP,cluster,1576 TMv-PMv Tbx3 Hist-Gaba_1,3,3
+SN,SN HYP,cluster,1605 SCH Six6 Cdc14a Gaba_1,4,5
+SN,SN HYP,cluster,1607 SCH Six6 Cdc14a Gaba_1,5,4
+SN,SN HYP,cluster,1610 SCH Six6 Cdc14a Gaba_1,3,4
+SN,SN HYP,cluster,1612 SCH Six6 Cdc14a Gaba_2,6,5
+SN,SN HYP,cluster,1613 SCH Six6 Cdc14a Gaba_2,3,3
+SN,SN HYP,cluster,1614 SCH Six6 Cdc14a Gaba_2,3,3
+SN,SN HYP,cluster,1617 SCH Six6 Cdc14a Gaba_3,5,4
+SN,SN HYP,cluster,1623 DMH Prdm13 Gaba_2,4,3
+SN,SN HYP,cluster,1637 PVHd-SBPV Six3 Prox1 Gaba_2,6,6
+SN,SN HYP,cluster,1641 PVHd-SBPV Six3 Prox1 Gaba_3,4,4
+SN,SN HYP,cluster,1647 AHN-SBPV-PVHd Pdrm12 Gaba_1,4,3
+SN,SN HYP,cluster,1648 AHN-SBPV-PVHd Pdrm12 Gaba_1,4,3
+SN,SN HYP,cluster,1658 AHN-SBPV-PVHd Pdrm12 Gaba_3,6,6
+SN,SN HYP,cluster,1666 AHN-SBPV-PVHd Pdrm12 Gaba_4,6,3
+SN,SN HYP,cluster,1690 SBPV-PVa Six6 Satb2 Gaba_2,6,5
+SN,SN HYP,cluster,1697 SBPV-PVa Six6 Satb2 Gaba_3,5,3
+SN,SN HYP,cluster,1702 AHN Onecut3 Gaba_1,6,6
+SN,SN HYP,cluster,1704 AHN Onecut3 Gaba_1,6,6
+SN,SN HYP,cluster,1707 AHN Onecut3 Gaba_2,5,5
+SN,SN HYP,cluster,1712 AHN Onecut3 Gaba_3,6,6
+SN,SN HYP,cluster,1713 AHN Onecut3 Gaba_3,6,5
+SN,SN HYP,cluster,1717 ZI Pax6 Gaba_1,6,6
+SN,SN HYP,cluster,1729 ZI Pax6 Gaba_2,3,4
+SN,SN HYP,cluster,1810 DMH-LHA Gsx1 Gaba_3,6,5
+SN,SN HYP,cluster,1813 DMH-LHA Gsx1 Gaba_4,6,6
+SN,SN HYP,cluster,1831 PVHd-DMH Lhx6 Gaba_3,4,6
+SN,SN HYP,cluster,1837 TU-ARH Otp Six6 Gaba_1,6,6
+SN,SN HYP,cluster,1838 TU-ARH Otp Six6 Gaba_1,6,6
+SN,SN HYP,cluster,1839 TU-ARH Otp Six6 Gaba_1,6,3
+SN,SN HYP,cluster,1840 TU-ARH Otp Six6 Gaba_1,4,4
+SN,SN HYP,cluster,1844 TU-ARH Otp Six6 Gaba_2,4,3
+SN,SN HYP,cluster,1852 TU-ARH Otp Six6 Gaba_2,6,6
+SN,SN HYP,cluster,1855 TU-ARH Otp Six6 Gaba_3,6,6
+SN,SN HYP,cluster,1887 PVpo-VMPO-MPN Hmx2 Gaba_1,5,5
+SN,SN HYP,cluster,1893 PVpo-VMPO-MPN Hmx2 Gaba_2,4,5
+SN,SN HYP,cluster,1925 DMH Hmx2 Gaba_1,6,5
+SN,SN HYP,cluster,1928 DMH Hmx2 Gaba_2,6,6
+SN,SN HYP,cluster,1962 ARH-PVp Tbx3 Gaba_1,5,6
+SN,SN HYP,cluster,1967 ARH-PVp Tbx3 Gaba_2,6,4
+SN,SN HYP,cluster,1971 ARH-PVp Tbx3 Gaba_3,6,6
+SN,SN HYP,cluster,2102 LHA Barhl2 Glut_1,6,6
+SN,SN HYP,cluster,2225 DMH Nkx2-4 Glut_1,6,6
+SN,SN HYP,cluster,2229 DMH Nkx2-4 Glut_2,6,6
+SN,SN HYP,cluster,2237 MPN-MPO-PVpo Hmx2 Glut_1,3,3
+SN,SN HYP,cluster,2270 DMH Hmx2 Glut_1,5,5
+SN,SN HYP,cluster,2271 DMH Hmx2 Glut_1,6,6
+SN,SN HYP,cluster,2280 ARH-PVp Tbx3 Glut_2,5,6
+SN,SN HYP,cluster,2281 ARH-PVp Tbx3 Glut_3,6,6
+SN,SN HYP,cluster,2284 ARH-PVp Tbx3 Glut_5,4,3
+SN,SN HYP,cluster,2286 DMH-LHA Vgll2 Glut_2,6,5
+SN,SN HYP,cluster,2289 DMH-LHA Vgll2 Glut_4,3,5
+SN,SN HYP,cluster,2297 VMH Fezf1 Glut_2,4,4
+SN,SN HYP,cluster,2299 VMH Fezf1 Glut_3,4,4
+SN,SN HYP,cluster,2300 VMH Fezf1 Glut_3,6,4
+SN,SN HYP,cluster,2302 VMH Nr5a1 Glut_1,3,5
+SN,SN HYP,cluster,2306 VMH Nr5a1 Glut_2,3,4
+SN,SN HYP,cluster,2307 VMH Nr5a1 Glut_2,6,6
+SN,SN HYP,cluster,2308 VMH Nr5a1 Glut_2,4,4
+SN,SN HYP,cluster,2310 VMH Nr5a1 Glut_3,6,6
+SN,SN HYP,cluster,2311 VMH Nr5a1 Glut_3,6,6
+SN,SN HYP,cluster,2312 VMH Nr5a1 Glut_3,6,6
+SN,SN HYP,cluster,2313 VMH Nr5a1 Glut_3,6,4
+SN,SN HYP,cluster,2315 VMH Nr5a1 Glut_4,6,6
+SN,SN HYP,cluster,2317 VMH Nr5a1 Glut_5,6,6
+SN,SN HYP,cluster,2324 LHA Pmch Glut_2,6,4
+SN,SN HYP,cluster,2329 LHA-AHN-PVH Otp Trh Glut_1,3,4
+SN,SN HYP,cluster,2343 AHN-RCH-LHA Otp Fezf1 Glut_1,5,3
+SN,SN HYP,cluster,2345 AHN-RCH-LHA Otp Fezf1 Glut_2,6,6
+SN,SN HYP,cluster,2346 AHN-RCH-LHA Otp Fezf1 Glut_2,5,6
+SN,SN HYP,cluster,2347 AHN-RCH-LHA Otp Fezf1 Glut_2,6,6
+SN,SN HYP,cluster,2353 AHN-RCH-LHA Otp Fezf1 Glut_3,4,5
+SN,SN HYP,cluster,2373 PVH-SO-PVa Otp Glut_2,3,3
+SN,SN HYP,cluster,2375 PVH-SO-PVa Otp Glut_3,3,3
+SN,SN HYP,cluster,2376 PVH-SO-PVa Otp Glut_3,6,5
+SN,SN HYP,cluster,2379 PVH-SO-PVa Otp Glut_4,6,6
+SN,SN HYP,cluster,2380 PVH-SO-PVa Otp Glut_4,6,6
+SN,SN HYP,cluster,2389 PH-ant-LHA Otp Bsx Glut_1,4,4
+SN,SN HYP,cluster,2442 STN-PSTN Pitx2 Glut_3,3,3
+SN,SN HYP,cluster,2454 STN-PSTN Pitx2 Glut_5,6,6
+SN,SN HYP,cluster,2455 STN-PSTN Pitx2 Glut_5,5,6
+SN,SN HYP,cluster,2456 STN-PSTN Pitx2 Glut_5,4,4
+SN,SN HYP,cluster,2457 STN-PSTN Pitx2 Glut_6,4,4
+SN,SN HYP,cluster,2470 PMv-TMv Pitx2 Glut_3,3,3
+SN,SN HYP,cluster,2485 PH Pitx2 Glut_2,4,6
+SN,SN HYP,cluster,2519 PH-LHA Foxb1 Glut_6,5,4
+SN,SN HYP,cluster,2527 PMd-LHA Foxb1 Glut_2,5,6
+SN,SN HYP,cluster,2529 PMd-LHA Foxb1 Glut_2,3,4
+SN,SN HYP,cluster,2530 PMd-LHA Foxb1 Glut_2,5,4
+SN,SN HYP,cluster,2542 PH-SUM Foxa1 Glut_2,3,4
+SN,SN HYP,cluster,2567 MM-ant Foxb1 Glut_1,4,4
+SN,SN HYP,cluster,2568 MM-ant Foxb1 Glut_1,5,4
+SN,SN HYP,cluster,2570 MM-ant Foxb1 Glut_1,5,4
+SN,SN HYP,cluster,2577 MM Foxb1 Glut_2,3,4
+SN,SN HYP,cluster,4347 PGRN-PARN-MDRN Hoxb5 Glut_2,6,6
+SN,SN HYP,cluster,5214 Astro-NT NN_2,6,6
+SN,SN HYP,cluster,5215 Astro-NT NN_2,6,6
+SN,SN HYP,cluster,5245 Tanycyte NN_2,4,5
+SN,SN HYP,cluster,5247 Tanycyte NN_2,6,5
+SN,SN HYP,cluster,5249 Tanycyte NN_2,5,4
+SN,SN HYP,cluster,5269 OPC NN_1,6,6
+SN,SN HYP,cluster,5270 OPC NN_1,6,6
+SN,SN HYP,cluster,5272 COP NN_1,5,5
+SN,SN HYP,cluster,5278 NFOL NN_2,6,5
+SN,SN HYP,cluster,5282 MFOL NN_3,5,6
+SN,SN HYP,cluster,5284 MOL NN_4,6,6
+SN,SN HYP,cluster,5285 MOL NN_4,6,6
+SN,SN HYP,cluster,5287 MOL NN_4,6,6
+SN,SN HYP,cluster,5312 Microglia NN_1,6,6
+seqFISH,seqFISH,cluster,0002 CLA-EPd-CTX Car3 Glut_1,7,6
+seqFISH,seqFISH,cluster,0003 CLA-EPd-CTX Car3 Glut_1,8,8
+seqFISH,seqFISH,cluster,0004 CLA-EPd-CTX Car3 Glut_1,8,8
+seqFISH,seqFISH,cluster,0005 CLA-EPd-CTX Car3 Glut_2,8,8
+seqFISH,seqFISH,cluster,0007 IT EP-CLA Glut_1,7,5
+seqFISH,seqFISH,cluster,0009 IT EP-CLA Glut_1,8,7
+seqFISH,seqFISH,cluster,0012 IT EP-CLA Glut_1,8,8
+seqFISH,seqFISH,cluster,0016 IT EP-CLA Glut_2,8,8
+seqFISH,seqFISH,cluster,0022 IT EP-CLA Glut_4,8,8
+seqFISH,seqFISH,cluster,0023 L5/6 IT TPE-ENT Glut_1,8,8
+seqFISH,seqFISH,cluster,0024 L5/6 IT TPE-ENT Glut_1,5,4
+seqFISH,seqFISH,cluster,0026 L5/6 IT TPE-ENT Glut_2,8,8
+seqFISH,seqFISH,cluster,0038 L6 IT CTX Glut_2,7,5
+seqFISH,seqFISH,cluster,0039 L6 IT CTX Glut_2,8,8
+seqFISH,seqFISH,cluster,0040 L6 IT CTX Glut_2,8,8
+seqFISH,seqFISH,cluster,0042 L6 IT CTX Glut_2,6,5
+seqFISH,seqFISH,cluster,0043 L6 IT CTX Glut_2,8,8
+seqFISH,seqFISH,cluster,0045 L6 IT CTX Glut_3,8,8
+seqFISH,seqFISH,cluster,0046 L6 IT CTX Glut_3,4,5
+seqFISH,seqFISH,cluster,0047 L6 IT CTX Glut_3,8,7
+seqFISH,seqFISH,cluster,0048 L6 IT CTX Glut_3,8,8
+seqFISH,seqFISH,cluster,0057 L5 IT CTX Glut_1,8,7
+seqFISH,seqFISH,cluster,0059 L5 IT CTX Glut_2,8,8
+seqFISH,seqFISH,cluster,0060 L5 IT CTX Glut_2,7,7
+seqFISH,seqFISH,cluster,0061 L5 IT CTX Glut_3,7,8
+seqFISH,seqFISH,cluster,0063 L5 IT CTX Glut_4,8,8
+seqFISH,seqFISH,cluster,0064 L5 IT CTX Glut_4,6,5
+seqFISH,seqFISH,cluster,0067 L4/5 IT CTX Glut_1,5,7
+seqFISH,seqFISH,cluster,0069 L4/5 IT CTX Glut_1,5,6
+seqFISH,seqFISH,cluster,0070 L4/5 IT CTX Glut_1,7,8
+seqFISH,seqFISH,cluster,0077 L4/5 IT CTX Glut_2,7,7
+seqFISH,seqFISH,cluster,0079 L4/5 IT CTX Glut_2,8,8
+seqFISH,seqFISH,cluster,0080 L4/5 IT CTX Glut_2,8,8
+seqFISH,seqFISH,cluster,0081 L4/5 IT CTX Glut_2,7,6
+seqFISH,seqFISH,cluster,0082 L4/5 IT CTX Glut_2,8,8
+seqFISH,seqFISH,cluster,0085 L4/5 IT CTX Glut_3,8,8
+seqFISH,seqFISH,cluster,0086 L4/5 IT CTX Glut_3,6,7
+seqFISH,seqFISH,cluster,0088 L4/5 IT CTX Glut_3,8,8
+seqFISH,seqFISH,cluster,0092 L4/5 IT CTX Glut_4,7,7
+seqFISH,seqFISH,cluster,0096 L4/5 IT CTX Glut_5,8,8
+seqFISH,seqFISH,cluster,0100 L4/5 IT CTX Glut_6,8,8
+seqFISH,seqFISH,cluster,0101 L4/5 IT CTX Glut_6,7,7
+seqFISH,seqFISH,cluster,0102 L4/5 IT CTX Glut_6,8,8
+seqFISH,seqFISH,cluster,0108 L2/3 IT CTX Glut_2,4,5
+seqFISH,seqFISH,cluster,0109 L2/3 IT CTX Glut_2,8,8
+seqFISH,seqFISH,cluster,0110 L2/3 IT CTX Glut_2,8,8
+seqFISH,seqFISH,cluster,0111 L2/3 IT CTX Glut_2,8,8
+seqFISH,seqFISH,cluster,0113 L2/3 IT CTX Glut_3,6,6
+seqFISH,seqFISH,cluster,0118 L2/3 IT CTX Glut_4,8,8
+seqFISH,seqFISH,cluster,0119 L2/3 IT CTX Glut_4,4,5
+seqFISH,seqFISH,cluster,0138 L2/3 IT PIR-ENTl Glut_1,6,8
+seqFISH,seqFISH,cluster,0140 L2/3 IT PIR-ENTl Glut_1,6,7
+seqFISH,seqFISH,cluster,0141 L2/3 IT PIR-ENTl Glut_1,8,8
+seqFISH,seqFISH,cluster,0143 L2/3 IT PIR-ENTl Glut_1,6,7
+seqFISH,seqFISH,cluster,0145 L2/3 IT PIR-ENTl Glut_2,4,6
+seqFISH,seqFISH,cluster,0146 L2/3 IT PIR-ENTl Glut_2,8,6
+seqFISH,seqFISH,cluster,0149 L2/3 IT PIR-ENTl Glut_3,8,8
+seqFISH,seqFISH,cluster,0150 L2/3 IT PIR-ENTl Glut_3,8,8
+seqFISH,seqFISH,cluster,0151 L2/3 IT PIR-ENTl Glut_3,7,5
+seqFISH,seqFISH,cluster,0152 L2/3 IT PIR-ENTl Glut_3,5,7
+seqFISH,seqFISH,cluster,0158 L2/3 IT PIR-ENTl Glut_4,7,7
+seqFISH,seqFISH,cluster,0160 L2/3 IT PIR-ENTl Glut_4,8,8
+seqFISH,seqFISH,cluster,0161 L2/3 IT PIR-ENTl Glut_5,8,8
+seqFISH,seqFISH,cluster,0162 L2/3 IT PIR-ENTl Glut_6,6,8
+seqFISH,seqFISH,cluster,0163 L2/3 IT PIR-ENTl Glut_6,7,8
+seqFISH,seqFISH,cluster,0165 L2/3 IT PIR-ENTl Glut_7,6,7
+seqFISH,seqFISH,cluster,0166 IT AON-TT-DP Glut_1,4,5
+seqFISH,seqFISH,cluster,0170 IT AON-TT-DP Glut_1,6,4
+seqFISH,seqFISH,cluster,0177 IT AON-TT-DP Glut_3,8,8
+seqFISH,seqFISH,cluster,0180 IT AON-TT-DP Glut_4,7,6
+seqFISH,seqFISH,cluster,0181 IT AON-TT-DP Glut_4,6,6
+seqFISH,seqFISH,cluster,0183 IT AON-TT-DP Glut_5,7,8
+seqFISH,seqFISH,cluster,0201 MEA Slc17a7 Glut_2,6,7
+seqFISH,seqFISH,cluster,0205 MEA Slc17a7 Glut_2,6,6
+seqFISH,seqFISH,cluster,0215 COAp Grxcr2 Glut_1,6,7
+seqFISH,seqFISH,cluster,0230 LA-BLA-BMA-PA Glut_2,6,6
+seqFISH,seqFISH,cluster,0232 LA-BLA-BMA-PA Glut_2,6,8
+seqFISH,seqFISH,cluster,0236 LA-BLA-BMA-PA Glut_3,4,6
+seqFISH,seqFISH,cluster,0237 LA-BLA-BMA-PA Glut_3,5,7
+seqFISH,seqFISH,cluster,0238 LA-BLA-BMA-PA Glut_3,5,7
+seqFISH,seqFISH,cluster,0239 LA-BLA-BMA-PA Glut_3,4,7
+seqFISH,seqFISH,cluster,0240 LA-BLA-BMA-PA Glut_3,5,7
+seqFISH,seqFISH,cluster,0244 LA-BLA-BMA-PA Glut_4,6,6
+seqFISH,seqFISH,cluster,0245 LA-BLA-BMA-PA Glut_5,5,7
+seqFISH,seqFISH,cluster,0247 LA-BLA-BMA-PA Glut_5,5,6
+seqFISH,seqFISH,cluster,0248 LA-BLA-BMA-PA Glut_5,6,8
+seqFISH,seqFISH,cluster,0250 LA-BLA-BMA-PA Glut_6,5,7
+seqFISH,seqFISH,cluster,0251 LA-BLA-BMA-PA Glut_6,5,6
+seqFISH,seqFISH,cluster,0261 CA1-ProS Glut_1,8,8
+seqFISH,seqFISH,cluster,0262 CA1-ProS Glut_1,8,8
+seqFISH,seqFISH,cluster,0263 CA1-ProS Glut_1,8,8
+seqFISH,seqFISH,cluster,0288 CA1-ProS Glut_4,8,8
+seqFISH,seqFISH,cluster,0310 CA3 Glut_3,8,8
+seqFISH,seqFISH,cluster,0311 CA3 Glut_3,8,8
+seqFISH,seqFISH,cluster,0313 CA3 Glut_4,8,8
+seqFISH,seqFISH,cluster,0314 CA3 Glut_4,6,4
+seqFISH,seqFISH,cluster,0315 CA3 Glut_4,8,8
+seqFISH,seqFISH,cluster,0317 CA3 Glut_5,6,4
+seqFISH,seqFISH,cluster,0321 L2 IT PPP-APr Glut_1,8,8
+seqFISH,seqFISH,cluster,0328 L2 IT PPP-APr Glut_4,8,8
+seqFISH,seqFISH,cluster,0334 L2/3 IT PPP Glut_2,4,5
+seqFISH,seqFISH,cluster,0342 L2/3 IT RSP Glut_1,7,8
+seqFISH,seqFISH,cluster,0343 L2/3 IT RSP Glut_2,6,8
+seqFISH,seqFISH,cluster,0345 L2/3 IT RSP Glut_2,8,8
+seqFISH,seqFISH,cluster,0348 L4 RSP-ACA Glut_1,6,8
+seqFISH,seqFISH,cluster,0351 L5 ET CTX Glut_1,8,7
+seqFISH,seqFISH,cluster,0354 L5 ET CTX Glut_1,7,8
+seqFISH,seqFISH,cluster,0355 L5 ET CTX Glut_1,8,8
+seqFISH,seqFISH,cluster,0356 L5 ET CTX Glut_1,8,8
+seqFISH,seqFISH,cluster,0358 L5 ET CTX Glut_1,8,8
+seqFISH,seqFISH,cluster,0359 L5 ET CTX Glut_2,6,7
+seqFISH,seqFISH,cluster,0360 L5 ET CTX Glut_2,8,8
+seqFISH,seqFISH,cluster,0364 L5 ET CTX Glut_2,8,8
+seqFISH,seqFISH,cluster,0368 L5 ET CTX Glut_3,8,8
+seqFISH,seqFISH,cluster,0373 L5 ET CTX Glut_4,8,8
+seqFISH,seqFISH,cluster,0374 L5 ET CTX Glut_4,8,8
+seqFISH,seqFISH,cluster,0377 L5 ET CTX Glut_5,8,8
+seqFISH,seqFISH,cluster,0381 L5 ET CTX Glut_6,8,8
+seqFISH,seqFISH,cluster,0398 L5 PPP Glut_1,7,8
+seqFISH,seqFISH,cluster,0399 CA2-FC-IG Glut_1,8,8
+seqFISH,seqFISH,cluster,0400 CA2-FC-IG Glut_2,8,8
+seqFISH,seqFISH,cluster,0401 CA2-FC-IG Glut_2,8,8
+seqFISH,seqFISH,cluster,0402 NLOT Rho Glut_1,6,7
+seqFISH,seqFISH,cluster,0403 L6b EPd Glut_1,5,5
+seqFISH,seqFISH,cluster,0408 L6b EPd Glut_3,8,8
+seqFISH,seqFISH,cluster,0409 L6b EPd Glut_3,7,6
+seqFISH,seqFISH,cluster,0410 L6b/CT ENT Glut_1,8,6
+seqFISH,seqFISH,cluster,0425 L6b CTX Glut_1,8,8
+seqFISH,seqFISH,cluster,0426 L6b CTX Glut_1,6,5
+seqFISH,seqFISH,cluster,0429 L6b CTX Glut_2,8,8
+seqFISH,seqFISH,cluster,0430 L6b CTX Glut_2,8,8
+seqFISH,seqFISH,cluster,0431 L6b CTX Glut_3,4,5
+seqFISH,seqFISH,cluster,0434 L6b CTX Glut_3,8,8
+seqFISH,seqFISH,cluster,0436 L6 CT CTX Glut_1,7,4
+seqFISH,seqFISH,cluster,0438 L6 CT CTX Glut_1,8,8
+seqFISH,seqFISH,cluster,0439 L6 CT CTX Glut_1,8,8
+seqFISH,seqFISH,cluster,0442 L6 CT CTX Glut_2,8,8
+seqFISH,seqFISH,cluster,0443 L6 CT CTX Glut_2,8,8
+seqFISH,seqFISH,cluster,0444 L6 CT CTX Glut_2,7,6
+seqFISH,seqFISH,cluster,0445 L6 CT CTX Glut_3,5,4
+seqFISH,seqFISH,cluster,0450 L6 CT CTX Glut_4,7,5
+seqFISH,seqFISH,cluster,0454 L6 CT CTX Glut_5,8,8
+seqFISH,seqFISH,cluster,0462 L5 NP CTX Glut_1,5,6
+seqFISH,seqFISH,cluster,0469 L5 NP CTX Glut_3,7,8
+seqFISH,seqFISH,cluster,0470 L5 NP CTX Glut_3,7,8
+seqFISH,seqFISH,cluster,0472 L5 NP CTX Glut_4,8,8
+seqFISH,seqFISH,cluster,0473 L5 NP CTX Glut_4,8,8
+seqFISH,seqFISH,cluster,0484 NP PPP Glut_1,4,4
+seqFISH,seqFISH,cluster,0497 HPF CR Glut_1,6,8
+seqFISH,seqFISH,cluster,0505 DG Glut_2,7,8
+seqFISH,seqFISH,cluster,0506 DG Glut_2,8,8
+seqFISH,seqFISH,cluster,0507 DG Glut_2,8,8
+seqFISH,seqFISH,cluster,0509 DG Glut_3,7,8
+seqFISH,seqFISH,cluster,0556 OB-in Frmd7 Gaba_4,7,7
+seqFISH,seqFISH,cluster,0599 OB-STR-CTX Inh IMN_1,8,7
+seqFISH,seqFISH,cluster,0609 OB-STR-CTX Inh IMN_3,7,7
+seqFISH,seqFISH,cluster,0610 OB-STR-CTX Inh IMN_3,5,7
+seqFISH,seqFISH,cluster,0620 OB-STR-CTX Inh IMN_5,7,7
+seqFISH,seqFISH,cluster,0642 Vip Gaba_5,7,6
+seqFISH,seqFISH,cluster,0648 Vip Gaba_6,8,8
+seqFISH,seqFISH,cluster,0660 Vip Gaba_11,8,8
+seqFISH,seqFISH,cluster,0678 Sncg Gaba_4,6,5
+seqFISH,seqFISH,cluster,0707 Lamp5 Gaba_1,8,8
+seqFISH,seqFISH,cluster,0709 Lamp5 Gaba_1,8,7
+seqFISH,seqFISH,cluster,0710 Lamp5 Gaba_1,5,6
+seqFISH,seqFISH,cluster,0724 Lamp5 Lhx6 Gaba_1,4,5
+seqFISH,seqFISH,cluster,0736 Pvalb Gaba_1,8,7
+seqFISH,seqFISH,cluster,0738 Pvalb Gaba_2,4,5
+seqFISH,seqFISH,cluster,0739 Pvalb Gaba_2,8,6
+seqFISH,seqFISH,cluster,0740 Pvalb Gaba_3,8,8
+seqFISH,seqFISH,cluster,0741 Pvalb Gaba_3,7,6
+seqFISH,seqFISH,cluster,0742 Pvalb Gaba_3,8,8
+seqFISH,seqFISH,cluster,0743 Pvalb Gaba_4,8,8
+seqFISH,seqFISH,cluster,0795 Sst Gaba_8,8,8
+seqFISH,seqFISH,cluster,0796 Sst Gaba_8,8,5
+seqFISH,seqFISH,cluster,0812 Sst Gaba_14,8,7
+seqFISH,seqFISH,cluster,0836 STR Prox1 Lhx6 Gaba_2,4,5
+seqFISH,seqFISH,cluster,0941 OT D3 Folh1 Gaba_3,7,7
+seqFISH,seqFISH,cluster,0950 STR D1 Gaba_3,4,4
+seqFISH,seqFISH,cluster,0953 STR D1 Gaba_4,4,6
+seqFISH,seqFISH,cluster,0954 STR D1 Gaba_4,5,5
+seqFISH,seqFISH,cluster,0960 STR D1 Gaba_7,7,7
+seqFISH,seqFISH,cluster,0967 STR D2 Gaba_1,6,6
+seqFISH,seqFISH,cluster,0968 STR D2 Gaba_1,7,7
+seqFISH,seqFISH,cluster,0970 STR D2 Gaba_1,7,7
+seqFISH,seqFISH,cluster,0972 STR D2 Gaba_2,5,7
+seqFISH,seqFISH,cluster,0975 STR D2 Gaba_2,5,5
+seqFISH,seqFISH,cluster,0976 STR D2 Gaba_2,7,7
+seqFISH,seqFISH,cluster,0981 STR D2 Gaba_4,4,6
+seqFISH,seqFISH,cluster,0982 STR D2 Gaba_4,7,6
+seqFISH,seqFISH,cluster,0983 STR D2 Gaba_5,6,6
+seqFISH,seqFISH,cluster,0988 STR D2 Gaba_6,6,6
+seqFISH,seqFISH,cluster,0989 STR D2 Gaba_7,5,7
+seqFISH,seqFISH,cluster,1005 STR-PAL Chst9 Gaba_2,7,6
+seqFISH,seqFISH,cluster,1006 STR-PAL Chst9 Gaba_2,4,5
+seqFISH,seqFISH,cluster,1007 STR-PAL Chst9 Gaba_2,6,6
+seqFISH,seqFISH,cluster,1009 STR-PAL Chst9 Gaba_3,7,7
+seqFISH,seqFISH,cluster,1010 STR-PAL Chst9 Gaba_3,7,7
+seqFISH,seqFISH,cluster,1011 STR-PAL Chst9 Gaba_4,4,5
+seqFISH,seqFISH,cluster,1012 STR-PAL Chst9 Gaba_4,7,7
+seqFISH,seqFISH,cluster,1195 MEA-BST Sox6 Gaba_2,4,6
+seqFISH,seqFISH,cluster,1215 MEA-BST Sox6 Gaba_5,4,6
+seqFISH,seqFISH,cluster,1222 MEA-BST Sox6 Gaba_6,6,7
+seqFISH,seqFISH,cluster,1229 MEA-BST Sox6 Gaba_8,6,7
+seqFISH,seqFISH,cluster,1299 MEA-BST Lhx6 Nfib Gaba_3,5,5
+seqFISH,seqFISH,cluster,1330 CEA-BST Six3 Cyp26b1 Gaba_1,5,6
+seqFISH,seqFISH,cluster,1333 CEA-BST Six3 Cyp26b1 Gaba_2,4,6
+seqFISH,seqFISH,cluster,1344 CEA-BST Six3 Cyp26b1 Gaba_5,5,7
+seqFISH,seqFISH,cluster,1345 CEA-BST Six3 Cyp26b1 Gaba_5,4,4
+seqFISH,seqFISH,cluster,1393 CEA-BST Ebf1 Pdyn Gaba_3,7,7
+seqFISH,seqFISH,cluster,1601 RT-ZI Gnb3 Gaba_5,7,6
+seqFISH,seqFISH,cluster,1602 RT-ZI Gnb3 Gaba_5,7,6
+seqFISH,seqFISH,cluster,1604 RT-ZI Gnb3 Gaba_5,7,7
+seqFISH,seqFISH,cluster,1719 ZI Pax6 Gaba_1,4,5
+seqFISH,seqFISH,cluster,1730 ZI Pax6 Gaba_3,6,6
+seqFISH,seqFISH,cluster,1789 DMH-LHA Gsx1 Gaba_1,4,6
+seqFISH,seqFISH,cluster,1839 TU-ARH Otp Six6 Gaba_1,7,6
+seqFISH,seqFISH,cluster,1844 TU-ARH Otp Six6 Gaba_2,4,6
+seqFISH,seqFISH,cluster,1855 TU-ARH Otp Six6 Gaba_3,6,8
+seqFISH,seqFISH,cluster,1859 TU-ARH Otp Six6 Gaba_3,5,7
+seqFISH,seqFISH,cluster,2034 COAa-PAA-MEA Barhl2 Glut_4,4,6
+seqFISH,seqFISH,cluster,2039 COAa-PAA-MEA Barhl2 Glut_6,4,6
+seqFISH,seqFISH,cluster,2286 DMH-LHA Vgll2 Glut_2,5,5
+seqFISH,seqFISH,cluster,2585 MH Tac2 Glut_2,6,4
+seqFISH,seqFISH,cluster,2586 MH Tac2 Glut_2,6,4
+seqFISH,seqFISH,cluster,2648 TH Prkcd Grin2c Glut_1,8,8
+seqFISH,seqFISH,cluster,2649 TH Prkcd Grin2c Glut_1,8,8
+seqFISH,seqFISH,cluster,2650 TH Prkcd Grin2c Glut_2,5,6
+seqFISH,seqFISH,cluster,2654 TH Prkcd Grin2c Glut_4,8,7
+seqFISH,seqFISH,cluster,2657 TH Prkcd Grin2c Glut_5,4,5
+seqFISH,seqFISH,cluster,2658 TH Prkcd Grin2c Glut_5,6,6
+seqFISH,seqFISH,cluster,2660 TH Prkcd Grin2c Glut_6,6,7
+seqFISH,seqFISH,cluster,2662 TH Prkcd Grin2c Glut_6,8,8
+seqFISH,seqFISH,cluster,2663 TH Prkcd Grin2c Glut_6,8,8
+seqFISH,seqFISH,cluster,2664 TH Prkcd Grin2c Glut_6,7,7
+seqFISH,seqFISH,cluster,2665 TH Prkcd Grin2c Glut_7,7,7
+seqFISH,seqFISH,cluster,2677 TH Prkcd Grin2c Glut_10,7,8
+seqFISH,seqFISH,cluster,2678 TH Prkcd Grin2c Glut_10,7,7
+seqFISH,seqFISH,cluster,2682 TH Prkcd Grin2c Glut_12,6,4
+seqFISH,seqFISH,cluster,2683 TH Prkcd Grin2c Glut_13,8,8
+seqFISH,seqFISH,cluster,2687 TH Prkcd Grin2c Glut_13,7,6
+seqFISH,seqFISH,cluster,2689 TH Prkcd Grin2c Glut_14,6,5
+seqFISH,seqFISH,cluster,3469 IC Six3 En2 Gaba_1,7,6
+seqFISH,seqFISH,cluster,5208 Astro-NT NN_1,8,8
+seqFISH,seqFISH,cluster,5209 Astro-NT NN_1,8,8
+seqFISH,seqFISH,cluster,5210 Astro-NT NN_1,8,8
+seqFISH,seqFISH,cluster,5211 Astro-NT NN_1,8,8
+seqFISH,seqFISH,cluster,5214 Astro-NT NN_2,8,8
+seqFISH,seqFISH,cluster,5215 Astro-NT NN_2,8,8
+seqFISH,seqFISH,cluster,5219 Astro-TE NN_1,8,8
+seqFISH,seqFISH,cluster,5224 Astro-TE NN_3,8,8
+seqFISH,seqFISH,cluster,5237 Astroependymal NN_1,8,8
+seqFISH,seqFISH,cluster,5238 Astroependymal NN_1,8,8
+seqFISH,seqFISH,cluster,5239 Astroependymal NN_1,8,8
+seqFISH,seqFISH,cluster,5253 Ependymal NN_1,8,8
+seqFISH,seqFISH,cluster,5256 Ependymal NN_1,8,7
+seqFISH,seqFISH,cluster,5258 Ependymal NN_1,8,8
+seqFISH,seqFISH,cluster,5260 Ependymal NN_2,8,8
+seqFISH,seqFISH,cluster,5264 CHOR NN_1,8,7
+seqFISH,seqFISH,cluster,5265 CHOR NN_1,8,8
+seqFISH,seqFISH,cluster,5269 OPC NN_1,6,5
+seqFISH,seqFISH,cluster,5271 OPC NN_2,8,8
+seqFISH,seqFISH,cluster,5274 COP NN_1,8,8
+seqFISH,seqFISH,cluster,5277 COP NN_1,8,8
+seqFISH,seqFISH,cluster,5278 NFOL NN_2,8,8
+seqFISH,seqFISH,cluster,5282 MFOL NN_3,6,4
+seqFISH,seqFISH,cluster,5283 MFOL NN_3,8,8
+seqFISH,seqFISH,cluster,5284 MOL NN_4,8,8
+seqFISH,seqFISH,cluster,5285 MOL NN_4,8,8
+seqFISH,seqFISH,cluster,5286 MOL NN_4,8,8
+seqFISH,seqFISH,cluster,5287 MOL NN_4,8,8
+seqFISH,seqFISH,cluster,5293 ABC NN_1,8,7
+seqFISH,seqFISH,cluster,5294 ABC NN_1,7,8
+seqFISH,seqFISH,cluster,5295 ABC NN_1,8,8
+seqFISH,seqFISH,cluster,5296 VLMC NN_1,8,8
+seqFISH,seqFISH,cluster,5297 VLMC NN_1,8,8
+seqFISH,seqFISH,cluster,5298 VLMC NN_1,8,8
+seqFISH,seqFISH,cluster,5299 VLMC NN_1,8,8
+seqFISH,seqFISH,cluster,5301 VLMC NN_2,8,8
+seqFISH,seqFISH,cluster,5302 VLMC NN_3,6,4
+seqFISH,seqFISH,cluster,5304 Peri NN_1,8,8
+seqFISH,seqFISH,cluster,5305 Peri NN_1,8,8
+seqFISH,seqFISH,cluster,5306 SMC NN_1,8,8
+seqFISH,seqFISH,cluster,5307 SMC NN_1,8,8
+seqFISH,seqFISH,cluster,5308 SMC NN_1,8,8
+seqFISH,seqFISH,cluster,5309 Endo NN_1,8,8
+seqFISH,seqFISH,cluster,5310 Endo NN_1,8,8
+seqFISH,seqFISH,cluster,5311 Endo NN_1,8,8
+seqFISH,seqFISH,cluster,5312 Microglia NN_1,8,8
+seqFISH,seqFISH,cluster,5313 BAM NN_1,8,8
+seqFISH,seqFISH,cluster,5314 BAM NN_1,5,7
+seqFISH,seqFISH,cluster,5317 DC NN_1,5,4
+seqFISH,seqFISH,cluster,5318 DC NN_1,5,5
+seqFISH,seqFISH,cluster,5319 B cells NN_1,8,8
+seqFISH,seqFISH,cluster,5320 ILC NN_2,4,5

@@ -1,0 +1,7 @@
+input,path,rows,modified
+program_tests,/resnick/groups/mthomson/jboktor/WILDRxSPF_brains/tables/DSPIN/summary_2026-10-06/DSPIN_program_tests.csv,2800,2026-10-06 12:44:46.22254
+unit_tests,/resnick/groups/mthomson/jboktor/WILDRxSPF_brains/tables/DSPIN/summary_2026-10-06/DSPIN_unit_tests.csv,140,2026-10-06 12:44:46.235238
+calibration,/resnick/groups/mthomson/jboktor/WILDRxSPF_brains/tables/DSPIN/summary_2026-10-06/DSPIN_calibration.csv,8,2026-10-06 12:44:46.251607
+global_summary,/resnick/groups/mthomson/jboktor/WILDRxSPF_brains/tables/DSPIN/summary_2026-10-06/DSPIN_global_summary.csv,1,2026-10-06 12:44:46.255367
+animal_responses,/resnick/groups/mthomson/jboktor/WILDRxSPF_brains/data/interim/dspin/summary_2026-10-06/dspin_animal_relative_h_2026-10-06.csv,33580,2026-10-06 12:44:45.756191
+popalign,/resnick/groups/mthomson/jboktor/WILDRxSPF_brains/tables/popAlign/snRNASeq/run_2026-10-04_synth-2026-10-05/popAlign_state_shift_tests.csv,830,2026-10-05 14:53:53.240452

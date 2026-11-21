@@ -1,0 +1,894 @@
+---
+title: "What MAST, pySCENIC, D-SPIN and popAlign Agree On"
+subtitle: "An integrated, animal-level test of the WildR vs SPF single-nucleus results (AMY, HYP; 6 vs 6 animals) · updated with pySCENIC networks fitted at class, subclass and supertype level"
+date: today
+author: "Joe Boktor"
+categories: [snRNA-seq, Integration, MAST, popAlign, D-SPIN, pySCENIC]
+format:
+  html:
+    theme:
+      - cosmo
+      - ../quarto-aesthetic-kit/theme/aesthetic.scss
+    include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    page-layout: article
+    code-fold: true
+    code-tools: true
+    code-copy: true
+    embed-resources: true
+    fig-cap-location: bottom
+    lightbox: true
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: false
+---
+
+```{r}
+#| label: setup-display
+#| include: false
+
+# Display-only render: reads saved tables and figures. Nothing is recomputed.
+# Set TRUE to re-run the analysis commands in Code & Provenance.
+run_analysis <- FALSE
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(glue)
+  library(knitr)
+  library(DT)
+})
+
+wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
+base_tag <- "2026-10-06"   # base integrated run (MAST, pseudobulk, D-SPIN, popAlign; class-level pySCENIC)
+new_tag  <- "2026-10-07"   # multi-level pySCENIC update + high-level analyses
+tbl_dir  <- file.path(wkdir, "tables/SN_Integrated", glue("run_{base_tag}"))
+new_dir  <- file.path(wkdir, "tables/SN_Integrated", glue("run_{new_tag}"))
+int_dir  <- file.path(wkdir, "data/interim/sn_integrated", glue("run_{base_tag}"))
+new_int  <- file.path(wkdir, "data/interim/sn_integrated", glue("run_{new_tag}"))
+fig_dir  <- file.path(wkdir, "figures/SN_Integrated", glue("run_{new_tag}"))
+pa_tbl   <- file.path(wkdir, "tables/popAlign/snRNASeq/run_2026-10-04_synth-2026-10-05")
+
+rd <- function(f, dir = tbl_dir) { p <- file.path(dir, f); if (file.exists(p)) read_csv(p, show_col_types = FALSE) else NULL }
+rn <- function(f) rd(f, new_dir)
+not_computed <- function(what) cat(glue("::: {{.callout-warning}}\n**{what} not yet computed** — set `run_analysis <- TRUE` and run the cells in Code & Provenance.\n:::"), "\n\n")
+# Embed a saved figure by its path relative to notebooks/ (keeps lightbox + embedding), or say it is missing
+show_fig <- function(name) {
+  if (file.exists(file.path(fig_dir, name))) cat(glue("![](../figures/SN_Integrated/run_{new_tag}/{name})"), "\n\n") else not_computed(name)
+}
+dt_table <- function(df, caption, page = 10) {
+  datatable(df, rownames = FALSE, filter = "top", class = "compact stripe hover", extensions = "Buttons", caption = caption,
+            options = list(pageLength = page, lengthMenu = unique(c(page, 25, 50, nrow(df))), dom = "Bfrtip",
+                           buttons = list("colvis", "csv"), scrollX = TRUE))
+}
+pct <- function(x, d = 0) paste0(formatC(100 * x, format = "f", digits = d), "%")
+fmt <- function(x) format(x, big.mark = ",")
+sig2 <- function(x) format(signif(x, 2), scientific = abs(x) < 1e-3)
+
+# ── base run ──
+gb   <- rd("integrated_gene_bridge.csv")
+pbu  <- rd("integrated_pseudobulk_unit_summary.csv")
+pbc  <- rd("integrated_pseudobulk_component_summary.csv")
+het  <- rd("integrated_heterogeneity_summary.csv")
+dval <- rd("integrated_dspin_validation.csv")
+leads_pa <- rd("popAlign_followup_leads.csv", pa_tbl)
+pa_cat <- rd("popAlign_subpopulation_catalog.csv", pa_tbl)
+harm <- readRDS(file.path(wkdir, "data/interim/sn_integration/sn_harmonized_results_2026-10-06_r2.rds"))
+pg <- readRDS(file.path(int_dir, "pseudobulk_unit_genes.rds"))
+# ── multi-level pySCENIC update ──
+circ  <- rn("integrated_circuit_enrichment.csv")
+loao  <- rn("integrated_animal_loao_prediction.csv")
+coup  <- rn("integrated_animal_coupling.csv")
+sn_u  <- rn("integrated_scenic_native_unit.csv")
+sn_c  <- rn("integrated_scenic_native_component.csv")
+sn_b  <- rn("integrated_gene_bridge_scenic_native.csv")
+sn_l  <- rn("integrated_evidence_leads_scenic_native.csv")
+es    <- rn("integrated_effect_size_summary.csv")
+conc  <- rn("integrated_unit_concordance.csv")
+sizes <- rn("integrated_unit_size_dependence.csv")
+nullg <- read_csv(file.path(new_int, "effect_size_permutation_null.csv"), show_col_types = FALSE)
+scen_lvl <- read_csv(file.path(wkdir, "tables/SCENIC/SCENIC_level_summary_display_2026-10-06.csv"), show_col_types = FALSE)
+
+# ── headline numbers (all computed from the saved results) ──
+gbu <- gb %>% distinct(unit_id, shifted_feature, .keep_all = TRUE)
+gb_ok <- gbu %>% filter(!is.na(mast_dirz_shift), !is.na(mast_dirz_control))
+z_shift <- median(gb_ok$mast_dirz_shift); z_ctrl <- median(gb_ok$mast_dirz_control)
+p_gb <- wilcox.test(gb_ok$mast_dirz_shift, gb_ok$mast_dirz_control, paired = TRUE)$p.value
+agree_shift <- mean(gb_ok$mast_dirz_shift > 0); agree_ctrl <- mean(gb_ok$mast_dirz_control > 0)
+dsp_shift <- mean(gbu$dspin_any_responsive_overlap_shift, na.rm = TRUE); dsp_ctrl <- mean(gbu$dspin_any_responsive_overlap_control, na.rm = TRUE)
+
+mast_files <- function(u) { p <- str_split(u, "__")[[1]]; file.path(wkdir, "data/interim/mast/snRNASeq/supertype_label", glue("{p[3]}_{p[2]}_2026-01-04.rds")) }
+mast_all <- map_dfr(unique(pg$unit_id), function(u) { f <- mast_files(u); if (!file.exists(f)) return(NULL)
+  readRDS(f) %>% as_tibble() %>% transmute(unit_id = u, gene = sub("-GRCm39$", "", primerid), coef, mast_padj = p_adjust) })
+mj <- inner_join(mast_all, pg, by = c("unit_id", "gene"))
+mdeg <- mj %>% filter(mast_padj < 0.1); mbg <- mj %>% filter(mast_padj >= 0.5)
+n_mast_deg <- nrow(mdeg)
+deg_same <- mean(sign(mdeg$logFC) == sign(mdeg$coef)); bg_same <- mean(sign(mbg$logFC) == sign(mbg$coef))
+deg_nom <- mean(mdeg$p < 0.05); bg_nom <- mean(mbg$p < 0.05); deg_fdr <- sum(mdeg$padj < 0.1)
+pb_fdr_genes <- sum(pg$padj < 0.1); pb_fdr_units <- n_distinct(pg$unit_id[pg$padj < 0.1]); r_pb <- mean(pg$p < 0.05)
+
+hs <- harm %>% filter(method == "pySCENIC"); n_scen_nuc <- sum(hs$p_adj < 0.05, na.rm = TRUE); r_scen_nuc <- mean(hs$p_adj < 0.05, na.rm = TRUE)
+hd <- harm %>% filter(method == "DSPIN"); r_dsp <- mean(hd$p_value < 0.05, na.rm = TRUE)
+r_pa <- mean(pa_cat$p_state < 0.05, na.rm = TRUE)
+scen_grn <- sum(scen_lvl$GRNs); scen_tests <- sum(scen_lvl$Tests); scen_nom <- sum(scen_lvl$`p < 0.05`) / scen_tests
+scen_glob <- sum(scen_lvl$`FDR < 0.10 (global)`)
+n_unit_grn <- sum(!is.na(sn_u$n_regulons))
+
+pcs <- pbc %>% left_join(gb %>% distinct(unit_id, comp, p_state), by = c("unit_id", "comp"))
+ex_shift <- pcs$excess_p01[pcs$robust & coalesce(pcs$p_state < 0.05, FALSE)]
+ex_other <- pcs$excess_p01[pcs$robust & !coalesce(pcs$p_state < 0.05, FALSE)]
+p_ex <- wilcox.test(ex_shift, ex_other)$p.value
+n_het_units <- sum(het$n_het_fdr10 > 0)
+frac_val <- mean(dval$rho > 0, na.rm = TRUE); rho_mast_pb <- median(pbu$rho_mast_pb, na.rm = TRUE)
+
+# native-GRN pySCENIC per subpopulation
+snc <- sn_c %>% mutate(grp = case_when(!robust ~ "nonrobust", coalesce(p_state < 0.05, FALSE) ~ "shifted", TRUE ~ "other"))
+sc_ratio <- snc %>% group_by(grp) %>% summarise(r = sum(n_p05) / sum(perm_mean), n = n(), .groups = "drop")
+scr <- function(g, col = "r") sc_ratio[[col]][sc_ratio$grp == g]
+p_sc_shift <- wilcox.test(p_perm_count ~ grp == "shifted", data = snc %>% filter(robust))$p.value
+n_comp <- nrow(snc); n_comp_p05 <- sum(snc$p_perm_count < 0.05); n_comp_fdr <- sum(p.adjust(snc$p_perm_count, "BH") < 0.1)
+snb <- sn_b %>% distinct(unit_id, shifted_feature, .keep_all = TRUE)
+tk_s <- sum(snb$native_enriched_shifted_shift, na.rm = TRUE); tn_s <- sum(snb$native_enriched_tested_shift, na.rm = TRUE)
+tk_c <- sum(snb$native_enriched_shifted_control, na.rm = TRUE); tn_c <- sum(snb$native_enriched_tested_control, na.rm = TRUE)
+p_tk <- fisher.test(matrix(c(tk_s, tn_s - tk_s, tk_c, tn_c - tk_c), 2))$p.value
+nat3_s <- mean(snb$native_n_enriched_shift >= 3, na.rm = TRUE); nat3_c <- mean(snb$native_n_enriched_control >= 3, na.rm = TRUE)
+top_tf <- names(sort(table(snb$native_top_shift), decreasing = TRUE))[1:3]
+
+# global effect-size test (exact animal relabelling)
+E <- function(m, col, t = "Both") es[[col]][es$method == m & es$tissue == t]
+p_all <- E("Pseudobulk: all genes", "p_perm"); p_popa <- E("popAlign programs", "p_perm")
+p_dsp <- E("D-SPIN programs", "p_perm"); p_scn <- E("pySCENIC regulons", "p_perm")
+p_mdeg <- E("Pseudobulk: MAST DEGs", "p_perm"); r_mdeg <- E("Pseudobulk: MAST DEGs", "ratio_perm")
+rank_obs <- nullg %>% filter(method == "Pseudobulk: all genes") %>% group_by(tissue) %>%
+  summarise(rank = sum(mean_g2 >= mean_g2[observed]), n = n(), .groups = "drop")
+rk <- function(t) rank_obs$rank[rank_obs$tissue == t]
+mde_g <- round(power.t.test(n = 6, power = 0.8)$delta, 1)
+n_g08 <- ceiling(power.t.test(delta = 0.8, power = 0.8)$n); n_g05 <- ceiling(power.t.test(delta = 0.5, power = 0.8)$n)
+n_g08_gw <- ceiling(power.t.test(delta = 0.8, power = 0.8, sig.level = 1e-4)$n)
+
+# circuit + animal-level
+C <- function(mod, col) circ[[col]][circ$modality == mod]
+pa_auc_hyp <- loao$auc[loao$tissue == "HYP" & loao$scope == "network" & loao$modality == "popAlign"]
+pa_p_hyp <- loao$p_one_sided[loao$tissue == "HYP" & loao$scope == "network" & loao$modality == "popAlign"]
+scen_loao_max <- max(loao$auc[loao$modality == "pySCENIC"])
+cp_core <- coup %>% filter(!str_detect(m1, "^VR"), !str_detect(m2, "^VR"))
+coup_net <- median(cp_core$rho_within[cp_core$scope == "network"]); coup_oth <- median(cp_core$rho_within[cp_core$scope == "other"])
+K <- function(a, b, col = "rho_partial") { r <- conc %>% filter((str_detect(m1, a) & str_detect(m2, b)) | (str_detect(m1, b) & str_detect(m2, a))); r[[col]][1] }
+SZ <- function(m) sizes$rho_size[str_detect(sizes$modality, m)][1]
+
+# ── integrated support for each popAlign lead (pySCENIC now from the GRN fitted on the unit's own nuclei) ──
+lead_ev <- leads_pa %>%
+  dplyr::select(tissue, lineage, level, name, unit_id, comp, effect, p, depth_flag) %>%
+  left_join(gb %>% distinct(unit_id, comp, .keep_all = TRUE) %>%
+              dplyr::select(unit_id, comp, mast_dirz_shift, dspin_best_resp_p_shift), by = c("unit_id", "comp")) %>%
+  left_join(pbc %>% dplyr::select(unit_id, comp, pb_excess = excess_p01), by = c("unit_id", "comp")) %>%
+  left_join(sn_l %>% dplyr::select(unit_id, comp, reg_n = comp_n_regulons, reg_hit = comp_n_p05, reg_exp = comp_perm_mean,
+                                   reg_p = comp_p_perm, top_regulons), by = c("unit_id", "comp")) %>%
+  mutate(mast_ok = coalesce(mast_dirz_shift >= 2, FALSE),
+         dspin_ok = coalesce(dspin_best_resp_p_shift < 0.05, FALSE),
+         pb_ok = coalesce(pb_excess >= 1.5, FALSE),
+         reg_ok = coalesce(reg_p < 0.05, FALSE),
+         support = mast_ok + dspin_ok + pb_ok + reg_ok,
+         # parenthesised: in R, `!` binds more loosely than `+`
+         available = (!is.na(mast_dirz_shift)) + (!is.na(dspin_best_resp_p_shift)) + (!is.na(pb_excess)) + (!is.na(reg_p))) %>%
+  arrange(desc(support), desc(support / available), p)
+n_leads_multi <- sum(lead_ev$support >= 2); n_leads_mast <- sum(lead_ev$mast_ok); n_leads_reg <- sum(lead_ev$reg_ok)
+```
+
+## Overview
+
+**Bottom line.** The four methods measure the same per-animal differences, and once pySCENIC is
+refitted on each cell type's own nuclei it agrees with the other three as well. Tested against
+every way of splitting the 12 animals into two groups of 6, **no method finds more
+WildR vs SPF difference than a random split of the same animals produces.** For whole-transcriptome
+expression, the real split ranks near the bottom of the 924 possible splits. Most variation between
+animals runs along a hidden axis that crosses the microbiome groups, and every method sees it. The
+popAlign network result is still not reproduced by any other method. Earlier evidence that MAST's
+DEGs "hold up per animal" was circular: those genes were chosen using the same animals.
+
+::: {.stat-row}
+::: {.stat}
+[p = `r sig2(p_all)`]{.stat-value}
+[WildR vs SPF across all genes, against 924 random animal splits]{.stat-label}
+:::
+::: {.stat}
+[`r fmt(n_scen_nuc)` → `r scen_glob`]{.stat-value}
+[pySCENIC regulon hits: nuclei (class GRNs) → animals (`r scen_grn` GRNs, global FDR)]{.stat-label}
+:::
+::: {.stat}
+[`r round(C("popAlign state", "ratio_adj"), 1)`× vs `r round(C("pySCENIC regulons (supertype GRN)", "ratio_adj"), 2)`×]{.stat-value}
+[network concentration: popAlign state vs pySCENIC (own GRN)]{.stat-label}
+:::
+::: {.stat}
+[`r n_leads_multi` / `r nrow(lead_ev)`]{.stat-value}
+[popAlign leads with support from ≥ 2 other readouts]{.stat-label}
+:::
+:::
+
+### What we learned
+
+1. **The methods agree on what moves.** popAlign's moving programs carry the MAST signal
+   (`r pct(agree_shift)` vs `r pct(agree_ctrl)` of control programs, p = `r sig2(p_gb)`). Refitted
+   per cell type, pySCENIC now agrees too: subpopulations popAlign flags carry
+   `r round(scr("shifted"), 2)`× the regulon shifts expected from relabelling, against
+   `r round(scr("other"), 2)`× elsewhere (p = `r sig2(p_sc_shift)`). This is agreement on the same
+   animals, not replication. ([Figures 1–2](#sec-bridge))
+2. **There is no global WildR vs SPF signal at the animal level.** For each method we measured how
+   far the groups sit apart across all its tests (mean squared effect size) and compared that with
+   all 924 ways to split the animals 6 / 6. The real split is unremarkable for popAlign
+   (p = `r sig2(p_popa)`), D-SPIN (p = `r sig2(p_dsp)`), pySCENIC (p = `r sig2(p_scn)`) and all
+   expressed genes (p = `r sig2(p_all)`). ([Figure 4](#sec-global))
+3. **Most variation follows a hidden structure among the animals.** The random splits that separate
+   animals most always put 3 WildR and 3 SPF on each side. Every method ranks the splits the same
+   way (ρ = 0.55–0.76). The same pairs of animals group together in both tissues, so this looks like
+   a property of the animals (cohort, litter, cage or processing day), not of dissection.
+   ([Figure 5](#sec-hidden))
+4. **The network concentration is still popAlign-only.** Even with networks fitted per supertype,
+   pySCENIC shows `r round(C("pySCENIC regulons (supertype GRN)", "ratio_adj"), 2)`× in network units
+   (p = `r sig2(C("pySCENIC regulons (supertype GRN)", "p_adj"))`), against popAlign's
+   `r round(C("popAlign state", "ratio_adj"), 1)`×. ([Figure 6](#sec-circuit))
+5. **Lead priorities.** **HYP PVHd-DMH Lhx6 GABA** is the only lead where popAlign, MAST, D-SPIN and
+   pySCENIC all agree (3 of 4 other readouts; pseudobulk excess does not). `r n_leads_reg` leads gain pySCENIC support from their own networks. Because
+   every method uses the same 12 animals, this ranks leads for validation; it does not establish an
+   effect. ([Table 3](#sec-leads))
+
+### How we got there
+
+- **One scaffold.** Each of the 244 popAlign units (tissue × Allen class / subclass / supertype) is
+  linked nucleus by nucleus to MAST, D-SPIN (139 supertypes) and, new here, **the pySCENIC GRN fitted
+  on exactly that unit's nuclei** (`r n_unit_grn` / 244 units; the base run used the parent class
+  GRN for every unit).
+- **Bridges.** Genes (do other methods see the program popAlign sees moving?), cells (per animal ×
+  subpopulation pseudobulk and regulon activity), animals (leave-one-animal-out scores) and circuit
+  (network enrichment for every method).
+- **New global tests.**
+  - *Exact animal relabelling:* every method's effect sizes are compared with all 924 relabellings,
+    applied jointly to every unit of a tissue. This keeps the correlation between genes, programs
+    and units, and assumes no distribution.
+  - *Unit concordance:* do the methods agree on *which* cell types carry signal, adjusted for size?
+
+### What to do next
+
+1. **Look for the hidden animal factor.** Check cohort, litter, cage, sex, age, dissection or
+   processing date against the groupings in [Figure 5](#sec-hidden) (for example SPF_6 and SPF_9
+   vs SPF_3D4 and WildR_10). If it can be identified, adding it as a covariate is the cheapest way
+   to gain power.
+2. **Plan more animals before more methods.** At 6 per group, only effects of g ≈ `r mde_g` are
+   reliably detectable. g = 0.8 needs about `r n_g08` animals per group for one pre-specified test
+   and about `r n_g08_gw` at transcriptome-wide thresholds.
+3. **Validate the top lead independently** (seqFISH), starting with PVHd-DMH Lhx6 GABA. Score its
+   moving program and regulons per animal and region.
+4. **Do not use MAST DEG counts or nucleus-level regulon hits as evidence** of a microbiome effect.
+
+## Background
+
+Four analyses of the same WildR vs SPF single-nucleus data had produced four very different
+pictures:
+
+- **MAST:** thousands of DEGs;
+- **pySCENIC:** hundreds of differential regulons;
+- **D-SPIN:** program responses with no animal-level significance;
+- **popAlign:** stable composition and a sub-threshold state signal concentrated in one circuit.
+
+They differ in what they test (genes, regulons, programs, subpopulations) and, critically, in what
+they treat as a replicate. MAST and the original pySCENIC test count nuclei; D-SPIN and popAlign
+count animals. This notebook asks which differences reflect biology and which reflect statistics.
+
+**What changed in this update (`r new_tag`).**
+
+- pySCENIC was refitted at class (36), subclass (137) and supertype (364) level and tested per
+  animal ([0X_SCENIC_pySCENIC.qmd]{.path}). Every popAlign unit is now linked to its own GRN.
+- All pySCENIC readouts (gene bridge, subpopulation activity, circuit, leave-one-animal-out, leads)
+  were recomputed with those GRNs.
+- Three high-level analyses were added: an exact global test per method, unit-level concordance,
+  and the hidden animal structure.
+
+Method inputs are documented in [0X_Integrated-Results_SN.qmd]{.path}. The plan is
+[analysis_md/integrated_analysis_plan.md]{.path}.
+
+## Results
+
+### The methods describe the same expression changes {#sec-bridge}
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-bridge
+#| echo: false
+#| results: asis
+show_fig("integrated_fig1_gene_bridge.png")
+```
+
+::: {.fig-caption}
+[**Figure 1.**]{.fig-num} Gene-level bridge. For each robust, uncontaminated popAlign
+subpopulation, we compared the oNMF program that moves most between WildR and SPF with the program
+that moves least (a control from the same subpopulation and nuclei). (A) Do each program's top 50
+genes shift the same way in MAST? Signed z of the mean MAST coefficient against random gene sets,
+one point per unit × program (`r nrow(gb_ok)` programs); paired Wilcoxon, moving vs control.
+(B) The share of subpopulations whose program is also seen by each other method. "Own GRN" means
+the pySCENIC network fitted on that unit's nuclei.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **popAlign and MAST see the same shifts.** Median z = `r round(z_shift, 1)` for the moving program
+  vs `r round(z_ctrl, 1)` for the control (p = `r sig2(p_gb)`). The agreement is strongest at
+  supertype level.
+- **D-SPIN partly sees them** (`r pct(dsp_shift)` vs `r pct(dsp_ctrl)`).
+- **Unit-specific GRNs make pySCENIC more informative, but not about upstream regulators.**
+  - With its own network, a unit's moving and control programs are equally often targeted by ≥ 3
+    regulons (`r pct(nat3_s)` vs `r pct(nat3_c)`). Broad regulons still dominate
+    (*`r paste(top_tf, collapse = ", ")`*).
+  - However, the regulons that target the moving program shift per animal more often
+    (`r tk_s` / `r fmt(tn_s)`, `r pct(tk_s / tn_s, 1)`) than those targeting the control
+    (`r tk_c` / `r fmt(tn_c)`, `r pct(tk_c / tn_c, 1)`; Fisher p = `r sig2(p_tk)`).
+:::
+
+[Source: cells `cell-run`, `cell-run-update`](#cell-run){.provenance} · tables: [integrated_gene_bridge.csv]{.path}, [run_`r new_tag`/integrated_gene_bridge_scenic_native.csv]{.path}
+:::
+
+### pySCENIC, refitted per cell type, follows popAlign's subpopulations {#sec-scenic}
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-scenic
+#| echo: false
+#| results: asis
+show_fig("integrated_fig5_scenic_subpopulations.png")
+```
+
+::: {.fig-caption}
+[**Figure 2.**]{.fig-num} Regulon activity per animal within each popAlign subpopulation, from the
+GRN fitted on that unit's nuclei (`r fmt(n_comp)` subpopulations with ≥ 4 animals per group,
+≥ 5 nuclei each). (A) Regulons at pooled-t p < 0.05, divided by the number expected under exact
+relabelling of that subpopulation's animals. Bootstrap 95% CI over subpopulations. (B) Distribution
+of the per-subpopulation permutation p; the diagonal is chance. (C) Of the regulons whose targets
+are enriched in a component's moving (or control) program, the share that shift per animal in that
+subpopulation.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **Overall, regulon activity per subpopulation is at chance:** `r n_comp_p05` of `r fmt(n_comp)`
+  subpopulations at p < 0.05 (≈ `r round(0.05 * n_comp)` expected), `r n_comp_fdr` at FDR < 0.1.
+- **But it is concentrated where popAlign sees states move:** `r round(scr("shifted"), 2)`× the
+  permutation expectation in state-shifted subpopulations (n = `r scr("shifted", "n")`), against
+  `r round(scr("other"), 2)`× in other robust ones (p = `r sig2(p_sc_shift)`). The pattern holds at
+  subclass and supertype level. Class-level GRNs, which pool many cell types, missed it.
+- **Read this as agreement, not confirmation.** Subpopulations were flagged using these same 12
+  animals, and regulon AUC is computed from the same expression. Any difference between the groups
+  in these animals, real or not, shows up in both. The test that can tell the two apart is
+  [Figure 4](#sec-global).
+:::
+
+[Source: cell `cell-run-update`](#cell-run-update){.provenance} · tables: [integrated_scenic_native_component.csv]{.path}, [integrated_scenic_native_unit.csv]{.path}
+:::
+
+### Animal-level re-tests: small effects, none resolvable alone {#sec-animal}
+
+```{r}
+#| label: tbl-calibration
+#| echo: false
+tibble(
+  Method = c("MAST", "pySCENIC", "D-SPIN", "popAlign (state)", "Pseudobulk (this notebook)"),
+  `Original replicate` = c("nuclei", "nuclei", "animals", "animals", "animals"),
+  `Original result` = c(glue("{fmt(n_mast_deg)} DEGs in these supertypes (padj < 0.1)"),
+                        glue("{fmt(n_scen_nuc)} regulon tests padj < 0.05 ({pct(r_scen_nuc)}; class-level GRNs)"),
+                        "245 'star' programs (all WildR animals same sign)",
+                        "no shift at FDR < 0.1",
+                        "—"),
+  `Tested with animals as replicates` = c(
+    glue("{pct(deg_nom)} p < 0.05 (non-DE genes: {pct(bg_nom, 1)}); {deg_fdr} at FDR < 0.1 — selected on the same animals"),
+    glue("{pct(scen_nom, 1)} of {fmt(scen_tests)} regulon tests p < 0.05 across {scen_grn} GRNs (chance 5%); {scen_glob} at global FDR < 0.1"),
+    glue("{pct(r_dsp, 1)} of programs p < 0.05; 0 at FDR < 0.1"),
+    glue("{pct(r_pa, 1)} of state tests p < 0.05 (chance 5%); 0 at FDR < 0.1"),
+    glue("{pct(r_pb, 1)} of genes p < 0.05; {pb_fdr_genes} genes at FDR < 0.1 ({pb_fdr_units} units)")),
+  `Exact relabelling test (Fig. 6)` = c(glue("not testable (circular); all genes p = {sig2(p_all)}"), glue("p = {sig2(p_scn)}"),
+                                        glue("p = {sig2(p_dsp)}"), glue("p = {sig2(p_popa)}"), glue("p = {sig2(p_all)}"))
+) %>% kable(format = "html", escape = TRUE,
+            caption = "How each method's WildR vs SPF result holds up when animals, not nuclei, are the replicates. MAST, pseudobulk, D-SPIN and the relabelling tests: supertype units (6 vs 6). pySCENIC: all 536 testable GRNs at three levels. popAlign: all levels.")
+```
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-animal-de
+#| echo: false
+#| results: asis
+show_fig("integrated_fig2_animal_level_de.png")
+```
+
+::: {.fig-caption}
+[**Figure 3.**]{.fig-num} (A) Every MAST DEG (padj < 0.1), re-tested by pseudobulk: counts summed
+per animal, limma-voom, 6 vs 6. Comparison: genes MAST calls clearly not DE (padj ≥ 0.5) in the same
+units. (B) Animal-level DE per popAlign subpopulation (pseudobulk per animal × subpopulation): the
+observed share of genes at p < 0.01 divided by 1%. (C) Does the microbiome effect differ between
+subpopulations of the same supertype? (limma interaction, animal as a blocking factor). Values near
+1 mean no more heterogeneity than chance.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **MAST's DEGs keep their direction per animal** (`r pct(deg_same)`), and `r pct(deg_nom)` reach
+  nominal p < 0.05, against `r pct(bg_nom, 1)` of non-DE genes. None survives FDR.
+- **That enrichment is not independent evidence (correction to the previous version).** The DEGs
+  were chosen by MAST using the true labels on the same animals' nuclei. A gene that differs between
+  these 12 animals for any reason is both called by MAST and nominally significant per animal. The
+  valid test is whether *all* genes separate the groups more than random splits do, and they do not
+  (p = `r sig2(p_all)`, [Figure 4](#sec-global)). The same caveat applies to (B): flagged
+  subpopulations were selected on the same animals.
+- **No evidence that effects are confined to one subpopulation.** Only `r n_het_units` of
+  `r nrow(het)` supertypes have any gene with a subpopulation-specific effect, about chance, so
+  supertype-level analyses lose little by ignoring substructure.
+:::
+
+[Source: cell `cell-run`](#cell-run){.provenance} · tables:
+[integrated_pseudobulk_unit_summary.csv]{.path}, [integrated_heterogeneity_summary.csv]{.path}
+:::
+
+### No method separates WildR from SPF better than a random split of the animals {#sec-global}
+
+The tests above ask, one feature at a time, whether WildR and SPF differ. Here the question is
+global: **across everything a method measures, do the true labels separate the animals more than
+labels assigned at random?** The statistic is the mean squared effect size (Hedges g²) over all of a
+method's tests in a tissue. The null is all 924 ways to split that tissue's 12 animals 6 / 6, applied
+jointly to every unit. This is exact, keeps every correlation, and no gene or unit is selected using
+the labels.
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-global
+#| echo: false
+#| results: asis
+show_fig("integrated_fig6_effect_sizes_power.png")
+```
+
+::: {.fig-caption}
+[**Figure 4.**]{.fig-num} (A) |Hedges g| of every animal-level test at supertype level (6 vs 6),
+per method; grey is the no-effect distribution. MAST DEGs are shown for contrast. They are shifted
+because they were selected on these animals. (B) Mean g² for each of the 924 splits of a tissue's
+animals (histogram) and for the real WildR / SPF split (line); p = share of splits at least as
+large. (C) Power of a two-sample test on per-animal values, by animals per group, for single tests
+(solid) and transcriptome-wide thresholds (dotted).
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **Every method's effect-size distribution matches the no-effect curve** (A). Mean g² sits at or
+  just below its permutation mean for pseudobulk (all genes), popAlign, D-SPIN and pySCENIC.
+- **The real split is unremarkable, and for expression it is unusually small** (B). Across all genes
+  it ranks `r rk("AMY")` of 924 in AMY and `r rk("HYP")` of 924 in HYP, counting from the largest.
+  Most random splits separate the animals *more* than the microbiome does. That can only happen if
+  the animals differ systematically along some other axis ([Figure 5](#sec-hidden)).
+- **MAST DEGs look `r round(r_mdeg, 1)`× "enriched" (p = `r sig2(p_mdeg)`)** only because of
+  selection (A): this is what choosing genes on the same animals produces.
+- **What 6 animals per group can see** (C): effects of g ≈ `r mde_g` at 80% power for a single
+  test. g = 0.8 needs about `r n_g08` per group (one test) or `r n_g08_gw` (transcriptome-wide);
+  g = 0.5 needs about `r n_g05` for one test.
+:::
+
+[Source: cell `cell-run-update`](#cell-run-update){.provenance} · tables: [integrated_effect_size_summary.csv]{.path}, [integrated_power_curves.csv]{.path}
+:::
+
+```{r}
+#| label: tbl-effects
+#| echo: false
+if (!is.null(es)) es %>% filter(tissue == "Both", method != "Pseudobulk: other genes") %>%
+  transmute(Method = method, Tests = n_tests, Units = n_units, `Median |g|` = round(median_abs_g, 2),
+            `Share p < 0.05` = pct(share_p05, 1), `Mean g² observed` = round(obs_g2, 3),
+            `Mean g² relabelling` = round(perm_g2, 3), `Permutation p` = signif(p_perm, 2),
+            `Valid test?` = if_else(method == "Pseudobulk: MAST DEGs", "no — genes selected on these animals", "yes")) %>%
+  kable(format = "html", caption = "Global relabelling test per method (supertype units, 6 vs 6, both tissues; tissues combined over 10,000 random pairs of per-tissue relabellings).")
+```
+
+### A hidden structure among the animals dominates {#sec-hidden}
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-hidden
+#| echo: false
+#| results: asis
+show_fig("integrated_fig8_hidden_animal_structure.png")
+```
+
+::: {.fig-caption}
+[**Figure 5.**]{.fig-num} (A) Of the 46 random 6 / 6 splits (top 5%) with the largest
+whole-transcriptome separation, how often each pair of animals lands on the same side. Animals are
+ordered by clustering. (B) Agreement between methods on which of the 924 splits separate the
+animals most (Spearman ρ with pseudobulk).
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **Animals form groups that cut across microbiome status.** The splits that separate animals most
+  are always 3 WildR + 3 SPF per side. The microbiome split is close to orthogonal to them, which is
+  why it ranks so low in [Figure 4B](#sec-global).
+- **The same structure appears in both tissues.** For example, SPF_6 and SPF_9 group together and
+  apart from SPF_3D4 and WildR_10 in both AMY and HYP. That points to a property of the animal
+  (cohort, litter, cage, age, sex, processing day) rather than the dissection. The "D4" animals
+  (SPF_1D4, SPF_3D4, WildR_3D4) fall together in HYP.
+- **Every method sees it** (ρ = 0.55–0.76 with pseudobulk). This is the shared animal-to-animal
+  variation in [Figure 8B](#sec-animals): large, consistent across methods, and unrelated to the
+  microbiome.
+- **Why it matters:** it is the largest source of variance in the data. If its cause is identified
+  and recorded, modelling it would sharpen every WildR vs SPF test. If it is a processing variable,
+  the balanced design has protected the microbiome comparison from it.
+:::
+
+[Source: cell `cell-run-update`](#cell-run-update){.provenance} · data: [data/interim/sn_integrated/run_`r new_tag`/effect_size_permutation_null.csv]{.path}
+:::
+
+### The network pattern is not shared by the other methods {#sec-circuit}
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-circuit
+#| echo: false
+#| results: asis
+show_fig("integrated_fig3_circuit_by_modality.png")
+```
+
+::: {.fig-caption}
+[**Figure 6.**]{.fig-num} For each method, the share of a unit's tests with p < 0.05 (MAST:
+padj < 0.1), compared between MeA → BST → medial hypothalamus network units and all other units.
+The ratio comes from a quasi-binomial model on hit counts adjusted for unit size and tissue, with a
+95% CI. Supertype units, except "own GRN, all levels", which uses all 244 popAlign units with level
+in the permutation strata. The network definition is as in the popAlign report.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **Only popAlign state shifts concentrate in the network**
+  (`r round(C("popAlign state", "ratio_adj"), 1)`×, p = `r sig2(C("popAlign state", "p_adj"))`).
+- **pySCENIC does not, whichever GRN is used:**
+  - class GRN `r round(C("pySCENIC regulons (class GRN)", "ratio_adj"), 2)`×;
+  - supertype GRN `r round(C("pySCENIC regulons (supertype GRN)", "ratio_adj"), 2)`×;
+  - own GRN at all levels `r round(C("pySCENIC regulons (own GRN, all levels)", "ratio_adj"), 2)`×.
+
+  All are non-significant. That class networks were too coarse to see a network effect is therefore
+  unlikely.
+- **D-SPIN** (`r round(C("D-SPIN programs", "ratio_adj"), 2)`×) and **pseudobulk**
+  (`r round(C("Pseudobulk expression", "ratio_adj"), 2)`×) do not concentrate either. MAST finds
+  fewer DEGs in network units because they are smaller.
+- **Interpretation:** the network result remains a popAlign observation, possibly a population-level
+  state change only popAlign is sensitive to, possibly model-specific. It needs an independent
+  modality.
+:::
+
+[Source: cell `cell-run-update`](#cell-run-update){.provenance} · table: [integrated_circuit_enrichment.csv]{.path}
+:::
+
+### Do methods agree on which cell types carry signal? {#sec-concord}
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-concord
+#| echo: false
+#| results: asis
+show_fig("integrated_fig7_unit_concordance.png")
+```
+
+::: {.fig-caption}
+[**Figure 7.**]{.fig-num} (A) Spearman correlation between methods of each supertype's hit rate
+(share of tests at p < 0.05; MAST padj < 0.1). Ranks are adjusted for log nuclei and tissue;
+permutation p within tissue (5,000). (B) Correlation of each method's hit rate with unit size.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **The animal-level methods partly agree on which supertypes look different**: pseudobulk–pySCENIC
+  ρ = `r round(K("Pseudobulk", "pySCENIC"), 2)`, pseudobulk–D-SPIN
+  ρ = `r round(K("Pseudobulk", "D-SPIN"), 2)`, popAlign–pySCENIC
+  ρ = `r round(K("popAlign", "pySCENIC"), 2)` (p = `r sig2(K("popAlign", "pySCENIC", "p_partial"))`).
+  These are the cell types where the 12 animals happen to split along the group labels, so this is
+  consistent measurement, not a microbiome effect (Figure 4).
+- **MAST agrees with none of them** once size is removed. Its hit rate is mostly a function of
+  nucleus count (ρ = `r round(SZ("MAST"), 2)`), the signature of nuclei-as-replicates.
+- **Animal-level methods find more in small units** (ρ = `r round(SZ("Pseudobulk"), 2)` for
+  pseudobulk). Small units have noisier per-animal means, which leaves more room for chance
+  alignment with the labels.
+:::
+
+[Source: cell `cell-run-update`](#cell-run-update){.provenance} · tables: [integrated_unit_concordance.csv]{.path}, [integrated_unit_size_dependence.csv]{.path}
+:::
+
+### Animals: shared variation, little generalisable microbiome signal {#sec-animals}
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-fig-animals
+#| echo: false
+#| results: asis
+show_fig("integrated_fig4_animal_level.png")
+```
+
+::: {.fig-caption}
+[**Figure 8.**]{.fig-num} Each method summarised as one score per animal (pySCENIC: supertype
+GRNs). (A) For every animal, the WildR–SPF direction was learned from the other 11 and used to place
+the held-out animal (AUC; 1 = all placed correctly). Leave-one-out is biased below 0.5 under the
+null. (B) Correlation between methods' animal scores after removing the group means.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **Only one score places new animals better than chance:** popAlign state in hypothalamic network
+  units (AUC = `r round(pa_auc_hyp, 2)`, one-sided p = `r sig2(pa_p_hyp)`). With its own GRNs,
+  pySCENIC reaches at most AUC = `r round(scen_loao_max, 2)`.
+- **The methods agree strongly about individual animals** (median within-group ρ =
+  `r round(coup_net, 2)` in network units, `r round(coup_oth, 2)` elsewhere). This is the hidden
+  animal structure of [Figure 5](#sec-hidden), seen per animal.
+- **No significant link to the VR relay scores** (all within-group p ≥ 0.08;
+  [integrated_animal_coupling.csv]{.path}).
+:::
+
+[Source: cell `cell-run-update`](#cell-run-update){.provenance} · tables: [integrated_animal_loao_prediction.csv]{.path}, [integrated_animal_coupling.csv]{.path}
+:::
+
+### Which leads survive integration {#sec-leads}
+
+Each popAlign lead is scored on four readouts from the same animals:
+
+- **MAST:** do its moving program's genes shift in MAST the same way (z ≥ 2)?
+- **D-SPIN:** does the best-matching D-SPIN program respond per animal (p < 0.05)? Supertype only.
+- **Pseudobulk:** does the subpopulation show excess animal-level DE (≥ 1.5× chance)? Supertype only.
+- **pySCENIC (updated):** do more of its regulons shift per animal than exact relabelling of its
+  animals allows (p < 0.05)? This uses the GRN fitted on the lead's own unit, so it is now available
+  at every level.
+
+"—" means the readout is not available.
+
+```{r}
+#| label: tbl-leads
+#| echo: false
+tick <- function(ok, avail = TRUE) case_when(!avail ~ "—", ok ~ "✔", TRUE ~ "·")
+lead_ev %>%
+  transmute(
+    `Cell type` = glue("{tissue} · {lineage}"),
+    Level = str_to_title(level),
+    `popAlign` = glue("{if_else(effect == 'state shift', 'state', 'abundance')}, p = {signif(p, 2)}"),
+    MAST = glue("{tick(mast_ok, !is.na(mast_dirz_shift))} (z = {sprintf('%.1f', mast_dirz_shift)})"),
+    `D-SPIN` = if_else(is.na(dspin_best_resp_p_shift), "—", glue("{tick(dspin_ok)} (p = {signif(dspin_best_resp_p_shift, 2)})")),
+    Pseudobulk = if_else(is.na(pb_excess), "—", glue("{tick(pb_ok)} ({sprintf('%.1f', pb_excess)}×)")),
+    pySCENIC = if_else(is.na(reg_p), "—", glue("{tick(reg_ok)} ({reg_hit} vs {round(reg_exp, 1)} exp., p = {signif(reg_p, 2)})")),
+    Support = glue("{support} of {available}"),
+    QC = if_else(depth_flag, "depth-associated", "clean")) %>%
+  kable(format = "html", escape = TRUE,
+        caption = "Integrated support for each popAlign lead. ✔ = supported, · = not supported, — = not available. Sorted by support, then popAlign p. pySCENIC: regulons at p < 0.05 in the lead's subpopulation vs the exact-relabelling expectation, own-unit GRN.")
+```
+
+::: {.takeaways}
+**Key takeaways**
+
+- **HYP PVHd-DMH Lhx6 GABA is the best-supported lead.** popAlign, MAST, the best-matching D-SPIN
+  program and now pySCENIC all point the same way: its subpopulation carries about twice the regulon
+  shifts expected by relabelling.
+- **HYP MEA-BST Lhx6 Sp9, DMH Hmx2 (subclass) and AHN Onecut3 GABA keep strong MAST support.** PVH-SO-PVa
+  Otp Glut (subclass) gains pySCENIC support.
+- **AMY MEA-BST Lhx6 Nr2e1 GABA, popAlign's former top lead, has little support elsewhere**,
+  including from its own supertype GRN.
+- **Caveat:** all readouts use the same 12 animals, and the global test (Figure 4) is null. Support
+  counts rank leads for independent validation; they do not establish an effect.
+:::
+
+```{r}
+#| label: tbl-lead-regulons
+#| echo: false
+if (!is.null(sn_l)) dt_table(sn_l %>% transmute(Tissue = tissue, Lead = name, Component = comp, `popAlign p` = signif(p, 2),
+                                               `Regulons tested` = comp_n_regulons, `p < 0.05` = comp_n_p05,
+                                               `Expected (relabelling)` = round(comp_perm_mean, 1), `Permutation p` = signif(comp_p_perm, 2),
+                                               `Unit-level GRN p` = signif(unit_p_perm, 2), `Top regulon targeting moving program` = native_top_shift,
+                                               `Most-shifted regulons (Hedges g)` = top_regulons),
+                             caption = "Regulon detail for each lead (own-unit GRN): per-subpopulation regulon excess, whole-unit permutation p, and the three regulons with the smallest p in the lead's subpopulation.")
+```
+
+[Source: cell `cell-run-update`](#cell-run-update){.provenance} · table: [integrated_evidence_leads_scenic_native.csv]{.path}
+
+## Synthesis & Discussion
+
+[SYNTHESIS]{.eyebrow}
+
+**The question.** Four methods applied to the same nuclei disagreed about how much the
+microbiome changes the amygdala and hypothalamus. Is that disagreement biological or statistical?
+
+**Statistical, and the cleanest test finds no microbiome signal at this sample size.**
+
+- *The methods measure the same thing.* Where they can be compared, they agree. popAlign's moving
+  programs carry MAST's signal, and pseudobulk and MAST effect sizes correlate (median
+  ρ = `r round(rho_mast_pb, 2)` per unit). Per-animal program scores track D-SPIN
+  (`r pct(frac_val)` of programs). Refitted per cell type, pySCENIC regulons shift where popAlign's
+  subpopulations shift. None of them contradicts another.
+- *What separated them was the replicate.* Counted by nuclei, MAST and the original pySCENIC test
+  found thousands of hits. Counted by animals, no method has an excess. Compared with every possible
+  6 / 6 split of the animals, the WildR / SPF split separates the groups no more than chance, and
+  for whole-transcriptome expression less than most random splits.
+- *The dominant variation is between animals, not microbiomes.* A hidden grouping of the animals,
+  shared across tissues and methods and balanced across WildR and SPF, explains more variance than
+  the microbiome. Its cause is not in the recorded metadata.
+
+**What this means for the earlier conclusions.**
+
+1. **The previous version's "small but real" MAST effects are not supported.** Their per-animal
+   enrichment follows from selecting genes on the same animals, and the selection-free test is null.
+   MAST gene lists are hypotheses, not findings.
+2. **pySCENIC differential regulons should not be used as evidence** of microbiome regulation at any
+   level (`r scen_glob` of `r fmt(scen_tests)` animal-level tests at global FDR < 0.1). Per-cell-type
+   GRNs are useful as annotation: which regulators act in a subpopulation.
+3. **popAlign's network result remains uncorroborated.** It is the only pattern that is specific to
+   one set of cell types and that also places held-out hypothalamic animals. It still needs an
+   independent modality.
+4. **The composition result stands.** No method suggests that cell-type or subpopulation proportions
+   change, and population averages do not hide opposing subpopulation changes.
+
+**Where to look first.** HYP PVHd-DMH Lhx6 GABA (popAlign, MAST, D-SPIN and pySCENIC agree), followed by MEA-BST
+Lhx6 Sp9, DMH Hmx2 (subclass), AHN Onecut3 GABA and PVH-SO-PVa Otp Glut. All are hypothalamic or
+extended-amygdala populations. They are candidates for independent validation, not results.
+
+**Limits.**
+
+- All methods analyse the same 12 animals, so agreement between them shows consistency, not
+  replication.
+- The relabelling test asks about a *global* excess. A strong effect confined to a few genes or cell
+  types would barely move a mean over thousands of tests. The per-feature tests (Table 1) cover that
+  case, and they are also null after correction.
+- The pySCENIC split for AMY 01 IT-ET Glut at class level covers about half its nuclei. Subclass and
+  supertype GRNs use all nuclei.
+
+**Bottom line.** At 6 animals per group, the WildR microbiome produces no animal-level change in
+amygdala or hypothalamus expression, programs, regulons or composition that any of four methods can
+distinguish from a random split of the animals. Animal-to-animal differences of unknown origin are
+larger. Next steps are to identify that factor and to add animals, not methods.
+
+## Next Steps
+
+- **Done:**
+  - linked MAST, pySCENIC (class / subclass / supertype GRNs), D-SPIN and popAlign on one scaffold;
+  - re-tested every method with animals as replicates;
+  - added an exact global relabelling test, unit-level concordance and a scan for hidden animal
+    structure.
+- **Identify the hidden animal factor.** Compare cohort, litter, cage, age, sex and dissection or
+  processing date against [Figure 5](#sec-hidden). If found, add it as a covariate and rerun the
+  pseudobulk and relabelling tests (cheap: no upstream refit).
+- **Power the next experiment from these numbers.** g = 0.8 needs about `r n_g08` animals per group
+  for one pre-specified readout. Pre-specify readouts, for example the PVHd-DMH Lhx6 moving program
+  or the popAlign network state score, to avoid transcriptome-wide thresholds.
+- **Spatial validation (seqFISH)** of PVHd-DMH Lhx6 GABA, then MEA-BST Lhx6 Sp9, DMH Hmx2 and AHN
+  Onecut3 GABA, scored per animal and region.
+- **Retire nucleus-level claims.** MAST DEG counts and nucleus-level regulon hits should not be
+  reported as microbiome effects. Report pseudobulk or relabelling results alongside them.
+
+# Code & Provenance {.code-appendix}
+
+### Methods at a glance
+
+| Stage | What | Unit | Statistic |
+|---|---|---|---|
+| Gene bridge | popAlign most- vs least-shifted program → MAST direction (signed z), D-SPIN overlap + response, pySCENIC target enrichment (class GRN; **own GRN** in the update) | 432 robust, uncontaminated components | paired Wilcoxon; hypergeometric (BH within component); Fisher |
+| Cell bridge | pseudobulk per animal and per animal × subpopulation (limma-voom); microbiome × subpopulation interaction; **regulon AUC per animal × subpopulation from the unit's own GRN** | 139 supertypes (pseudobulk); 244 units / 820 subpopulations (pySCENIC) | moderated t / F; pooled t + exact relabelling of the hit count |
+| Global test | Hedges g² over all tests per method vs all 924 relabellings, applied jointly to every unit of a tissue | 139 supertypes, 6 vs 6 | exact permutation; tissues pooled over 10,000 random pairs |
+| Concordance | per-unit hit rate, method vs method, ranks adjusted for log nuclei and tissue | 139 supertypes | partial Spearman; within-tissue permutation (5,000) |
+| Hidden structure | co-assignment of animals across the top 5% relabellings by whole-transcriptome g² | 12 animals per tissue | descriptive |
+| Animal level | leave-one-animal-out score per method; held-out AUC (one-sided); within-group Spearman | 12 animals per tissue | exact (924); within-group permutation (5,000) |
+| Circuit | per-unit hit rate, network vs other | 139 supertypes (244 units for own-GRN, all levels) | quasi-binomial adjusted for size and tissue; stratified permutation |
+
+**Inputs (read only, nothing upstream re-run).**
+
+- *MAST:* per-unit results under `data/interim/mast/snRNASeq/{level}_label/` (2026-01-04).
+- *popAlign:* run 2026-10-04, synthesis 2026-10-05.
+- *D-SPIN:* `data/interim/dspin/<tissue>__<supertype>/` (fit 2026-08-09).
+- *pySCENIC:*
+  - class GRNs `data/interim/scenic/by_class/` (base run);
+  - subclass and supertype GRNs `data/interim/scenic/by_{subclass,supertype}/`;
+  - animal-level tests `tables/SCENIC/SCENIC_animal_level_tests*_2026-10-06.csv`;
+  - split permutation `tables/SCENIC/SCENIC_split_permutation_tests_2026-10-07.csv`.
+- *VR:* `tables/VR/VR1/VR1_per_animal_scores.csv`.
+
+**Outputs.**
+
+- Base run: [tables/SN_Integrated/run_2026-10-06/]{.path}. The 2026-10-06 figures are kept unchanged.
+- This update: [tables/SN_Integrated/run_2026-10-07/]{.path},
+  [data/interim/sn_integrated/run_2026-10-07/]{.path} and [figures/SN_Integrated/run_2026-10-07/]{.path}.
+- The update writes new versions of `integrated_circuit_enrichment.csv`,
+  `integrated_unit_rates.csv`, `integrated_animal_scores.csv`,
+  `integrated_animal_loao_prediction.csv` and `integrated_animal_coupling.csv`. They keep the
+  base-run rows and replace or add the pySCENIC rows.
+
+**Quality notes.**
+
+1. **Selection on the same animals (new).** A set of features chosen with the true labels (MAST DEGs,
+   popAlign-flagged subpopulations) will look enriched in any later test on the same animals, so
+   such enrichments are not evidence of effect. Global claims rest on the selection-free relabelling
+   test.
+2. **Relabelling vs theory.** The permutation mean of g² matches the t-distribution value (0.35 at
+   6 vs 6), so the null is calibrated. Observed values below it reflect the hidden animal structure,
+   not a miscalibrated test.
+3. **pySCENIC nucleus-level p-values** are near zero for nearly every regulon and are not used.
+4. **Leave-one-animal-out bias.** Held-out predictions are biased against the true label under the
+   null, so prediction is tested one-sided.
+5. **Calibrated flags.** "Any of 20–240 tests p < 0.05" is true by chance in most units. Unit and
+   subpopulation calls use hit rates, a binomial excess or exact relabelling counts.
+6. **Unit size.** Network supertypes are smaller, and power scales with size in opposite directions
+   for nucleus- and animal-level methods (Figure 7B). Circuit and concordance analyses adjust for it.
+7. **Barcodes.** popAlign and pySCENIC nuclei matched one-to-one for every unit checked. The
+   per-subpopulation analysis requires ≥ 5 nuclei per animal and ≥ 4 animals per group.
+8. **Substitutions.** MOFA2 and sparse CCA are not installed; rank correlations and
+   leave-one-animal-out scores replace them.
+
+```{bash}
+#| label: cell-run
+#| eval: false
+# Base integrated run, 2026-10-06
+cd /resnick/groups/mthomson/jboktor/WILDRxSPF_brains
+sbatch notebooks/shell_scripts/run_integrated_analysis_sn.sh          # stages gene → cell → animal → circuit → evidence (job 4085971, 54 min)
+R=/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript
+$R notebooks/R_scripts/run_integrated_analysis_sn.R --stage circuit  --run-tag 2026-10-06   # calibrated rewrite of the circuit stage
+$R notebooks/R_scripts/run_integrated_analysis_sn.R --stage evidence --run-tag 2026-10-06
+$R notebooks/R_scripts/run_integrated_analysis_sn.R --stage figures  --run-tag 2026-10-06
+```
+
+```{bash}
+#| label: cell-run-update
+#| eval: false
+# Multi-level pySCENIC update + high-level analyses, 2026-10-07 (run directly on the login node:
+# ≈ 12 min in total, 1–2 cores, < 8 GB). Logs: .cluster_runs/sn_integrated/log_integrated_scenic_multilevel_2026-10-07_1405{,_b}.log
+cd /resnick/groups/mthomson/jboktor/WILDRxSPF_brains
+R=/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript
+for st in units comps circuit concord animal bridge evidence effects; do
+  $R notebooks/R_scripts/run_integrated_scenic_multilevel_sn.R --stage $st --out-tag 2026-10-07
+done
+$R notebooks/R_scripts/plot_integrated_report_figures_sn.R          # figures/SN_Integrated/run_2026-10-07/
+```
+
+```{r}
+#| label: cell-rerun
+#| eval: !expr run_analysis
+rscript <- "/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript"
+system(glue("sbatch {wkdir}/notebooks/shell_scripts/run_integrated_analysis_sn.sh"))   # base run (SLURM)
+for (st in c("units", "comps", "circuit", "concord", "animal", "bridge", "evidence", "effects"))
+  system(glue("{rscript} {wkdir}/notebooks/R_scripts/run_integrated_scenic_multilevel_sn.R --stage {st} --out-tag {new_tag}"))
+system(glue("{rscript} {wkdir}/notebooks/R_scripts/plot_integrated_report_figures_sn.R"))
+```
+
+### Script record
+
+```{r}
+#| label: src-helpers
+#| eval: false
+#| file: R_scripts/integrated_sn_helpers.R
+```
+
+```{r}
+#| label: src-run
+#| eval: false
+#| file: R_scripts/run_integrated_analysis_sn.R
+```
+
+```{r}
+#| label: src-update
+#| eval: false
+#| file: R_scripts/run_integrated_scenic_multilevel_sn.R
+```
+
+```{r}
+#| label: src-figures
+#| eval: false
+#| file: R_scripts/plot_integrated_report_figures_sn.R
+```
+
+```{r}
+#| label: src-figures-base
+#| eval: false
+#| file: R_scripts/plot_integrated_analysis_sn.R
+```

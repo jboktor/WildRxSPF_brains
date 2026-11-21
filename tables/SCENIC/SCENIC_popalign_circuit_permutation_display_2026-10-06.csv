@@ -1,0 +1,44 @@
+Level,Tissue,Population,Animals (W/S),Regulons tested,p < 0.05 observed,Permutation mean,Permutation p
+supertype,AMY,0349 MEA-BST Lhx6 Sp9 Gaba_3,6/5,203,22,8.7,0.006
+supertype,HYP,0590 PVH-SO-PVa Otp Glut_6,6/5,210,19,9.4,0.022
+supertype,HYP,0489 DMH Hmx2 Gaba_3,6/6,240,20,11.3,0.041
+supertype,HYP,0491 DMH Hmx2 Gaba_5,6/6,205,16,9.5,0.089
+subclass,AMY,121 MEA-BST Otp Zic2 Glut,6/6,201,15,9,0.128
+supertype,HYP,0492 DMH Hmx2 Gaba_6,6/6,238,15,10.6,0.139
+supertype,HYP,0553 DMH Hmx2 Glut_2,5/5,202,11,8.1,0.222
+supertype,AMY,0356 MEA-BST Lhx6 Nr2e1 Gaba_3,6/6,214,12,9.2,0.253
+supertype,AMY,0355 MEA-BST Lhx6 Nr2e1 Gaba_2,6/6,226,13,10.4,0.281
+subclass,HYP,105 TMd-DMH Foxd2 Gaba,6/6,221,11,9.2,0.305
+supertype,HYP,0353 MEA-BST Lhx6 Sp9 Gaba_7,6/6,222,12,10.3,0.32
+subclass,AMY,074 MEA-BST Lhx6 Sp9 Gaba,6/6,132,8,6.5,0.331
+supertype,HYP,0474 PVHd-DMH Lhx6 Gaba_1,6/6,187,10,8.6,0.342
+subclass,HYP,125 DMH Hmx2 Glut,6/6,160,9,7.7,0.353
+supertype,HYP,0588 PVH-SO-PVa Otp Glut_4,6/6,168,9,7.7,0.357
+supertype,AMY,0351 MEA-BST Lhx6 Sp9 Gaba_5,6/6,220,11,9.9,0.383
+subclass,HYP,103 PVHd-DMH Lhx6 Gaba,6/6,130,7,6.2,0.403
+supertype,AMY,0352 MEA-BST Lhx6 Sp9 Gaba_6,6/6,228,10,9.7,0.437
+supertype,HYP,0589 PVH-SO-PVa Otp Glut_5,6/6,213,10,9.5,0.465
+supertype,HYP,0552 DMH Hmx2 Glut_1,6/6,165,8,7.7,0.47
+supertype,HYP,0488 DMH Hmx2 Gaba_2,6/6,234,11,11.2,0.53
+supertype,AMY,0347 MEA-BST Lhx6 Sp9 Gaba_1,6/6,182,8,8.8,0.55
+subclass,AMY,075 MEA-BST Lhx6 Nr2e1 Gaba,6/6,175,8,8.6,0.552
+subclass,HYP,121 MEA-BST Otp Zic2 Glut,3/6,204,9,9.4,0.571
+subclass,HYP,133 PVH-SO-PVa Otp Glut,6/6,102,4,4.9,0.621
+supertype,AMY,0540 MEA-BST Otp Zic2 Glut_2,6/6,220,8,9.5,0.623
+supertype,HYP,0476 PVHd-DMH Lhx6 Gaba_3,6/6,226,8,9.7,0.699
+supertype,AMY,0541 MEA-BST Otp Zic2 Glut_3,6/4,198,7,8.7,0.7
+supertype,HYP,0348 MEA-BST Lhx6 Sp9 Gaba_2,6/6,240,8,10.2,0.703
+subclass,HYP,074 MEA-BST Lhx6 Sp9 Gaba,6/6,185,6,8.4,0.751
+subclass,HYP,107 DMH Hmx2 Gaba,6/6,106,3,5.3,0.768
+supertype,AMY,0354 MEA-BST Lhx6 Nr2e1 Gaba_1,6/6,227,7,10.3,0.784
+supertype,HYP,0487 DMH Hmx2 Gaba_1,6/6,164,5,7.7,0.79
+supertype,HYP,0477 PVHd-DMH Lhx6 Gaba_4,6/6,232,7,9.8,0.794
+supertype,HYP,0490 DMH Hmx2 Gaba_4,6/6,226,7,10.6,0.846
+supertype,HYP,0586 PVH-SO-PVa Otp Glut_2,6/6,181,5,8.4,0.872
+supertype,HYP,0587 PVH-SO-PVa Otp Glut_3,6/6,241,6,11.6,0.909
+supertype,HYP,0585 PVH-SO-PVa Otp Glut_1,6/6,220,5,10.3,0.965
+supertype,AMY,0350 MEA-BST Lhx6 Sp9 Gaba_4,6/6,201,3,9.3,0.968
+supertype,HYP,0481 TMd-DMH Foxd2 Gaba_1,6/6,229,4,9.9,0.978
+supertype,HYP,0475 PVHd-DMH Lhx6 Gaba_2,6/6,241,4,10.4,0.987
+supertype,AMY,0348 MEA-BST Lhx6 Sp9 Gaba_2,6/6,215,2,9.8,0.998
+supertype,HYP,0539 MEA-BST Otp Zic2 Glut_1,3/5,209,2,9.1,1

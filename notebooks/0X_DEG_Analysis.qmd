@@ -163,11 +163,17 @@ deseq2_res <- readRDS(
   mutate(
     tissue = str_after_last(celltype_tissue, "_"), 
     cell_type = str_before_last(celltype_tissue, "_"), 
-    cell_type_label = cell_type) %>% 
+    cell_type_label = cell_type) %>% 3
   left_join(allen_annot_long) %>% 
   filter(padj < 0.1) %>% 
   left_join(allen_annot_long) %>% 
   glimpse()
+
+
+# write_csv(mast_df, glue("{data_path}/mast/snRNASeq/mast_signif_hits_2026-08-17_p_adjust_0.1.csv"))
+# write_csv(edgeR_res, glue("{data_path}/edgeR/snRNASeq/edgeR_signif_hits_res_2026-08-17_p_adjust_0.1.csv"))
+# write_csv(deseq2_res, glue("{data_path}/DESeq2/snRNASeq/deseq2_signif_hits_res_2026-08-17_p_adjust_0.1.csv"))
+# write_csv(augur_df, glue("{data_path}/augur/snRNASeq/augur_signif_hits_2026-08-17_p_adjust_0.1.csv"))
 
 ```
 

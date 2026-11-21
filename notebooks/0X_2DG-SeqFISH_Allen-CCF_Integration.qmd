@@ -11,9 +11,9 @@ format:
       - ../quarto-aesthetic-kit/theme/aesthetic.scss
     include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
     grid:
-      body-width: 1280px
+      body-width: 1680px
       sidebar-width: 180px
-      margin-width: 240px
+      margin-width: 220px
     toc: true
     toc-location: right
     toc-title: "On this page"
@@ -46,8 +46,12 @@ suppressPackageStartupMessages({
 wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
 source_date <- "2026-11-11"
 analysis_date <- "2026-11-12"
+viewer_date <- "2026-11-15"
+zstack_date <- "2026-11-14e"
+hemi_date <- "2026-11-14e"
 source_dir <- file.path(wkdir, "data/interim/2DG_CCF_Integration", source_date)
 analysis_dir <- file.path(wkdir, "data/interim/2DG_CCF_Integration", analysis_date)
+viewer_dir <- file.path(wkdir, "data/interim/2DG_CCF_Integration", viewer_date)
 figure_dir <- file.path(wkdir, "figures/2DG_CCF_Integration")
 table_dir <- file.path(wkdir, "tables/2DG_CCF_Integration")
 
@@ -72,8 +76,64 @@ roi_path <- file.path(
   glue("2DG_ROI_seed_ccf_overlap_{analysis_date}.csv")
 )
 widget_rds <- file.path(
-  analysis_dir,
-  glue("2DG_CCF_interactive3d_widget_{analysis_date}.rds")
+  viewer_dir,
+  glue("2DG_CCF_interactive3d_widget_{viewer_date}.rds")
+)
+transition_rds <- file.path(
+  viewer_dir,
+  glue("2DG_contrast_transition_widget_{viewer_date}.rds")
+)
+transition_fullscreen <- file.path(
+  figure_dir,
+  glue("2DG_contrast_transition_fullscreen_{viewer_date}.html")
+)
+covariation_rds <- file.path(
+  viewer_dir,
+  glue("2DG_region_covariation_widget_{viewer_date}.rds")
+)
+covariation_table_path <- file.path(
+  table_dir,
+  glue("2DG_region_covariation_{viewer_date}.csv")
+)
+color_note_path <- file.path(
+  viewer_dir,
+  glue("2DG_viewer_color_sampling_note_{viewer_date}.json")
+)
+covariation_png <- file.path(
+  figure_dir,
+  glue("2DG_region_covariation_{viewer_date}.png")
+)
+zstack_html <- file.path(
+  figure_dir,
+  glue("2DG_CCF_zstack_browser_{zstack_date}.html")
+)
+hemisphere_provenance_path <- file.path(
+  table_dir,
+  "seqFISH_section_hemisphere_provenance_2026-11-14.csv"
+)
+hemisphere_plan_path <- file.path(
+  wkdir,
+  "analysis_md/2DG_seqFISH_hemisphere_symmetry_plan.md"
+)
+symmetry_table_path <- file.path(
+  table_dir,
+  glue("2DG_NE_hemisphere_symmetry_classes_{hemi_date}.csv")
+)
+symmetry_counts_figure <- file.path(
+  figure_dir,
+  glue("2DG_NE_symmetry_class_counts_{hemi_date}.png")
+)
+symmetry_strip_figure <- file.path(
+  figure_dir,
+  glue("2DG_NE_hemisphere_symmetry_classes_{hemi_date}.png")
+)
+symmetry_lat_figure <- file.path(
+  figure_dir,
+  glue("2DG_NE_lateralization_concordance_sidebyside_{hemi_date}.png")
+)
+bilateral_2dg_path <- file.path(
+  table_dir,
+  glue("2DG_region_bilateral_summaries_{hemi_date}.csv")
 )
 
 template_figure <- file.path(
@@ -109,10 +169,50 @@ registration <- if (file.exists(registration_summary_path)) {
 battery <- if (file.exists(battery_path)) fread(battery_path) else NULL
 gate_triad <- if (file.exists(gate_triad_path)) fread(gate_triad_path) else NULL
 roi <- if (file.exists(roi_path)) fread(roi_path) else NULL
+covariation <- if (file.exists(covariation_table_path)) {
+  fread(covariation_table_path)
+} else {
+  NULL
+}
+symmetry <- if (file.exists(symmetry_table_path)) {
+  fread(symmetry_table_path)
+} else {
+  NULL
+}
 
 display_saved_image <- function(path, pending_message) {
   if (file.exists(path)) {
     knitr::include_graphics(path)
+  } else {
+    knitr::asis_output(paste0("<p><em>", pending_message, "</em></p>\n"))
+  }
+}
+
+# Absolute /resnick/... hrefs break in browser / Cursor HTML preview (treated as
+# origin-root URLs). Link relative to this notebook's HTML in notebooks/.
+notebook_href <- function(path) {
+  notebooks_dir <- normalizePath(
+    file.path(wkdir, "notebooks"),
+    winslash = "/",
+    mustWork = TRUE
+  )
+  target <- normalizePath(path, winslash = "/", mustWork = TRUE)
+  if (startsWith(target, paste0(notebooks_dir, "/"))) {
+    return(substring(target, nchar(notebooks_dir) + 2L))
+  }
+  common <- notebooks_dir
+  up <- character()
+  while (!startsWith(target, paste0(common, "/")) && common != dirname(common)) {
+    up <- c(up, "..")
+    common <- dirname(common)
+  }
+  rest <- substring(target, nchar(common) + 2L)
+  paste(c(up, rest), collapse = "/")
+}
+
+display_widget <- function(path, pending_message) {
+  if (file.exists(path)) {
+    readRDS(path)
   } else {
     knitr::asis_output(paste0("<p><em>", pending_message, "</em></p>\n"))
   }
@@ -133,8 +233,9 @@ contrast co-embedded with seqFISH NEUROeSTIMator activity in Allen CCFv3. The
 upgrade adds what a controlled analysis requires: Baseline and within-genotype
 Intruder−Baseline maps warped through the same Template transforms as
 specificity controls, a pre-specified H1–H5 hypothesis battery with explicit
-pass/fail language, and an interactive 3D CCF viewer with optional anatomy and
-seqFISH overlays.
+pass/fail language, and a wide interactive 3D CCF explorer (Baseline/Intruder
+heatmaps, density controls, AP overlap, contrast transition, region
+co-variation).
 
 ```{r}
 #| label: display-stats
@@ -183,10 +284,12 @@ they appear as findings.
 | H4 | Intruder association is not explained by within-genotype Intruder−Baseline maps | \|ρ\|_Intruder vs max(\|ρ\|_WildR I−B, \|ρ\|_SPF I−B) with gate bootstrap | I−B maps |
 | H5 | ROI seed footprints land in expected Allen parcels | Seed-slice IoU vs target parcels | Anatomical QC only |
 
+::: {.figure-card}
 ```{r}
 #| label: display-decision-strip
 #| echo: false
-#| out.width: "100%"
+#| out.width: "72%"
+#| fig.align: "center"
 
 display_saved_image(
   decision_figure,
@@ -194,15 +297,41 @@ display_saved_image(
 )
 ```
 
+::: {.fig-caption}
+[**Figure 0.**]{.fig-num} Pre-specified H1–H5 decision strip after control-map
+inspection. Decisions are locked to the battery table; only these five claims
+are promoted as findings.
+:::
+
+::: {.takeaways}
+**Battery at a glance**
+
+- **Supported:** H1 (registration QC), H3 (Intruder↔NE gate coupling).
+- **Not supported:** H2 (limbic/hypothalamic \|t\| enrichment is Baseline-driven,
+  not Intruder-specific).
+- **Inconclusive:** H4 (SPF Intruder−Baseline nearly matches Intruder \|ρ\|);
+  H5 (ROI seed footprints are not anatomical).
+- **Scope.** All cross-modality tests are section/gate-level until a verified
+  seqFISH section→animal key exists.
+:::
+:::
+
 ## Results
 
 ### H1 — Registration QC is tight where accepted
 
-::: {.figure-card .fig-wide}
+Each Template coronal slice was fit into Allen CCFv3 and scored by tissue Dice
+against the atlas. A second gate rejects fits that would invent a discontinuous
+anterior–posterior (AP) trajectory even when Dice is high. Only
+`accepted_final` slices feed every downstream overlay, enrichment, and
+co-embedding step.
+
+::: {.figure-card}
 ```{r}
 #| label: display-h1-registration
 #| echo: false
-#| out.width: "100%"
+#| out.width: "62%"
+#| fig.align: "center"
 
 display_saved_image(
   registration_figure,
@@ -219,53 +348,417 @@ failed or blank.
 ::: {.takeaways}
 **Decision: `r decision_of("H1")`**
 
-- 53/66 slices pass strict QC; mean Dice among accepted = 0.960.
-- 12 continuity rejects keep high Dice without inventing an AP trajectory.
-- Template001 is blank and is skipped.
+- **What was tested.** Pre-declared claim that accepted Template slices occupy
+  plausible CCF planes (Dice + AP continuity), not merely high Dice.
+- **Result.** 53/66 slices are `accepted_final` (mean Dice = 0.960). Twelve
+  slices keep high Dice but fail AP continuity and are excluded. Template001 is
+  blank and skipped.
+- **Takeaway.** The registered 2DG / CCF frame used below is strict: high Dice
+  alone is not enough. Continuity rejects prevent a smooth-looking but
+  anatomically invented AP path from entering later maps.
 :::
 :::
 
 ### Interactive CCF co-embedding
 
-Use the buttons to toggle **CCF borders** and **seqFISH NEUROeSTIMator** cells
-on top of Intruder t. Legend clicks also toggle traces.
+Tall Plotly explorer with Baseline / Intruder heatmaps, CCF borders, seqFISH
+NEUROeSTIMator cells, density (“cell depth”) controls, and an AP window matched
+to the registered seqFISH section band (~6725–7800 µm).
+
+**How colors are generated.** 2DG clouds are colored by continuous signed t
+(RdBu), drawn as a *random subsample of significant overlay voxels* — not
+stratified by Allen region or cell type. **Blue = WildR higher; red = SPF higher.**
+seqFISH points are colored by continuous NEUROeSTIMator `predicted_activity`
+(Viridis), also a *random cell subsample* (seed 42).
+
+**Hemisphere / mirror.** Seven seqFISH sections were registered with
+`reflect=TRUE` in
+[data/interim/registration/Allen_CCF_optimization/slice_positions_25um_final.xlsx]{.path}.
+Viewer seqFISH coordinates use **anatomical ML** (those sections un-mirrored about
+5700 µm). Provenance:
+[tables/2DG_CCF_Integration/seqFISH_section_hemisphere_provenance_2026-11-14.csv]{.path};
+plan:
+[analysis_md/2DG_seqFISH_hemisphere_symmetry_plan.md]{.path}.
+
+Anatomy toggle: **CCF points** (border subsample) or **CCF outline shell**
+(translucent Allen whole-brain mesh from `annotation_25.nrrd`) with shell α
+buttons.
 
 ::: {.figure-card .fig-wide}
 ```{r}
 #| label: display-interactive-3d
 #| echo: false
 
-if (file.exists(widget_rds)) {
-  readRDS(widget_rds)
+display_widget(
+  widget_rds,
+  "Interactive 3D widget not yet built. Run plot_2dg_ccf_interactive3d.R."
+)
+```
+
+::: {.fig-caption}
+[**Figure 2.**]{.fig-num} Multi-map CCF explorer. Buttons: Intruder / Baseline /
+Baseline+Intruder / Intruder+CCF / seqFISH AP overlap / All maps+CCF; density
+low→high and point-size toggles. AP-overlap mode keeps only voxels/cells inside
+the seqFISH AP window.
+:::
+
+::: {.takeaways}
+**What this explorer shows**
+
+- **Same CCF frame.** Baseline and Intruder WildR−SPF heatmaps (RdBu; blue =
+  WildR↑) sit with seqFISH NE cells (Viridis) and Allen anatomy (points or
+  translucent shell). Colors are random voxel/cell subsamples — not cell-type
+  strata.
+- **Why AP overlap matters.** Restricting to the seqFISH AP band
+  (~6725–7800 µm) is the honest spatial comparison plane; full-brain clouds
+  overstate co-localization.
+- **Hemisphere.** Reflect=`TRUE` sections are un-mirrored to anatomical ML so
+  left/right in the viewer match anatomy, not registration convenience.
+- **Takeaway.** Use this for spatial intuition and QC of co-embedding — not as
+  a substitute for the pre-specified H2–H5 tests below.
+:::
+:::
+
+### Allen z-stack registration browser
+
+Side-by-side **input Template slice** vs **Allen coronal plane** with selectable
+warped metrics, plus a mid-sagittal inset marking the current AP cut. Scroll
+accepted slices; toggle Intruder / Baseline / I−B / Template / tissue mask.
+This is the slice-wise companion to H1: confirm that each accepted plane’s
+warped contrast lands on the intended Allen cut.
+
+```{r}
+#| label: display-zstack-link
+#| echo: false
+#| results: asis
+
+if (file.exists(zstack_html)) {
+  cat(
+    "<p><a class='btn btn-sm' href='",
+    notebook_href(zstack_html),
+    "' target='_blank' rel='noopener'>Open z-stack registration browser</a> ",
+    "<span class='path'>", zstack_html, "</span></p>\n",
+    sep = ""
+  )
 } else {
-  knitr::asis_output(
-    "<p><em>Interactive 3D widget not yet built. Run plot_2dg_ccf_interactive3d.R.</em></p>"
+  cat("<p><em>Z-stack browser not yet built.</em></p>\n")
+}
+```
+
+::: {.callout-note}
+Sibling-map metrics (Baseline / I−B) are painted on the **Allen** panel from CCF
+overlay points; the left panel is Template anatomy only (no dense source-space
+sibling warp is stored). Colorbar: blue = WildR↑, red = SPF↑; ML left ← midline
+→ right.
+:::
+
+::: {.takeaways}
+**Z-stack takeaways**
+
+- **What was built.** Per-accepted-slice browser: Template anatomy | Allen plane
+  + warped Intruder / Baseline / I−B overlays + tissue mask, with AP inset.
+- **Conclusion.** Use it to audit whether a given AP cut’s 2DG contrast is
+  anatomically plausible before trusting regional summaries from that plane.
+  Continuity-rejected slices stay out of the scroll set (same gate as H1).
+:::
+
+### Contrast transition (Baseline → Intruder → NE)
+
+Press **Play / hold cycles** (or open the fullscreen page) to flip between SPF /
+WildR Baseline differences, Intruder differences, and regional NEUROeSTIMator
+WildR−SPF means. The animation is a visual bridge from home-cage Baseline
+structure → social Intruder structure → seqFISH excitability polarity in the
+same CCF coordinates.
+
+```{r}
+#| label: display-transition-link
+#| echo: false
+#| results: asis
+
+if (file.exists(transition_fullscreen)) {
+  cat(
+    "<p><a class='btn btn-sm' href='",
+    notebook_href(transition_fullscreen),
+    "' target='_blank' rel='noopener'>Open fullscreen contrast transition</a></p>\n",
+    sep = ""
+  )
+} else {
+  cat("<p><em>Fullscreen transition page not yet written.</em></p>\n")
+}
+```
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-contrast-transition
+#| echo: false
+
+display_widget(
+  transition_rds,
+  "Contrast transition widget not yet built. Run plot_2dg_ccf_interactive3d.R."
+)
+```
+
+::: {.fig-caption}
+[**Figure 2b.**]{.fig-num} Animated 3D transition across three signed contrasts:
+Baseline WildR−SPF voxels → Intruder WildR−SPF voxels → Allen-region centroids
+colored by seqFISH NEUROeSTIMator WildR−SPF mean activity.
+:::
+
+::: {.takeaways}
+**Transition takeaways**
+
+- **Shared polarity.** All frames use the same RdBu convention (blue = WildR↑;
+  red = SPF↑). NE regional Δ is scaled ×8 only for visibility — not a new
+  statistical transform.
+- **What to look for.** Whether Intruder hotspots resemble Baseline polarity,
+  and whether NE centroids align with either map’s sign structure (they often
+  do not one-to-one — see Fig. 2c / H2–H3).
+- **Takeaway.** Qualitative specificity check only; formal claims stay with the
+  hypothesis battery. Fullscreen page:
+  `figures/2DG_CCF_Integration/2DG_contrast_transition_fullscreen_2026-11-15.html`.
+:::
+:::
+
+### Per-region NE vs 2DG co-variation
+
+Allen parcels present in both seqFISH and 2DG overlays (≥100 seqFISH cells and
+≥10 Intruder overlay pixels; n = 137 after filters). Each point is one
+annotation: descriptive NEUROeSTIMator WildR−SPF Δ vs Intruder mean t, Baseline
+mean t, and Baseline vs Intruder. Orange marks the pre-specified
+limbic/hypothalamic set used in H2.
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: display-region-covariation
+#| echo: false
+
+display_widget(
+  covariation_rds,
+  "Region co-variation widget not yet built. Run plot_2dg_ccf_interactive3d.R."
+)
+```
+
+::: {.fig-caption}
+[**Figure 2c.**]{.fig-num} Interactive per-region scatter panels (filtered:
+≥100 seqFISH cells and ≥10 Intruder overlay pixels). Orange =
+pre-specified limbic/hypothalamic set. Axes: positive = WildR higher.
+:::
+
+```{r}
+#| label: display-covariation-static
+#| echo: false
+#| out.width: "78%"
+#| fig.align: "center"
+
+display_saved_image(
+  covariation_png,
+  "Static co-variation figure not yet written."
+)
+```
+
+```{r}
+#| label: display-covariation-stats
+#| echo: false
+#| results: asis
+
+if (!is.null(covariation) && nrow(covariation) > 2L) {
+  rho_i <- cor.test(
+    covariation$intruder_mean_t,
+    covariation$seqfish_wildr_minus_spf_descriptive,
+    method = "spearman",
+    exact = FALSE
+  )
+  rho_b <- cor.test(
+    covariation$baseline_mean_t,
+    covariation$seqfish_wildr_minus_spf_descriptive,
+    method = "spearman",
+    exact = FALSE
+  )
+  rho_bi <- cor.test(
+    covariation$baseline_mean_t,
+    covariation$intruder_mean_t,
+    method = "spearman",
+    exact = FALSE
+  )
+  cat(
+    "<p>Filtered regions = ", nrow(covariation),
+    "; Spearman ρ(NE Δ, Intruder t) = ", sprintf("%.3f", unname(rho_i$estimate)),
+    " (p = ", format.pval(rho_i$p.value, digits = 3), ")",
+    "; ρ(NE Δ, Baseline t) = ", sprintf("%.3f", unname(rho_b$estimate)),
+    " (p = ", format.pval(rho_b$p.value, digits = 3), ")",
+    "; ρ(Baseline t, Intruder t) = ", sprintf("%.3f", unname(rho_bi$estimate)),
+    " (p = ", format.pval(rho_bi$p.value, digits = 3), "). ",
+    "Positive on either axis = WildR higher.</p>\n",
+    sep = ""
   )
 }
 ```
 
+::: {.takeaways}
+**Co-variation takeaways**
+
+- **NE vs Intruder.** Weak / non-significant (ρ ≈ −0.12, p ≈ 0.16): regional
+  Intruder 2DG polarity does **not** track descriptive NE Δ at the parcel level.
+- **NE vs Baseline.** Modest positive association (ρ ≈ 0.25, p ≈ 0.0037):
+  Baseline WildR−SPF structure is the map that better co-varies with NE here —
+  consistent with H2’s Baseline-driven limbic enrichment story.
+- **Baseline vs Intruder.** Negative (ρ ≈ −0.34, p ≈ 3.8×10⁻⁵): the two 2DG
+  contrasts are not the same spatial polarity across parcels.
+- **Scope.** Descriptive region-level only — not animal-level inference. Table:
+  [tables/2DG_CCF_Integration/2DG_region_covariation_2026-11-15.csv]{.path}.
+:::
+:::
+
+### Hemisphere symmetry signatures
+
+Full-brain 2DG voxels are labeled left/right at midline 5700 µm. seqFISH uses
+**anatomical** ML after un-mirroring `reflect=TRUE` sections. Regions are classed
+**symmetric / unilateral / opposing / indeterminate** with locked thresholds
+(2DG τ=0.75 / τ0=0.25; NE τ=0.004 / τ0=0.0015; δ=0.35). Descriptive only — not
+animal-level.
+
+::: {.figure-card}
+```{r}
+#| label: display-symmetry-counts
+#| echo: false
+#| out.width: "70%"
+#| fig.align: "center"
+
+display_saved_image(
+  symmetry_counts_figure,
+  "Symmetry class-count figure not yet written."
+)
+```
+
 ::: {.fig-caption}
-[**Figure 2.**]{.fig-num} Interactive Plotly viewer. Intruder significant voxels
-(`|t| ≥ 1.725`, subsampled), Allen border points from
-`annotations_25_border_only.tif`, and a sparse seqFISH NEUROeSTIMator cloud.
+[**Figure 2d.**]{.fig-num} Counts of hemisphere symmetry classes for Baseline 2DG,
+Intruder 2DG, and NEUROeSTIMator WildR−SPF regional effects.
 :::
 
 ::: {.takeaways}
-**Display control**
+**Class counts**
 
-- Readers can audit spatial co-localization themselves rather than trusting a static PNG.
-- Borders and seqFISH start legend-only so the Intruder map remains readable.
-- Point counts are capped for `embed-resources: true` portability.
+- **What was done.** Locked thresholds applied after anatomical ML annotation;
+  classes locked before inspecting per-region strips.
+- **Pattern.** Indeterminate dominates all three maps (sparse sides / weak
+  bilateral effects). Among classifiable Intruder parcels: mostly symmetric,
+  with smaller unilateral and opposing tails.
+- **Takeaway.** Hemisphere structure is measurable but sparse — do not over-read
+  bilateral symmetry as the main WildR−SPF story.
+:::
+:::
+
+::: {.figure-card}
+```{r}
+#| label: display-symmetry-strip
+#| echo: false
+#| out.width: "58%"
+#| fig.align: "center"
+
+display_saved_image(
+  symmetry_strip_figure,
+  "Symmetry strip figure not yet written."
+)
+```
+
+::: {.fig-caption}
+[**Figure 2e.**]{.fig-num} Per-region signature strip (limbic / non-indeterminate
+focus). Full table:
+[tables/2DG_CCF_Integration/2DG_NE_hemisphere_symmetry_classes_2026-11-14e.csv]{.path}.
+:::
+
+::: {.takeaways}
+**Signature strip**
+
+- **What it shows.** Baseline / Intruder / NE class for limbic and other
+  non-indeterminate parcels side-by-side.
+- **Conclusion.** Class agreement across maps is incomplete — a region can be
+  symmetric on Intruder and indeterminate or opposing on NE. Use the CSV for
+  parcel-level follow-up; this strip is a compact audit, not a hypothesis test.
+:::
+:::
+
+::: {.figure-card}
+```{r}
+#| label: display-symmetry-lat
+#| echo: false
+#| out.width: "72%"
+#| fig.align: "center"
+
+display_saved_image(
+  symmetry_lat_figure,
+  "Lateralization concordance figure not yet written."
+)
+```
+
+::: {.fig-caption}
+[**Figure 2f.**]{.fig-num} Lateralization-index concordance: NE vs Intruder and NE
+vs Baseline. Index = (R−L)/(|R|+|L|); positive = right-biased WildR−SPF effect.
+:::
+
+```{r}
+#| label: display-symmetry-stats
+#| echo: false
+#| results: asis
+
+if (!is.null(symmetry) && nrow(symmetry) > 2L) {
+  ok <- symmetry[is.finite(intruder_lat_index) & is.finite(ne_lat_index)]
+  rho_i <- if (nrow(ok) > 5L) {
+    cor(ok$intruder_lat_index, ok$ne_lat_index, method = "spearman")
+  } else {
+    NA_real_
+  }
+  okb <- symmetry[is.finite(baseline_lat_index) & is.finite(ne_lat_index)]
+  rho_b <- if (nrow(okb) > 5L) {
+    cor(okb$baseline_lat_index, okb$ne_lat_index, method = "spearman")
+  } else {
+    NA_real_
+  }
+  cat(
+    "<p>Regions in concordance table = ", nrow(symmetry),
+    ". Intruder classes: symmetric ",
+    sum(symmetry$twodg_intruder_symmetry_class == "symmetric", na.rm = TRUE),
+    ", unilateral ",
+    sum(symmetry$twodg_intruder_symmetry_class == "unilateral", na.rm = TRUE),
+    ", opposing ",
+    sum(symmetry$twodg_intruder_symmetry_class == "opposing", na.rm = TRUE),
+    ". Spearman ρ(lat Intruder, lat NE) = ", sprintf("%.3f", rho_i),
+    "; ρ(lat Baseline, lat NE) = ", sprintf("%.3f", rho_b),
+    ".</p>\n",
+    sep = ""
+  )
+}
+```
+
+::: {.takeaways}
+**Lateralization concordance**
+
+- **Intruder ↔ NE.** Weak positive concordance of lateralization indices
+  (ρ ≈ 0.19) — some shared left/right bias, far from a tight match.
+- **Baseline ↔ NE.** Essentially flat (ρ ≈ 0.04).
+- **Method note.** Do **not** force every seqFISH section onto one CCF side;
+  annotate `reflect` and use anatomical ML
+  ([analysis_md/2DG_seqFISH_hemisphere_symmetry_plan.md]{.path}).
+- **Still open.** H2–H4 re-test with an explicit hemisphere factor; animal-level
+  models once a section→animal key exists.
 :::
 :::
 
 ### H2 — Limbic/hypothalamic enrichment is Baseline-like, not Intruder-specific
 
+H2 asked whether **Intruder** WildR−SPF \|t\| is enriched inside a
+pre-specified limbic/hypothalamic Allen annotation set relative to the rest of
+the brain. For each map we compute Δmean\|t\| = mean\|t\|(set) −
+mean\|t\|(complement), then permute annotation labels 10,000 times within that
+map. The same test on the **Baseline** map is the control: Intruder enrichment
+must exceed Baseline to count as Intruder-specific.
+
 ::: {.figure-card}
 ```{r}
 #| label: display-h2
 #| echo: false
-#| out.width: "100%"
+#| out.width: "48%"
+#| fig.align: "center"
 
 display_saved_image(
   h2_figure,
@@ -274,26 +767,40 @@ display_saved_image(
 ```
 
 ::: {.fig-caption}
-[**Figure 3.**]{.fig-num} Pre-specified limbic/hypothalamic annotation set versus
-complement: Δ mean \|t\| for Intruder and Baseline maps (10k label permutations).
+[**Figure 3.**]{.fig-num} Pre-specified limbic/hypothalamic set versus
+complement: Δ mean \|t\| for Intruder and Baseline (10k label permutations).
+Positive = higher mean \|t\| inside the set.
 :::
 
 ::: {.takeaways}
 **Decision: `r decision_of("H2")`**
 
-- Intruder Δmean\|t\| = −0.032 (p ≈ 0.85): no enrichment in the pre-specified set.
-- Baseline Δmean\|t\| = +0.63 (p ≈ 0.0003): enrichment is Baseline-driven.
-- Control requirement fails: Intruder is not stronger than Baseline.
+- **Intruder.** Δmean\|t\| = −0.032 (p ≈ 0.85; 62 set / 572 complement parcels):
+  no enrichment in the pre-specified set under the social Intruder contrast.
+- **Baseline control.** Δmean\|t\| = +0.63 (p ≈ 0.0003; 53 / 336): the same
+  limbic/hypothalamic set is strongly enriched on the home-cage Baseline map.
+- **Conclusion.** Limbic/hypothalamic \|t\| concentration is a **Baseline**
+  property of the WildR−SPF difference, not an Intruder-specific signature.
+  H2’s control requirement (Intruder stronger than Baseline) fails, so the
+  claim is not supported.
 :::
 :::
 
 ### H3 — Intruder positive mean t tracks gated NEUROeSTIMator g; Baseline does not
 
-::: {.figure-card .fig-wide}
+H3 links **seqFISH NEUROeSTIMator** (excitability proxy; Hedges’ g WildR−SPF per
+`final_gate`) to **gate-allocated positive mean 2DG t**. For each gate we take
+voxels whose strongest positive t falls in that gate’s allocation, then
+Spearman-correlate those scores with NE g across gates (n = 10). Pre-declared
+α = 0.10 on the Intruder metric only. Controls: the same allocation on
+Baseline, plus within-genotype Intruder−Baseline maps (WildR and SPF).
+
+::: {.figure-card}
 ```{r}
 #| label: display-h3-triad
 #| echo: false
-#| out.width: "100%"
+#| out.width: "68%"
+#| fig.align: "center"
 
 display_saved_image(
   triad_figure,
@@ -302,17 +809,26 @@ display_saved_image(
 ```
 
 ::: {.fig-caption}
-[**Figure 4.**]{.fig-num} Gate-allocated positive mean t versus NEUROeSTIMator
-Hedges' g for Intruder, Baseline, WildR Intruder−Baseline, and SPF
-Intruder−Baseline.
+[**Figure 4.**]{.fig-num} Control triad: gate-allocated positive mean t versus
+NEUROeSTIMator Hedges’ g for Intruder, Baseline, WildR Intruder−Baseline, and
+SPF Intruder−Baseline. Each point is one `final_gate`.
 :::
 
 ::: {.takeaways}
 **Decision: `r decision_of("H3")`**
 
-- Intruder Spearman ρ = −0.661 across 10 gates (permutation p ≈ 0.041; pre-declared α = 0.10).
-- Baseline ρ = +0.139 (p ≈ 0.70): the association collapses on the Baseline control map.
-- Negative sign: gates with stronger WildR>SPF NEUROeSTIMator effects carry lower mean positive Intruder t under gate allocation.
+- **Intruder.** Spearman ρ = −0.661 (permutation p ≈ 0.041): gates with
+  stronger WildR>SPF NE activity tend to carry **lower** mean positive Intruder
+  2DG t under gate allocation (negative coupling, not “hotter Intruder where
+  NE is higher”).
+- **Baseline control.** ρ = +0.139 (p ≈ 0.70) — the association **collapses**
+  on Baseline, so it is not a generic WildR−SPF map artifact.
+- **I−B panels.** Within-genotype Intruder−Baseline maps are the H4 bridge:
+  SPF I−B nearly matches Intruder \|ρ\| (see below), so interpret H3 as
+  Intruder-associated but not cleanly genotype-isolated.
+- **Conclusion.** Supported at the pre-declared α for Intruder vs NE, with the
+  sign and Baseline collapse as the main scientific content — not a simple
+  “co-activation” story.
 :::
 :::
 
@@ -341,21 +857,35 @@ if (!is.null(gate_triad)) {
 
 ### H4 — Within-genotype Intruder−Baseline partially overlaps the Intruder signal
 
+H4 asks whether the H3 Intruder↔NE association is **stronger** than the same
+association built from within-genotype Intruder−Baseline (I−B) 2DG maps. If SPF
+or WildR I−B matches or beats Intruder \|ρ\|, the WildR−SPF Intruder map is not
+cleanly separable from context-driven structure.
+
 ::: {.takeaways}
 **Decision: `r decision_of("H4")`**
 
-- \|ρ\|_Intruder = 0.661 versus \|ρ\|_SPF I−B = 0.636 and \|ρ\|_WildR I−B = 0.115.
-- Intruder edges the stronger I−B map, but bootstrap P(Δ ≤ 0) ≈ 0.64, so the excess is not stable.
-- Interpret H3 as Intruder-associated but not cleanly separable from SPF context-driven 2DG structure.
+- **What was compared.** \|ρ\|_Intruder = 0.661 vs \|ρ\|_SPF I−B = 0.636 and
+  \|ρ\|_WildR I−B = 0.115 (gate-level, same NE g vector).
+- **Stability.** Intruder only barely exceeds the stronger I−B map
+  (Δ ≈ 0.024); bootstrap P(Δ ≤ 0) ≈ 0.64, so the excess is not reliable.
+- **Conclusion.** Inconclusive for “Intruder-specific beyond context.” Treat
+  H3 as Intruder-associated but **not** genotype-isolated until I−B structure
+  is resolved (ideally with scalar I−B exports and an animal-level key).
 :::
 
 ### H5 — ROI seed footprints are not yet anatomically diagnostic
+
+H5 is **spatial QC**, not a biology claim: do WildR Intruder ROI overlay
+footprints on seed slices land in the expected Allen parcels (IoU vs target
+labels), using only `accepted_final` planes?
 
 ::: {.figure-card}
 ```{r}
 #| label: display-h5
 #| echo: false
-#| out.width: "100%"
+#| out.width: "52%"
+#| fig.align: "center"
 
 display_saved_image(
   roi_figure,
@@ -365,16 +895,20 @@ display_saved_image(
 
 ::: {.fig-caption}
 [**Figure 5.**]{.fig-num} IoU of WildR Intruder ROI overlay footprints versus
-expected Allen parcels on seed slices. Several seed planes fail continuity QC
-and are excluded from the mean.
+expected Allen parcels on seed slices. Planes that fail continuity QC are
+excluded from the mean.
 :::
 
 ::: {.takeaways}
 **Decision: `r decision_of("H5")`**
 
-- Only 3/6 seed slices are in `accepted_final`; mean IoU ≈ 0.004.
-- L_LS / R_Cg footprints under current AP assignment do not land in septal/cingulate parcels.
-- This is spatial QC failure for the ROI overlays as anatomical masks—not a claim about activity biology.
+- **Coverage.** Only 3/6 seed slices are `accepted_final`; among usable seeds,
+  mean IoU ≈ 0.004, and only R_vHPC shows non-zero overlap (~0.013).
+- **Misses.** L_LS and R_Cg footprints under the current AP assignment do not
+  land in septal / cingulate parcels (IoU = 0).
+- **Conclusion.** Inconclusive as anatomical masks. Do **not** use these ROI
+  overlays to claim parcel-localized Intruder biology until footprints are
+  rebuilt or confirmed as true anatomical ROIs rather than contrast displays.
 :::
 :::
 
@@ -402,11 +936,23 @@ if (!is.null(battery)) {
 
 ### Findings
 
-1. **H1 supported.** Strict Template→CCF registration yields 53 accepted slices at mean Dice 0.960 with an intact continuity gate.
-2. **H2 not supported.** Limbic/hypothalamic \|t\| enrichment is a Baseline property, not an Intruder-specific one.
-3. **H3 supported.** Gate-allocated Intruder positive mean t correlates with NEUROeSTIMator Hedges' g (ρ = −0.66, p ≈ 0.041); Baseline does not.
-4. **H4 inconclusive.** SPF Intruder−Baseline nearly matches Intruder \|ρ\|, so genotype WildR−SPF Intruder is not cleanly isolated from context-driven structure.
-5. **H5 inconclusive.** ROI seed overlays do not currently provide trustworthy anatomical parcel footprints under accepted CCF planes.
+Synthesizing the co-embedding, regional co-variation, hemisphere audit, and
+pre-specified battery:
+
+1. **H1 supported.** Strict Template→CCF registration yields 53 accepted slices
+   at mean Dice 0.960 with an intact continuity gate — the shared coordinate
+   frame for everything above is trustworthy where used.
+2. **H2 not supported.** Limbic/hypothalamic \|t\| enrichment is a **Baseline**
+   property (Δ ≈ +0.63, p ≈ 0.0003), not Intruder-specific (Δ ≈ −0.03, p ≈ 0.85).
+   Parcel-level NE↔2DG co-variation (Fig. 2c) points the same way.
+3. **H3 supported.** Gate-allocated Intruder positive mean t correlates with
+   NEUROeSTIMator Hedges’ g (ρ = −0.66, p ≈ 0.041); Baseline does not. The
+   negative sign is part of the result, not a labeling error.
+4. **H4 inconclusive.** SPF Intruder−Baseline nearly matches Intruder \|ρ\|, so
+   genotype WildR−SPF Intruder is not cleanly isolated from context-driven
+   structure.
+5. **H5 inconclusive.** ROI seed overlays do not currently provide trustworthy
+   anatomical parcel footprints under accepted CCF planes.
 
 ::: {.callout-warning}
 None of these tests are animal-level. 2DG remains a group map; seqFISH still
@@ -450,8 +996,28 @@ Ordinary rendering loads dated tables/figures/widgets only. Set
 /resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/python \
   /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/python_scripts/export_ccf_border_points.py
 
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/python \
+  /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/python_scripts/export_allen_ccf_shell_mesh.py
+
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/python \
+  /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/python_scripts/build_2dg_ccf_zstack_browser.py
+
 /resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript \
   /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/R_scripts/plot_2dg_ccf_interactive3d.R
+```
+
+Interactive viewer artifacts: `viewer_date = 2026-11-15` (centered full-domain
+3D / transition / co-variation; white backgrounds; anatomical seqFISH ML) and
+`zstack_date = 2026-11-14e` under [figures/2DG_CCF_Integration]{.path}.
+Hemisphere symmetry tables/figures: `hemi_date = 2026-11-14e`. Hypothesis
+battery remains dated `2026-11-12` (step G open — not re-run here).
+
+```{bash}
+#| label: cell-hemisphere-symmetry
+#| eval: !expr run_analysis
+
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript \
+  /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/R_scripts/analyze_2dg_seqfish_hemisphere_symmetry.R
 ```
 
 ```{r}

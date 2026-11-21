@@ -1,0 +1,245 @@
+array_index,unit_id,level,tissue,name,n_cells_exported,status,beta,atlas_K,atlas_pool,boot_K_agreement,n_features,n_features_at_bound,atlas_K_at_upper_bound,plot_deltas,runtime_min
+0,class__AMY__CS20230722_CLAS_01,class,AMY,01 IT-ET Glut,30000,ok,22864,10,12000,0.4,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,61.8
+1,class__AMY__CS20230722_CLAS_02,class,AMY,02 NP-CT-L6b Glut,2163,ok,25815,4,2163,0.75,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,60.59
+2,class__AMY__CS20230722_CLAS_04,class,AMY,04 DG-IMN Glut,2157,ok,8802,4,2157,0.35,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,59.83
+3,class__AMY__CS20230722_CLAS_06,class,AMY,06 CTX-CGE GABA,8282,ok,10426,9,8282,0,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,132.92
+4,class__AMY__CS20230722_CLAS_07,class,AMY,07 CTX-MGE GABA,11325,ok,13985,10,10371,0.1,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,136.67
+5,class__AMY__CS20230722_CLAS_08,class,AMY,08 CNU-MGE GABA,3131,ok,13521,4,3131,0.15,12,FALSE,FALSE,failed: ValueError('min() arg is an empt,54.11
+6,class__AMY__CS20230722_CLAS_09,class,AMY,09 CNU-LGE GABA,13262,ok,9656,5,11526,0,12,FALSE,FALSE,failed: ValueError('min() arg is an empt,119.15
+7,class__AMY__CS20230722_CLAS_11,class,AMY,11 CNU-HYa GABA,25101,ok,14020,9,12000,0.6,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,238.37
+8,class__AMY__CS20230722_CLAS_13,class,AMY,13 CNU-HYa Glut,20684,ok,14370,9,12000,0.65,10,FALSE,FALSE,ok,239.18
+9,class__AMY__CS20230722_CLAS_30,class,AMY,30 Astro-Epen,10791,ok,3062,5,9086,0,6,TRUE,FALSE,failed: ValueError('min() arg is an empt,232.57
+10,class__AMY__CS20230722_CLAS_31,class,AMY,31 OPC-Oligo,12125,ok,3458,4,9842,0.25,8,FALSE,FALSE,ok,234.94
+11,class__HYP__CS20230722_CLAS_08,class,HYP,08 CNU-MGE GABA,1252,ok,14794,3,1252,0.8,12,FALSE,FALSE,ok,154.85
+12,class__HYP__CS20230722_CLAS_11,class,HYP,11 CNU-HYa GABA,13343,ok,12120,13,11156,0,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,181.78
+13,class__HYP__CS20230722_CLAS_12,class,HYP,12 HY GABA,30000,ok,11134,7,12000,0.7,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,183.69
+14,class__HYP__CS20230722_CLAS_13,class,HYP,13 CNU-HYa Glut,6482,ok,12518,7,6482,0.4,12,FALSE,FALSE,failed: ValueError('min() arg is an empt,180.16
+15,class__HYP__CS20230722_CLAS_14,class,HYP,14 HY Glut,30000,ok,13091,9,12000,0,8,FALSE,FALSE,ok,186.39
+16,class__HYP__CS20230722_CLAS_19,class,HYP,19 MB Glut,2115,ok,12765,3,2115,0.4,10,FALSE,FALSE,ok,161.7
+17,class__HYP__CS20230722_CLAS_24,class,HYP,24 MY Glut,4252,ok,26281,5,4252,0.05,10,FALSE,FALSE,ok,178.06
+18,class__HYP__CS20230722_CLAS_30,class,HYP,30 Astro-Epen,19003,ok,2489,6,11924,0,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,184.75
+19,class__HYP__CS20230722_CLAS_31,class,HYP,31 OPC-Oligo,29329,ok,2241,7,12000,0.1,8,FALSE,FALSE,ok,53.07
+20,class__HYP__CS20230722_CLAS_34,class,HYP,34 Immune,2702,ok,1549,2,2702,0.9,6,TRUE,FALSE,ok,46.83
+21,subclass__AMY__CS20230722_SUBC_001,subclass,AMY,001 CLA-EPd-CTX Car3 Glut,915,ok,22959,2,915,0,10,FALSE,FALSE,ok,43.69
+22,subclass__AMY__CS20230722_SUBC_002,subclass,AMY,002 IT EP-CLA Glut,2859,ok,21755,4,2859,0.85,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,61.76
+23,subclass__AMY__CS20230722_SUBC_008,subclass,AMY,008 L2/3 IT ENT Glut,2030,ok,33366,2,2030,1,10,FALSE,FALSE,ok,48.69
+24,subclass__AMY__CS20230722_SUBC_009,subclass,AMY,009 L2/3 IT PIR-ENTl Glut,28272,ok,23029,6,8400,0.6,10,FALSE,FALSE,ok,56.56
+25,subclass__AMY__CS20230722_SUBC_012,subclass,AMY,012 MEA Slc17a7 Glut,17635,ok,20591,7,8400,0.2,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,116.57
+26,subclass__AMY__CS20230722_SUBC_013,subclass,AMY,013 COAp Grxcr2 Glut,5631,ok,20059,5,5341,0.95,8,FALSE,FALSE,ok,63.44
+27,subclass__AMY__CS20230722_SUBC_014,subclass,AMY,014 LA-BLA-BMA-PA Glut,18347,ok,24740,8,8383,0.55,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,70.96
+28,subclass__AMY__CS20230722_SUBC_027,subclass,AMY,027 L6b EPd Glut,1766,ok,25797,3,1766,0.45,10,FALSE,FALSE,ok,58.34
+29,subclass__AMY__CS20230722_SUBC_037,subclass,AMY,037 DG Glut,1500,ok,10658,2,1500,0.8,8,FALSE,FALSE,ok,48.95
+30,subclass__AMY__CS20230722_SUBC_046,subclass,AMY,046 Vip Gaba,3167,ok,7628,3,3167,1,10,FALSE,FALSE,ok,49.84
+31,subclass__AMY__CS20230722_SUBC_047,subclass,AMY,047 Sncg Gaba,1290,ok,15926,3,1290,0.35,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,59.49
+32,subclass__AMY__CS20230722_SUBC_048,subclass,AMY,048 RHP-COA Ndnf Gaba,1073,ok,13655,3,1073,0.25,10,FALSE,FALSE,ok,57.44
+33,subclass__AMY__CS20230722_SUBC_049,subclass,AMY,049 Lamp5 Gaba,2752,ok,11078,3,2752,0.55,10,FALSE,FALSE,ok,47.06
+34,subclass__AMY__CS20230722_SUBC_050,subclass,AMY,050 Lamp5 Lhx6 Gaba,1155,ok,9731,2,1155,1,10,FALSE,FALSE,ok,43.84
+35,subclass__AMY__CS20230722_SUBC_051,subclass,AMY,051 Pvalb chandelier Gaba,987,ok,11724,1,987,1,8,FALSE,FALSE,ok,47.28
+36,subclass__AMY__CS20230722_SUBC_052,subclass,AMY,052 Pvalb Gaba,3747,ok,15252,4,3747,0.7,10,FALSE,FALSE,ok,53.46
+37,subclass__AMY__CS20230722_SUBC_053,subclass,AMY,053 Sst Gaba,5436,ok,14946,6,5436,0.9,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,68.68
+38,subclass__AMY__CS20230722_SUBC_054,subclass,AMY,054 STR Prox1 Lhx6 Gaba,1333,ok,11023,3,1333,0.95,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,45.38
+39,subclass__AMY__CS20230722_SUBC_057,subclass,AMY,057 NDB-SI-MA-STRv Lhx8 Gaba,968,ok,18230,2,968,0.85,10,FALSE,FALSE,ok,57.7
+40,subclass__AMY__CS20230722_SUBC_062,subclass,AMY,062 STR D2 Gaba,2040,ok,15503,3,2040,0.65,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,59.97
+41,subclass__AMY__CS20230722_SUBC_064,subclass,AMY,064 STR-PAL Chst9 Gaba,9402,ok,8398,4,8066,0.95,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,54.13
+42,subclass__AMY__CS20230722_SUBC_073,subclass,AMY,073 MEA-BST Sox6 Gaba,4995,ok,13492,6,4995,0.3,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,62.42
+43,subclass__AMY__CS20230722_SUBC_074,subclass,AMY,074 MEA-BST Lhx6 Sp9 Gaba,3515,ok,13927,6,3515,0.5,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,62.86
+44,subclass__AMY__CS20230722_SUBC_075,subclass,AMY,075 MEA-BST Lhx6 Nr2e1 Gaba,1566,ok,12294,4,1566,1,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,42.74
+45,subclass__AMY__CS20230722_SUBC_076,subclass,AMY,076 MEA-BST Lhx6 Nfib Gaba,2971,ok,14253,4,2971,1,10,FALSE,FALSE,ok,61.34
+46,subclass__AMY__CS20230722_SUBC_079,subclass,AMY,079 CEA-BST Six3 Cyp26b1 Gaba,3661,ok,14845,4,3661,0.35,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,63.07
+47,subclass__AMY__CS20230722_SUBC_080,subclass,AMY,080 CEA-AAA-BST Six3 Sp9 Gaba,3080,ok,12765,4,3080,0.95,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,48.67
+48,subclass__AMY__CS20230722_SUBC_082,subclass,AMY,082 CEA-BST Ebf1 Pdyn Gaba,4007,ok,15320,4,4007,0.6,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,51.77
+49,subclass__AMY__CS20230722_SUBC_113,subclass,AMY,113 MEA-COA-BMA Ccdc42 Glut,9983,ok,13165,5,8081,0.8,8,FALSE,FALSE,ok,49.13
+50,subclass__AMY__CS20230722_SUBC_114,subclass,AMY,114 COAa-PAA-MEA Barhl2 Glut,7401,ok,16860,6,6859,0.7,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,99.85
+51,subclass__AMY__CS20230722_SUBC_120,subclass,AMY,120 MEA Otp Foxp2 Glut,1060,ok,17310,2,1060,1,8,FALSE,FALSE,ok,46.44
+52,subclass__AMY__CS20230722_SUBC_121,subclass,AMY,121 MEA-BST Otp Zic2 Glut,790,ok,13866,3,790,0.75,8,FALSE,FALSE,ok,52.86
+53,subclass__AMY__CS20230722_SUBC_122,subclass,AMY,122 LHA-MEA Otp Glut,615,ok,14033,2,615,0.95,10,FALSE,FALSE,ok,52.14
+54,subclass__AMY__CS20230722_SUBC_318,subclass,AMY,318 Astro-NT NN,2440,ok,2688,2,2440,1,8,FALSE,FALSE,ok,98.16
+55,subclass__AMY__CS20230722_SUBC_319,subclass,AMY,319 Astro-TE NN,8274,ok,3191,2,6656,1,8,FALSE,FALSE,ok,101.03
+56,subclass__AMY__CS20230722_SUBC_326,subclass,AMY,326 OPC NN,7044,ok,4034,3,6473,0.65,6,FALSE,FALSE,failed: ValueError('min() arg is an empt,61.09
+57,subclass__AMY__CS20230722_SUBC_327,subclass,AMY,327 Oligo NN,5081,ok,2551,5,5022,0.95,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,48.78
+58,subclass__HYP__CS20230722_SUBC_057,subclass,HYP,057 NDB-SI-MA-STRv Lhx8 Gaba,865,ok,15353,2,865,1,12,FALSE,FALSE,ok,58.38
+59,subclass__HYP__CS20230722_SUBC_073,subclass,HYP,073 MEA-BST Sox6 Gaba,1116,ok,13132,2,1116,1,10,FALSE,FALSE,ok,56.78
+60,subclass__HYP__CS20230722_SUBC_074,subclass,HYP,074 MEA-BST Lhx6 Sp9 Gaba,1096,ok,13281,2,1096,0.9,10,FALSE,FALSE,ok,41.64
+61,subclass__HYP__CS20230722_SUBC_076,subclass,HYP,076 MEA-BST Lhx6 Nfib Gaba,1165,ok,11374,3,1165,0.7,10,FALSE,FALSE,ok,45.03
+62,subclass__HYP__CS20230722_SUBC_087,subclass,HYP,087 MPN-MPO-LPO Lhx6 Zfhx3 Gaba,909,ok,12696,3,909,0.15,10,FALSE,FALSE,ok,39.59
+63,subclass__HYP__CS20230722_SUBC_088,subclass,HYP,088 BST Tac2 Gaba,844,ok,15706,2,844,0.7,8,FALSE,FALSE,ok,38.11
+64,subclass__HYP__CS20230722_SUBC_089,subclass,HYP,089 PVR Six3 Sox3 Gaba,1344,ok,8916,3,1344,0.55,10,FALSE,FALSE,ok,55.92
+65,subclass__HYP__CS20230722_SUBC_090,subclass,HYP,090 BST-MPN Six3 Nrgn Gaba,2702,ok,11739,4,2702,0.45,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,44.67
+66,subclass__HYP__CS20230722_SUBC_094,subclass,HYP,094 SCH Six6 Cdc14a Gaba,3295,ok,6160,4,3295,0.75,12,FALSE,FALSE,failed: ValueError('min() arg is an empt,43.13
+67,subclass__HYP__CS20230722_SUBC_095,subclass,HYP,095 DMH Prdm13 Gaba,698,ok,7092,3,698,0,8,FALSE,FALSE,ok,36.2
+68,subclass__HYP__CS20230722_SUBC_097,subclass,HYP,097 PVHd-SBPV Six3 Prox1 Gaba,3506,ok,11398,5,3506,0.75,10,FALSE,FALSE,ok,44.12
+69,subclass__HYP__CS20230722_SUBC_098,subclass,HYP,098 AHN-SBPV-PVHd Pdrm12 Gaba,5073,ok,10687,6,5073,0.5,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,66.81
+70,subclass__HYP__CS20230722_SUBC_099,subclass,HYP,099 SBPV-PVa Six6 Satb2 Gaba,2085,ok,9333,4,2085,0.5,12,FALSE,FALSE,failed: ValueError('min() arg is an empt,40.55
+71,subclass__HYP__CS20230722_SUBC_100,subclass,HYP,100 AHN Onecut3 Gaba,3669,ok,12888,7,3669,0.35,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,63.85
+72,subclass__HYP__CS20230722_SUBC_101,subclass,HYP,101 ZI Pax6 Gaba,6451,ok,12534,8,6169,0.35,10,FALSE,FALSE,ok,69.6
+73,subclass__HYP__CS20230722_SUBC_102,subclass,HYP,102 DMH-LHA Gsx1 Gaba,3579,ok,10437,6,3579,0.3,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,59.2
+74,subclass__HYP__CS20230722_SUBC_103,subclass,HYP,103 PVHd-DMH Lhx6 Gaba,2270,ok,11241,5,2270,0.6,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,59.7
+75,subclass__HYP__CS20230722_SUBC_104,subclass,HYP,104 TU-ARH Otp Six6 Gaba,4799,ok,11866,6,4799,0.05,12,FALSE,FALSE,failed: ValueError('min() arg is an empt,78.33
+76,subclass__HYP__CS20230722_SUBC_105,subclass,HYP,105 TMd-DMH Foxd2 Gaba,1014,ok,9367,2,1014,0.95,12,FALSE,FALSE,ok,74.86
+77,subclass__HYP__CS20230722_SUBC_106,subclass,HYP,106 PVpo-VMPO-MPN Hmx2 Gaba,4042,ok,13591,7,4042,0.25,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,54.21
+78,subclass__HYP__CS20230722_SUBC_107,subclass,HYP,107 DMH Hmx2 Gaba,4510,ok,12056,5,4510,0.4,10,FALSE,FALSE,ok,135.33
+79,subclass__HYP__CS20230722_SUBC_108,subclass,HYP,108 ARH-PVp Tbx3 Gaba,1998,ok,9269,5,1998,0.6,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,129.97
+80,subclass__HYP__CS20230722_SUBC_117,subclass,HYP,117 LHA Barhl2 Glut,1905,ok,12959,4,1905,0.75,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,59.16
+81,subclass__HYP__CS20230722_SUBC_118,subclass,HYP,118 ADP-MPO Trp73 Glut,778,ok,12016,3,778,0.95,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,36.94
+82,subclass__HYP__CS20230722_SUBC_119,subclass,HYP,119 SI-MA-LPO-LHA Skor1 Glut,2173,ok,12339,5,2173,0.1,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,38.75
+83,subclass__HYP__CS20230722_SUBC_123,subclass,HYP,123 DMH Nkx2-4 Glut,1185,ok,7178,3,1185,0.1,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,61.16
+84,subclass__HYP__CS20230722_SUBC_125,subclass,HYP,125 DMH Hmx2 Glut,1489,ok,11919,3,1489,0.75,10,FALSE,FALSE,ok,60.29
+85,subclass__HYP__CS20230722_SUBC_126,subclass,HYP,126 ARH-PVp Tbx3 Glut,2395,ok,11314,6,2395,0.2,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,51.59
+86,subclass__HYP__CS20230722_SUBC_127,subclass,HYP,127 DMH-LHA Vgll2 Glut,911,ok,14611,3,911,0.7,10,FALSE,FALSE,ok,50.91
+87,subclass__HYP__CS20230722_SUBC_128,subclass,HYP,128 VMH Fezf1 Glut,1618,ok,15276,2,1618,1,10,FALSE,FALSE,ok,45.59
+88,subclass__HYP__CS20230722_SUBC_129,subclass,HYP,129 VMH Nr5a1 Glut,6917,ok,14638,6,6609,0.2,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,73.83
+89,subclass__HYP__CS20230722_SUBC_130,subclass,HYP,130 LHA Pmch Glut,740,ok,16592,2,740,1,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,48.33
+90,subclass__HYP__CS20230722_SUBC_131,subclass,HYP,131 LHA-AHN-PVH Otp Trh Glut,2265,ok,12627,6,2265,0.15,10,FALSE,FALSE,ok,39.7
+91,subclass__HYP__CS20230722_SUBC_132,subclass,HYP,132 AHN-RCH-LHA Otp Fezf1 Glut,4349,ok,14129,7,4349,0,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,46.43
+92,subclass__HYP__CS20230722_SUBC_133,subclass,HYP,133 PVH-SO-PVa Otp Glut,4128,ok,11986,10,4128,0,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,45.18
+93,subclass__HYP__CS20230722_SUBC_134,subclass,HYP,134 PH-ant-LHA Otp Bsx Glut,3505,ok,10991,7,3505,0.3,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,48.6
+94,subclass__HYP__CS20230722_SUBC_135,subclass,HYP,135 STN-PSTN Pitx2 Glut,4788,ok,14588,7,4788,0.2,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,66.51
+95,subclass__HYP__CS20230722_SUBC_137,subclass,HYP,137 PH-an Pitx2 Glut,619,ok,9788,2,619,0.95,8,FALSE,FALSE,ok,46.68
+96,subclass__HYP__CS20230722_SUBC_138,subclass,HYP,138 PH Pitx2 Glut,1920,ok,14670,4,1920,0.2,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,132.15
+97,subclass__HYP__CS20230722_SUBC_139,subclass,HYP,139 PH-LHA Foxb1 Glut,2356,ok,12179,5,2356,0.15,12,FALSE,FALSE,failed: ValueError('min() arg is an empt,50.86
+98,subclass__HYP__CS20230722_SUBC_141,subclass,HYP,141 PH-SUM Foxa1 Glut,2587,ok,13995,6,2587,0,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,41.69
+99,subclass__HYP__CS20230722_SUBC_243,subclass,HYP,243 PGRN-PARN-MDRN Hoxb5 Glut,4250,ok,26285,5,4206,0.6,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,54.93
+100,subclass__HYP__CS20230722_SUBC_318,subclass,HYP,318 Astro-NT NN,17278,ok,2498,4,8400,0.8,6,FALSE,FALSE,ok,100.89
+101,subclass__HYP__CS20230722_SUBC_322,subclass,HYP,322 Tanycyte NN,1574,ok,2342,3,1574,0.45,10,FALSE,FALSE,ok,98.51
+102,subclass__HYP__CS20230722_SUBC_326,subclass,HYP,326 OPC NN,7505,ok,4418,5,7343,0.95,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,51.91
+103,subclass__HYP__CS20230722_SUBC_327,subclass,HYP,327 Oligo NN,26647,ok,2004,4,8400,1,8,FALSE,FALSE,ok,65.67
+104,subclass__HYP__CS20230722_SUBC_334,subclass,HYP,334 Microglia NN,2649,ok,1551,2,2649,0.25,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,66.5
+105,supertype__AMY__CS20230722_SUPT_0001,supertype,AMY,0001 CLA-EPd-CTX Car3 Glut_1,791,ok,23471,2,791,0.05,10,FALSE,FALSE,ok,57.59
+106,supertype__AMY__CS20230722_SUPT_0003,supertype,AMY,0003 IT EP-CLA Glut_1,1408,ok,19244,2,1408,1,10,FALSE,FALSE,ok,53.92
+107,supertype__AMY__CS20230722_SUPT_0004,supertype,AMY,0004 IT EP-CLA Glut_2,866,ok,22920,2,866,0.85,10,FALSE,FALSE,ok,43.86
+108,supertype__AMY__CS20230722_SUPT_0038,supertype,AMY,0038 L2/3 IT ENT Glut_6,1392,ok,32332,1,1392,1,10,FALSE,FALSE,ok,57.89
+109,supertype__AMY__CS20230722_SUPT_0039,supertype,AMY,0039 L2/3 IT PIR-ENTl Glut_1,18592,ok,25783,5,4800,0.05,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,68.99
+110,supertype__AMY__CS20230722_SUPT_0040,supertype,AMY,0040 L2/3 IT PIR-ENTl Glut_2,7105,ok,18316,4,4693,0,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,48.74
+111,supertype__AMY__CS20230722_SUPT_0041,supertype,AMY,0041 L2/3 IT PIR-ENTl Glut_3,1382,ok,27106,2,1382,0.5,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,105.06
+112,supertype__AMY__CS20230722_SUPT_0042,supertype,AMY,0042 L2/3 IT PIR-ENTl Glut_4,6087,ok,19447,4,4677,0.25,10,FALSE,FALSE,ok,107.16
+113,supertype__AMY__CS20230722_SUPT_0055,supertype,AMY,0055 MEA Slc17a7 Glut_1,7077,ok,20454,4,4657,0.9,10,FALSE,FALSE,ok,130.78
+114,supertype__AMY__CS20230722_SUPT_0056,supertype,AMY,0056 MEA Slc17a7 Glut_2,6429,ok,19229,5,4670,0.3,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,178.45
+115,supertype__AMY__CS20230722_SUPT_0057,supertype,AMY,0057 MEA Slc17a7 Glut_3,4129,ok,22065,4,3951,0.2,8,FALSE,FALSE,ok,38.94
+116,supertype__AMY__CS20230722_SUPT_0058,supertype,AMY,0058 COAp Grxcr2 Glut_1,1414,ok,24270,1,1414,1,8,FALSE,FALSE,ok,59.71
+117,supertype__AMY__CS20230722_SUPT_0061,supertype,AMY,0061 LA-BLA-BMA-PA Glut_2,3836,ok,22757,4,3577,0.2,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,130.63
+118,supertype__AMY__CS20230722_SUPT_0062,supertype,AMY,0062 LA-BLA-BMA-PA Glut_3,5142,ok,22728,4,4329,0.15,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,130.57
+119,supertype__AMY__CS20230722_SUPT_0063,supertype,AMY,0063 LA-BLA-BMA-PA Glut_4,3033,ok,23359,3,3033,0.35,8,FALSE,FALSE,ok,175.24
+120,supertype__AMY__CS20230722_SUPT_0064,supertype,AMY,0064 LA-BLA-BMA-PA Glut_5,2374,ok,33702,2,2374,0.65,10,FALSE,FALSE,ok,175.57
+121,supertype__AMY__CS20230722_SUPT_0065,supertype,AMY,0065 LA-BLA-BMA-PA Glut_6,1991,ok,28877,2,1991,1,10,FALSE,FALSE,ok,36.04
+122,supertype__AMY__CS20230722_SUPT_0105,supertype,AMY,0105 L6b EPd Glut_3,1179,ok,29723,3,1179,0.8,8,FALSE,FALSE,ok,58.51
+123,supertype__AMY__CS20230722_SUPT_0136,supertype,AMY,0136 DG Glut_1,1498,ok,10657,2,1498,0.75,8,FALSE,FALSE,ok,57.97
+124,supertype__AMY__CS20230722_SUPT_0173,supertype,AMY,0173 Vip Gaba_1,508,ok,7616,2,508,0.4,8,FALSE,FALSE,ok,37.41
+125,supertype__AMY__CS20230722_SUPT_0174,supertype,AMY,0174 Vip Gaba_2,506,ok,8223,1,506,1,8,FALSE,FALSE,ok,37.33
+126,supertype__AMY__CS20230722_SUPT_0175,supertype,AMY,0175 Vip Gaba_3,1086,ok,6762,2,1086,0.05,10,FALSE,FALSE,ok,52.23
+127,supertype__AMY__CS20230722_SUPT_0194,supertype,AMY,0194 RHP-COA Ndnf Gaba_2,539,ok,14288,2,539,0.9,8,FALSE,FALSE,ok,145.13
+128,supertype__AMY__CS20230722_SUPT_0199,supertype,AMY,0199 Lamp5 Gaba_1,2531,ok,10901,3,2531,0.75,10,FALSE,FALSE,ok,44.77
+129,supertype__AMY__CS20230722_SUPT_0203,supertype,AMY,0203 Lamp5 Lhx6 Gaba_1,1155,ok,9731,2,1155,1,10,FALSE,FALSE,ok,36.87
+130,supertype__AMY__CS20230722_SUPT_0204,supertype,AMY,0204 Pvalb chandelier Gaba_1,987,ok,11724,1,987,1,10,FALSE,FALSE,ok,64.64
+131,supertype__AMY__CS20230722_SUPT_0206,supertype,AMY,0206 Pvalb Gaba_2,1556,ok,17024,2,1556,0.45,10,FALSE,FALSE,ok,47.48
+132,supertype__AMY__CS20230722_SUPT_0209,supertype,AMY,0209 Pvalb Gaba_5,1619,ok,14445,3,1619,0,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,59.78
+133,supertype__AMY__CS20230722_SUPT_0215,supertype,AMY,0215 Sst Gaba_2,2292,ok,17277,3,2292,0.7,12,FALSE,FALSE,ok,44.32
+134,supertype__AMY__CS20230722_SUPT_0230,supertype,AMY,0230 Sst Gaba_17,1522,ok,13369,3,1522,0.4,10,FALSE,FALSE,ok,35.97
+135,supertype__AMY__CS20230722_SUPT_0233,supertype,AMY,0233 STR Prox1 Lhx6 Gaba_1,762,ok,11371,2,762,0.7,8,FALSE,FALSE,ok,56.72
+136,supertype__AMY__CS20230722_SUPT_0274,supertype,AMY,0274 STR D2 Gaba_1,1461,ok,17044,2,1461,1,12,FALSE,FALSE,ok,41.34
+137,supertype__AMY__CS20230722_SUPT_0285,supertype,AMY,0285 STR-PAL Chst9 Gaba_1,920,ok,6833,1,920,1,8,FALSE,FALSE,ok,34.88
+138,supertype__AMY__CS20230722_SUPT_0286,supertype,AMY,0286 STR-PAL Chst9 Gaba_2,2338,ok,9302,2,2338,0.85,10,FALSE,FALSE,ok,64.4
+139,supertype__AMY__CS20230722_SUPT_0287,supertype,AMY,0287 STR-PAL Chst9 Gaba_3,733,ok,6902,2,733,0.25,6,FALSE,FALSE,ok,47.77
+140,supertype__AMY__CS20230722_SUPT_0288,supertype,AMY,0288 STR-PAL Chst9 Gaba_4,3813,ok,7955,3,3796,0.8,8,FALSE,FALSE,ok,60.71
+141,supertype__AMY__CS20230722_SUPT_0289,supertype,AMY,0289 STR-PAL Chst9 Gaba_5,1598,ok,10265,2,1598,1,8,FALSE,FALSE,ok,41.57
+142,supertype__AMY__CS20230722_SUPT_0338,supertype,AMY,0338 MEA-BST Sox6 Gaba_2,649,ok,14253,2,649,0.7,10,FALSE,FALSE,ok,39.41
+143,supertype__AMY__CS20230722_SUPT_0340,supertype,AMY,0340 MEA-BST Sox6 Gaba_4,691,ok,14960,3,691,0.05,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,50.47
+144,supertype__AMY__CS20230722_SUPT_0342,supertype,AMY,0342 MEA-BST Sox6 Gaba_6,1034,ok,13396,3,1034,0.35,8,FALSE,FALSE,ok,46.98
+145,supertype__AMY__CS20230722_SUPT_0347,supertype,AMY,0347 MEA-BST Lhx6 Sp9 Gaba_1,1348,ok,13786,2,1348,1,10,FALSE,FALSE,ok,44.8
+146,supertype__AMY__CS20230722_SUPT_0355,supertype,AMY,0355 MEA-BST Lhx6 Nr2e1 Gaba_2,853,ok,11911,2,853,1,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,43.62
+147,supertype__AMY__CS20230722_SUPT_0358,supertype,AMY,0358 MEA-BST Lhx6 Nfib Gaba_2,1105,ok,12498,2,1105,1,10,FALSE,FALSE,ok,65.01
+148,supertype__AMY__CS20230722_SUPT_0359,supertype,AMY,0359 MEA-BST Lhx6 Nfib Gaba_3,833,ok,16553,2,833,1,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,47.98
+149,supertype__AMY__CS20230722_SUPT_0362,supertype,AMY,0362 MEA-BST Lhx6 Nfib Gaba_6,754,ok,14185,2,754,1,10,FALSE,FALSE,ok,40.39
+150,supertype__AMY__CS20230722_SUPT_0368,supertype,AMY,0368 CEA-BST Six3 Cyp26b1 Gaba_2,1328,ok,15558,1,1328,1,10,FALSE,FALSE,ok,63.77
+151,supertype__AMY__CS20230722_SUPT_0370,supertype,AMY,0370 CEA-BST Six3 Cyp26b1 Gaba_4,568,ok,12389,1,568,1,10,FALSE,FALSE,ok,114.59
+152,supertype__AMY__CS20230722_SUPT_0371,supertype,AMY,0371 CEA-BST Six3 Cyp26b1 Gaba_5,763,ok,16076,2,763,1,8,FALSE,FALSE,ok,113.7
+153,supertype__AMY__CS20230722_SUPT_0373,supertype,AMY,0373 CEA-AAA-BST Six3 Sp9 Gaba_1,853,ok,12721,2,853,1,12,FALSE,FALSE,ok,123.22
+154,supertype__AMY__CS20230722_SUPT_0374,supertype,AMY,0374 CEA-AAA-BST Six3 Sp9 Gaba_2,1076,ok,12959,3,1076,0.1,8,FALSE,FALSE,ok,61.9
+155,supertype__AMY__CS20230722_SUPT_0384,supertype,AMY,0384 CEA-BST Ebf1 Pdyn Gaba_1,1783,ok,16540,4,1783,0.15,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,120.49
+156,supertype__AMY__CS20230722_SUPT_0386,supertype,AMY,0386 CEA-BST Ebf1 Pdyn Gaba_3,1013,ok,14635,2,1013,1,10,FALSE,FALSE,ok,44.75
+157,supertype__AMY__CS20230722_SUPT_0505,supertype,AMY,0505 MEA-COA-BMA Ccdc42 Glut_1,2298,ok,12936,4,2298,0.15,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,55.19
+158,supertype__AMY__CS20230722_SUPT_0507,supertype,AMY,0507 MEA-COA-BMA Ccdc42 Glut_3,6079,ok,13506,6,4687,0.1,8,FALSE,FALSE,ok,40.23
+159,supertype__AMY__CS20230722_SUPT_0508,supertype,AMY,0508 MEA-COA-BMA Ccdc42 Glut_4,1202,ok,12391,2,1202,1,8,FALSE,FALSE,ok,59.87
+160,supertype__AMY__CS20230722_SUPT_0509,supertype,AMY,0509 COAa-PAA-MEA Barhl2 Glut_1,2876,ok,12911,3,2873,0.35,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,37.84
+161,supertype__AMY__CS20230722_SUPT_0511,supertype,AMY,0511 COAa-PAA-MEA Barhl2 Glut_3,892,ok,21682,2,892,0.9,8,FALSE,FALSE,ok,166.64
+162,supertype__AMY__CS20230722_SUPT_0512,supertype,AMY,0512 COAa-PAA-MEA Barhl2 Glut_4,847,ok,19477,2,847,1,12,FALSE,FALSE,failed: ValueError('min() arg is an empt,169
+163,supertype__AMY__CS20230722_SUPT_0514,supertype,AMY,0514 COAa-PAA-MEA Barhl2 Glut_6,1034,ok,28847,2,1034,1,10,FALSE,FALSE,ok,166.45
+164,supertype__AMY__CS20230722_SUPT_0538,supertype,AMY,0538 MEA Otp Foxp2 Glut_1,1060,ok,17310,3,1060,0,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,42.63
+165,supertype__AMY__CS20230722_SUPT_0540,supertype,AMY,0540 MEA-BST Otp Zic2 Glut_2,475,ok,14078,2,475,1,8,FALSE,FALSE,ok,51.18
+166,supertype__AMY__CS20230722_SUPT_1160,supertype,AMY,1160 Astro-NT NN_2,2429,ok,2686,2,2418,0.95,6,FALSE,FALSE,failed: ValueError('min() arg is an empt,69.23
+167,supertype__AMY__CS20230722_SUPT_1163,supertype,AMY,1163 Astro-TE NN_3,8027,ok,3216,2,4484,1,8,FALSE,FALSE,ok,52.05
+168,supertype__AMY__CS20230722_SUPT_1179,supertype,AMY,1179 OPC NN_1,7037,ok,4034,2,4464,0.5,8,FALSE,FALSE,ok,51.46
+169,supertype__AMY__CS20230722_SUPT_1184,supertype,AMY,1184 MOL NN_4,3899,ok,2240,3,3274,1,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,64.72
+170,supertype__HYP__CS20230722_SUPT_0343,supertype,HYP,0343 MEA-BST Sox6 Gaba_7,766,ok,13296,2,766,0.35,10,FALSE,FALSE,ok,60.6
+171,supertype__HYP__CS20230722_SUPT_0353,supertype,HYP,0353 MEA-BST Lhx6 Sp9 Gaba_7,571,ok,13102,2,571,0.95,10,FALSE,FALSE,ok,63.52
+172,supertype__HYP__CS20230722_SUPT_0409,supertype,HYP,0409 BST Tac2 Gaba_1,690,ok,15324,2,690,0.95,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,40.37
+173,supertype__HYP__CS20230722_SUPT_0422,supertype,HYP,0422 BST-MPN Six3 Nrgn Gaba_3,940,ok,10636,3,940,0,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,67.43
+174,supertype__HYP__CS20230722_SUPT_0423,supertype,HYP,0423 BST-MPN Six3 Nrgn Gaba_4,646,ok,12090,2,646,0.6,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,62.23
+175,supertype__HYP__CS20230722_SUPT_0436,supertype,HYP,0436 SCH Six6 Cdc14a Gaba_1,1283,ok,6021,2,1283,0.4,10,FALSE,FALSE,ok,64.94
+176,supertype__HYP__CS20230722_SUPT_0437,supertype,HYP,0437 SCH Six6 Cdc14a Gaba_2,1263,ok,5645,3,1263,0.5,8,FALSE,FALSE,ok,44.94
+177,supertype__HYP__CS20230722_SUPT_0438,supertype,HYP,0438 SCH Six6 Cdc14a Gaba_3,749,ok,7289,2,749,0.9,8,FALSE,FALSE,ok,44.19
+178,supertype__HYP__CS20230722_SUPT_0442,supertype,HYP,0442 PVHd-SBPV Six3 Prox1 Gaba_1,1166,ok,11657,2,1166,0.9,10,FALSE,FALSE,ok,43.58
+179,supertype__HYP__CS20230722_SUPT_0443,supertype,HYP,0443 PVHd-SBPV Six3 Prox1 Gaba_2,1225,ok,12439,3,1225,0.9,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,53.77
+180,supertype__HYP__CS20230722_SUPT_0444,supertype,HYP,0444 PVHd-SBPV Six3 Prox1 Gaba_3,662,ok,11128,2,662,0.5,10,FALSE,FALSE,ok,65
+181,supertype__HYP__CS20230722_SUPT_0445,supertype,HYP,0445 PVHd-SBPV Six3 Prox1 Gaba_4,453,ok,9174,2,453,0.5,10,FALSE,FALSE,ok,42.5
+182,supertype__HYP__CS20230722_SUPT_0446,supertype,HYP,0446 AHN-SBPV-PVHd Pdrm12 Gaba_1,843,ok,11413,2,843,0.9,10,FALSE,FALSE,ok,122.69
+183,supertype__HYP__CS20230722_SUPT_0447,supertype,HYP,0447 AHN-SBPV-PVHd Pdrm12 Gaba_2,820,ok,10432,2,820,0.9,10,FALSE,FALSE,ok,40.75
+184,supertype__HYP__CS20230722_SUPT_0448,supertype,HYP,0448 AHN-SBPV-PVHd Pdrm12 Gaba_3,1051,ok,9671,4,1051,0.1,8,FALSE,FALSE,ok,121.13
+185,supertype__HYP__CS20230722_SUPT_0449,supertype,HYP,0449 AHN-SBPV-PVHd Pdrm12 Gaba_4,812,ok,9735,2,812,1,10,FALSE,FALSE,ok,62.58
+186,supertype__HYP__CS20230722_SUPT_0451,supertype,HYP,0451 AHN-SBPV-PVHd Pdrm12 Gaba_6,678,ok,12586,2,678,0.2,10,FALSE,FALSE,ok,63.86
+187,supertype__HYP__CS20230722_SUPT_0452,supertype,HYP,0452 AHN-SBPV-PVHd Pdrm12 Gaba_7,592,ok,11270,2,592,1,10,FALSE,FALSE,ok,53.05
+188,supertype__HYP__CS20230722_SUPT_0454,supertype,HYP,0454 SBPV-PVa Six6 Satb2 Gaba_2,1028,ok,9452,2,1028,0.75,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,76.38
+189,supertype__HYP__CS20230722_SUPT_0455,supertype,HYP,0455 SBPV-PVa Six6 Satb2 Gaba_3,625,ok,8956,1,625,1,10,FALSE,FALSE,ok,64.85
+190,supertype__HYP__CS20230722_SUPT_0456,supertype,HYP,0456 AHN Onecut3 Gaba_1,1536,ok,11708,3,1536,0.85,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,118.59
+191,supertype__HYP__CS20230722_SUPT_0457,supertype,HYP,0457 AHN Onecut3 Gaba_2,825,ok,13844,3,825,0.45,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,44.94
+192,supertype__HYP__CS20230722_SUPT_0458,supertype,HYP,0458 AHN Onecut3 Gaba_3,1308,ok,13402,2,1308,0.6,10,FALSE,FALSE,ok,117.26
+193,supertype__HYP__CS20230722_SUPT_0459,supertype,HYP,0459 ZI Pax6 Gaba_1,1522,ok,15468,4,1522,0.05,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,64.64
+194,supertype__HYP__CS20230722_SUPT_0466,supertype,HYP,0466 ZI Pax6 Gaba_8,1193,ok,9268,3,1193,1,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,41.76
+195,supertype__HYP__CS20230722_SUPT_0470,supertype,HYP,0470 DMH-LHA Gsx1 Gaba_1,856,ok,9494,2,856,0.6,8,FALSE,FALSE,ok,53.37
+196,supertype__HYP__CS20230722_SUPT_0471,supertype,HYP,0471 DMH-LHA Gsx1 Gaba_2,1723,ok,12581,4,1723,0.8,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,63.28
+197,supertype__HYP__CS20230722_SUPT_0473,supertype,HYP,0473 DMH-LHA Gsx1 Gaba_4,595,ok,6178,1,595,0.8,8,FALSE,FALSE,ok,42.7
+198,supertype__HYP__CS20230722_SUPT_0474,supertype,HYP,0474 PVHd-DMH Lhx6 Gaba_1,831,ok,13789,2,831,0.45,8,FALSE,FALSE,ok,47.49
+199,supertype__HYP__CS20230722_SUPT_0478,supertype,HYP,0478 TU-ARH Otp Six6 Gaba_1,1881,ok,10855,3,1881,0.95,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,109.08
+200,supertype__HYP__CS20230722_SUPT_0479,supertype,HYP,0479 TU-ARH Otp Six6 Gaba_2,1527,ok,12626,3,1527,0.5,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,47.1
+201,supertype__HYP__CS20230722_SUPT_0480,supertype,HYP,0480 TU-ARH Otp Six6 Gaba_3,1391,ok,12270,3,1391,0.6,10,FALSE,FALSE,ok,44.34
+202,supertype__HYP__CS20230722_SUPT_0481,supertype,HYP,0481 TMd-DMH Foxd2 Gaba_1,1014,ok,9367,3,1014,0.6,10,FALSE,FALSE,ok,44.81
+203,supertype__HYP__CS20230722_SUPT_0487,supertype,HYP,0487 DMH Hmx2 Gaba_1,1260,ok,13536,2,1260,0.6,10,FALSE,FALSE,ok,64.05
+204,supertype__HYP__CS20230722_SUPT_0488,supertype,HYP,0488 DMH Hmx2 Gaba_2,1138,ok,11098,3,1138,0.75,10,FALSE,FALSE,ok,48.67
+205,supertype__HYP__CS20230722_SUPT_0489,supertype,HYP,0489 DMH Hmx2 Gaba_3,722,ok,9554,2,722,0.85,8,FALSE,FALSE,ok,69.4
+206,supertype__HYP__CS20230722_SUPT_0491,supertype,HYP,0491 DMH Hmx2 Gaba_5,674,ok,13254,3,674,0.05,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,47.88
+207,supertype__HYP__CS20230722_SUPT_0493,supertype,HYP,0493 ARH-PVp Tbx3 Gaba_1,759,ok,9506,3,759,0.15,8,FALSE,FALSE,ok,97.7
+208,supertype__HYP__CS20230722_SUPT_0495,supertype,HYP,0495 ARH-PVp Tbx3 Gaba_3,754,ok,9351,3,754,0.1,8,FALSE,FALSE,ok,43.31
+209,supertype__HYP__CS20230722_SUPT_0524,supertype,HYP,0524 LHA Barhl2 Glut_1,1070,ok,13420,3,1070,0.75,10,FALSE,FALSE,ok,67.11
+210,supertype__HYP__CS20230722_SUPT_0525,supertype,HYP,0525 LHA Barhl2 Glut_2,727,ok,12359,3,727,0.3,10,FALSE,FALSE,ok,46.08
+211,supertype__HYP__CS20230722_SUPT_0530,supertype,HYP,0530 SI-MA-LPO-LHA Skor1 Glut_1,815,ok,13787,2,815,0.95,12,FALSE,FALSE,ok,69.55
+212,supertype__HYP__CS20230722_SUPT_0544,supertype,HYP,0544 DMH Nkx2-4 Glut_1,505,ok,7264,1,505,0.7,6,FALSE,FALSE,ok,65.06
+213,supertype__HYP__CS20230722_SUPT_0545,supertype,HYP,0545 DMH Nkx2-4 Glut_2,680,ok,7022,3,680,0.05,8,FALSE,FALSE,ok,88.05
+214,supertype__HYP__CS20230722_SUPT_0552,supertype,HYP,0552 DMH Hmx2 Glut_1,1336,ok,11974,3,1336,0.35,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,49.09
+215,supertype__HYP__CS20230722_SUPT_0555,supertype,HYP,0555 ARH-PVp Tbx3 Glut_2,872,ok,12066,2,872,1,10,FALSE,FALSE,ok,88.23
+216,supertype__HYP__CS20230722_SUPT_0556,supertype,HYP,0556 ARH-PVp Tbx3 Glut_3,613,ok,10405,3,613,0.45,6,FALSE,FALSE,ok,64.11
+217,supertype__HYP__CS20230722_SUPT_0564,supertype,HYP,0564 VMH Fezf1 Glut_2,698,ok,13970,2,698,0.95,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,48.73
+218,supertype__HYP__CS20230722_SUPT_0565,supertype,HYP,0565 VMH Fezf1 Glut_3,685,ok,16760,2,685,0.05,10,FALSE,FALSE,ok,66.6
+219,supertype__HYP__CS20230722_SUPT_0566,supertype,HYP,0566 VMH Nr5a1 Glut_1,763,ok,10631,3,763,0,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,43.9
+220,supertype__HYP__CS20230722_SUPT_0567,supertype,HYP,0567 VMH Nr5a1 Glut_2,1087,ok,14386,4,1087,0,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,44.35
+221,supertype__HYP__CS20230722_SUPT_0568,supertype,HYP,0568 VMH Nr5a1 Glut_3,3132,ok,17440,4,3049,0.25,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,63.59
+222,supertype__HYP__CS20230722_SUPT_0569,supertype,HYP,0569 VMH Nr5a1 Glut_4,1105,ok,13368,2,1105,0.3,10,FALSE,FALSE,ok,68.84
+223,supertype__HYP__CS20230722_SUPT_0570,supertype,HYP,0570 VMH Nr5a1 Glut_5,749,ok,10371,2,749,0.1,8,FALSE,FALSE,ok,68.23
+224,supertype__HYP__CS20230722_SUPT_0575,supertype,HYP,0575 LHA-AHN-PVH Otp Trh Glut_2,568,ok,13162,2,568,0,10,FALSE,FALSE,ok,61.36
+225,supertype__HYP__CS20230722_SUPT_0576,supertype,HYP,0576 LHA-AHN-PVH Otp Trh Glut_3,581,ok,14604,2,581,0.95,10,FALSE,FALSE,ok,45.68
+226,supertype__HYP__CS20230722_SUPT_0579,supertype,HYP,0579 AHN-RCH-LHA Otp Fezf1 Glut_1,827,ok,15388,3,827,0,10,FALSE,FALSE,ok,60.33
+227,supertype__HYP__CS20230722_SUPT_0580,supertype,HYP,0580 AHN-RCH-LHA Otp Fezf1 Glut_2,1927,ok,13998,3,1927,0.6,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,57.15
+228,supertype__HYP__CS20230722_SUPT_0581,supertype,HYP,0581 AHN-RCH-LHA Otp Fezf1 Glut_3,581,ok,11870,2,581,1,10,FALSE,FALSE,ok,47.55
+229,supertype__HYP__CS20230722_SUPT_0586,supertype,HYP,0586 PVH-SO-PVa Otp Glut_2,779,ok,12876,2,779,1,10,FALSE,FALSE,ok,58.4
+230,supertype__HYP__CS20230722_SUPT_0587,supertype,HYP,0587 PVH-SO-PVa Otp Glut_3,880,ok,8682,3,880,0.85,6,FALSE,FALSE,failed: ValueError('min() arg is an empt,43.42
+231,supertype__HYP__CS20230722_SUPT_0588,supertype,HYP,0588 PVH-SO-PVa Otp Glut_4,1367,ok,14213,3,1367,0.35,10,FALSE,FALSE,failed: ValueError('min() arg is an empt,46.23
+232,supertype__HYP__CS20230722_SUPT_0591,supertype,HYP,0591 PH-ant-LHA Otp Bsx Glut_1,752,ok,11940,2,752,0.5,8,FALSE,FALSE,ok,52.5
+233,supertype__HYP__CS20230722_SUPT_0594,supertype,HYP,0594 PH-ant-LHA Otp Bsx Glut_4,600,ok,10069,2,600,0.95,10,FALSE,FALSE,ok,64.09
+234,supertype__HYP__CS20230722_SUPT_0597,supertype,HYP,0597 PH-ant-LHA Otp Bsx Glut_7,678,ok,8565,2,678,1,10,FALSE,FALSE,ok,41.3
+235,supertype__HYP__CS20230722_SUPT_0602,supertype,HYP,0602 STN-PSTN Pitx2 Glut_5,2036,ok,15422,2,2036,0.8,10,FALSE,FALSE,ok,46.89
+236,supertype__HYP__CS20230722_SUPT_0611,supertype,HYP,0611 PH Pitx2 Glut_2,1629,ok,15287,3,1629,0.5,10,FALSE,FALSE,ok,50.46
+237,supertype__HYP__CS20230722_SUPT_0974,supertype,HYP,0974 PGRN-PARN-MDRN Hoxb5 Glut_2,4249,ok,26288,4,3823,0.75,8,FALSE,FALSE,ok,52.95
+238,supertype__HYP__CS20230722_SUPT_1160,supertype,HYP,1160 Astro-NT NN_2,17215,ok,2498,2,4800,1,6,FALSE,FALSE,ok,42.26
+239,supertype__HYP__CS20230722_SUPT_1173,supertype,HYP,1173 Tanycyte NN_2,1308,ok,2195,4,1308,0.1,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,41.64
+240,supertype__HYP__CS20230722_SUPT_1179,supertype,HYP,1179 OPC NN_1,7491,ok,4419,5,4800,0.45,8,FALSE,FALSE,failed: ValueError('min() arg is an empt,39.02
+241,supertype__HYP__CS20230722_SUPT_1181,supertype,HYP,1181 COP NN_1,623,ok,5630,2,623,0.8,8,FALSE,FALSE,ok,38.29
+242,supertype__HYP__CS20230722_SUPT_1184,supertype,HYP,1184 MOL NN_4,25845,ok,1959,2,4800,1,8,FALSE,FALSE,ok,41.74
+243,supertype__HYP__CS20230722_SUPT_1194,supertype,HYP,1194 Microglia NN_1,2649,ok,1551,2,2649,0.65,6,FALSE,FALSE,failed: ValueError('min() arg is an empt,40.92

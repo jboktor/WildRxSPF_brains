@@ -1,0 +1,502 @@
+---
+title: "Integrated WildR vs SPF Results Across the Four Primary Single-Nucleus Analyses"
+subtitle: "MAST, popAlign, D-SPIN and pySCENIC: where each result lives, plus one harmonized table (AMY, HYP; 6 vs 6 animals)"
+date: today
+author: "Joe Boktor"
+categories: [snRNA-seq, Integration, MAST, popAlign, D-SPIN, pySCENIC]
+format:
+  html:
+    theme:
+      - cosmo
+      - ../quarto-aesthetic-kit/theme/aesthetic.scss
+    include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    page-layout: article
+    code-fold: true
+    code-tools: true
+    code-copy: true
+    embed-resources: true
+    fig-cap-location: bottom
+    lightbox: true
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: auto
+---
+
+```{r}
+#| label: setup-display
+#| include: false
+
+# Display-only render by default: reads saved tables / PNGs. Nothing upstream is recomputed.
+# Set TRUE to re-run the harmonization (cheap, ~15 s) and redraw the figures.
+run_analysis <- FALSE
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(glue)
+  library(knitr)
+  library(DT)
+})
+
+wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
+run_tag <- "2026-10-06_r2"   # current harmonization; 2026-10-06 (no suffix) superseded, see Code & Provenance
+sig_q <- 0.1
+
+tbl_dir <- file.path(wkdir, "tables/SN_Integration")
+fig_dir <- file.path(wkdir, "figures/SN_Integration")
+int_dir <- file.path(wkdir, "data/interim/sn_integration")
+
+# ---- Primary result artifacts, one block per method --------------------------
+src <- list(
+  mast_hits      = file.path(wkdir, "data/interim/mast/snRNASeq/mast_signif_hits_2026-08-17_p_adjust_0.1.csv"),
+  popalign_cat   = file.path(wkdir, "tables/popAlign/snRNASeq/run_2026-10-04_synth-2026-10-05/popAlign_subpopulation_catalog.csv"),
+  popalign_leads = file.path(wkdir, "tables/popAlign/snRNASeq/run_2026-10-04_synth-2026-10-05/popAlign_followup_leads.csv"),
+  dspin_fit      = file.path(wkdir, "data/interim/dspin/fit_summary.csv"),
+  dspin_stars    = file.path(wkdir, "tables/DSPIN/star_programs_david.csv"),
+  scenic_splits  = file.path(wkdir, "data/processed/scenic_by_class/diff_regulons_all_splits.csv"),
+  scenic_status  = file.path(wkdir, "data/processed/scenic_by_class/run_status.csv")
+)
+
+read_if <- function(f) if (file.exists(f)) read_csv(f, show_col_types = FALSE) else NULL
+not_computed <- function(f) cat(glue("*Not yet computed: `{basename(f)}` is missing. Set `run_analysis <- TRUE` and re-render.*\n\n"))
+show_fig <- function(name) {
+  f <- file.path(fig_dir, name)
+  if (file.exists(f)) knitr::include_graphics(f) else not_computed(f)
+}
+
+h_long_f <- file.path(tbl_dir, glue("SN_Integration_harmonized_long_{run_tag}.csv"))
+h_summ_f <- file.path(tbl_dir, glue("SN_Integration_celltype_summary_{run_tag}.csv"))
+h_roll_f <- file.path(tbl_dir, glue("SN_Integration_class_rollup_{run_tag}.csv"))
+h_reg_f  <- file.path(tbl_dir, glue("SN_Integration_source_registry_{run_tag}.csv"))
+h_long <- read_if(h_long_f)
+h_summ <- read_if(h_summ_f)
+h_roll <- read_if(h_roll_f)
+h_reg  <- read_if(h_reg_f)
+
+n_or_na <- function(x) if (is.null(x)) "—" else format(x, big.mark = ",")
+stat_rows  <- n_or_na(nrow(h_long))
+stat_units <- if (is.null(h_summ)) "—" else n_or_na(nrow(h_summ))
+stat_multi <- if (is.null(h_summ)) "—" else n_or_na(sum(h_summ$n_methods_sig >= 2))
+```
+
+## Overview
+
+This notebook gathers the four primary single-nucleus WildR vs SPF analyses (MAST differential
+expression, popAlign subpopulation modelling, D-SPIN regulatory-program responses and pySCENIC
+regulon activity) in one place. For each method it states which run is current, the exact files
+holding its results, and how its statistics were computed. It then stacks all four into one
+harmonized long table keyed on **tissue × Allen level × cell type**. Every row is one tested
+feature (gene, subpopulation, program or regulon), with a common effect, direction, p-value,
+adjusted p-value and unit-of-inference column. Nothing upstream is recomputed. The harmonization
+only reads saved outputs.
+
+::: {.stat-row}
+::: {.stat}
+[4]{.stat-value}
+[Primary SN methods]{.stat-label}
+:::
+::: {.stat}
+[`r stat_rows`]{.stat-value}
+[Harmonized feature-level rows]{.stat-label}
+:::
+::: {.stat}
+[`r stat_units`]{.stat-value}
+[Tissue × cell-type units]{.stat-label}
+:::
+::: {.stat}
+[`r stat_multi`]{.stat-value}
+[Units significant in ≥ 2 methods]{.stat-label}
+:::
+:::
+
+## Background
+
+Each method was run in its own notebook with its own output layout, cell-type keys and
+significance conventions. MAST keys units as `CS…_CLAS_01_AMY`, popAlign as
+`class__AMY__CS…_CLAS_01`, D-SPIN as `AMY__CS…_SUPT_0001`, and pySCENIC as split stems. Asking
+whether the same cell type responds to WildR on several readouts (expression, subpopulation
+structure, program activity, regulon activity) meant joining four differently shaped tables by
+hand. This notebook does that join once, reproducibly, and records the provenance of every input.
+That gives later cross-method work (convergence ranking, gene-level overlap, figure panels) a
+single object to load.
+
+## Results
+
+### Where each analysis lives
+
+Each subsection gives the current run, the primary result file (the one the harmonization
+reads), the supporting per-unit outputs, and the notebook that documents how it was produced.
+
+::: {.callout-warning}
+## Unit of inference differs between methods
+
+**MAST** and **pySCENIC** test at the level of **nuclei** (no animal term). Their p-values
+are anti-conservative for a WildR vs SPF claim, because the animal is the unit of replication.
+**popAlign** and the **D-SPIN** test used here are **animal-level** (6 vs 6). A gap in
+significance between these two groups is expected from this difference alone. The
+`inference_unit` column records it on every row.
+:::
+
+#### MAST: per-cell-type differential expression
+
+[DIFFERENTIAL EXPRESSION]{.eyebrow}
+
+Hurdle model `zlm(~ microbiome + log_std_nFeature_RNA)` with an LRT on `microbiomeWildR`. It is
+fit per **tissue × Allen class / subclass / supertype**, on cells with `keep_cell`, genes in ≥ 10 %
+of cells, and ≤ 2,000 cells per group (subsampled). BH correction is within unit. The effect is
+the `logFC` component coefficient (log2 CPM). Run date 2026-01-04 (batchtools registry
+`.cluster_runs/2026-01-04_*_MAST_SingleNuclei`).
+
+| What | Path |
+|---|---|
+| **Primary (hits, BH p_adjust < 0.1, all levels)** | [data/interim/mast/snRNASeq/mast_signif_hits_2026-08-17_p_adjust_0.1.csv]{.path} |
+| Full per-unit results (all genes) | [data/interim/mast/snRNASeq/class_label/]{.path}, [subclass_label/]{.path}, [supertype_label/]{.path} (`<label>_<tissue>_2026-01-04.rds`) |
+| Nominal-p hits per level | [data/interim/mast/snRNASeq/{class,subclass,supertype}_mast_signif_hits_2026-01-04.rds]{.path} |
+| Model code / notebooks | [notebooks/R_scripts/mast_functions.R]{.path} · [notebooks/0X_MAST_SN.qmd]{.path} · [notebooks/0X_DEG_Analysis.qmd]{.path} |
+
+```{r}
+#| label: cell-tbl-src-mast
+#| echo: false
+#| results: asis
+x <- read_if(src$mast_hits)
+if (is.null(x)) not_computed(src$mast_hits) else {
+  cat(glue("{format(nrow(x), big.mark=',')} gene × unit hits across {n_distinct(x$celltype_tissue)} units ",
+           "({paste(names(table(x$cell_type_level)), table(x$cell_type_level), sep = ': ', collapse = ', ')})."), "\n\n")
+  x %>% arrange(p_adjust) %>% head(5) %>%
+    transmute(tissue, level = cell_type_level, cell_type_name, gene = str_remove(primerid, "-GRCm39$"),
+              coef = signif(coef, 3), p_adjust = signif(p_adjust, 3)) %>%
+    kable(caption = "MAST: five strongest hits (preview).") %>% print()
+}
+```
+
+#### popAlign: subpopulation abundance and state shifts
+
+[SUBPOPULATIONS]{.eyebrow}
+
+Gaussian-mixture population models fit per **tissue × Allen class / subclass / supertype**.
+Each component (subpopulation) is tested for an **abundance** change (WildR/SPF fraction,
+permutation over animals) and a **state shift** (permutation). BH is applied across components.
+Run `2026-10-04`, synthesis `2026-10-05` (Ensembl-keyed GO and contamination flag). The
+2026-10-02 run and the un-suffixed `run_2026-10-04/` synthesis are superseded.
+
+| What | Path |
+|---|---|
+| **Primary (one row per component, all tests)** | [tables/popAlign/snRNASeq/run_2026-10-04_synth-2026-10-05/popAlign_subpopulation_catalog.csv]{.path} |
+| Separate test tables | `popAlign_abundance_tests.csv`, `popAlign_abundance_omnibus.csv`, `popAlign_state_shift_tests.csv` (same folder) |
+| Curated leads | [tables/popAlign/snRNASeq/run_2026-10-04_synth-2026-10-05/popAlign_followup_leads.csv]{.path} |
+| Per-unit model outputs / manifest | [data/interim/popalign/snRNASeq/]{.path} (`manifest_2026-10-04.csv`) |
+| Figures | [figures/popAlign/snRNASeq/run_2026-10-04_synth-2026-10-05/]{.path} |
+| Code / notebook | [notebooks/R_scripts/run_popalign_synthesis_sn.R]{.path} · [notebooks/0X_popAlign_SN.qmd]{.path} |
+
+```{r}
+#| label: cell-tbl-src-popalign
+#| echo: false
+#| results: asis
+x <- read_if(src$popalign_cat)
+if (is.null(x)) not_computed(src$popalign_cat) else {
+  cat(glue("{nrow(x)} components across {n_distinct(x$unit_id)} units. ",
+           "Smallest q (abundance) = {signif(min(x$q_abund, na.rm=TRUE), 2)}; ",
+           "smallest q (state) = {signif(min(x$q_state, na.rm=TRUE), 2)}."), "\n\n")
+  x %>% arrange(pmin(p_abund, p_state)) %>% head(5) %>%
+    transmute(tissue, level, name, comp, log2fc_frac = signif(log2fc_frac, 2),
+              p_abund = signif(p_abund, 2), q_abund = signif(q_abund, 2),
+              p_state = signif(p_state, 2), q_state = signif(q_state, 2)) %>%
+    kable(caption = "popAlign: five components with the smallest nominal p (preview).") %>% print()
+}
+```
+
+#### D-SPIN: regulatory-program responses
+
+[NETWORK PROGRAMS]{.eyebrow}
+
+Program-level D-SPIN models fit per **tissue × Allen supertype** for the 140 hard-pass units.
+Each animal is one condition (SPF = control). `relative_h` is each animal's program response
+centred on SPF. D-SPIN does not emit p-values. The source notebook's own call is a **star
+program**: same sign in every WildR animal. Fit 2026-08-09, DAVID annotation 2026-08-10.
+
+| What | Path |
+|---|---|
+| **Primary (per unit)** | [data/interim/dspin/\<tissue\>__\<supertype_label\>/relative_responses.csv]{.path} + `sample_meta.csv`, `programs_genes.csv`, `network.csv` |
+| Unit index / fit status | [data/interim/dspin/fit_summary.csv]{.path} · [data/interim/dspin/ranked_all.csv]{.path} |
+| Summary tables | [tables/DSPIN/star_programs_david.csv]{.path} · [tables/DSPIN/unit_response_strength.csv]{.path} · [tables/DSPIN/program_annotations_david_all.csv]{.path} |
+| Figures | [figures/DSPIN/snRNASeq/]{.path} |
+| Notebook | [notebooks/0X_DSPIN_Analysis.qmd]{.path} |
+
+```{r}
+#| label: cell-tbl-src-dspin
+#| echo: false
+#| results: asis
+x <- read_if(src$dspin_stars); fit <- read_if(src$dspin_fit)
+if (is.null(x) || is.null(fit)) not_computed(src$dspin_stars) else {
+  cat(glue("{sum(fit$status == 'ok')} units fit; {nrow(x)} star programs."), "\n\n")
+  x %>% arrange(desc(abs(mean_h))) %>% head(5) %>%
+    transmute(tissue, supertype_name, program_id, mean_h = signif(mean_h, 2), sd_h = signif(sd_h, 2), top_term) %>%
+    kable(caption = "D-SPIN: five star programs with the largest mean WildR relative h (preview).") %>% print()
+}
+```
+
+#### pySCENIC: regulon activity
+
+[GENE REGULATORY NETWORKS]{.eyebrow}
+
+The production run fits one GRN per **tissue × Allen class** (36 splits, raw UMIs, both
+microbiome groups per loom). WildR vs SPF is tested with a Wilcoxon test on AUCell within each
+split, with BH within split. Regulons are split-specific, so cross-class comparisons use TF
+identity, not AUC values. Aggregated 2026-10-04. The 2026-08-08 subclass pilot (5k-cell
+subsample, [data/processed/scenic/]{.path}) is **not** used here.
+
+| What | Path |
+|---|---|
+| **Primary (all regulon tests, all splits)** | [data/processed/scenic_by_class/diff_regulons_all_splits.csv]{.path} |
+| Significant hits / TF recurrence | [data/processed/scenic_by_class/diff_regulons_padj05_2026-10-04.csv]{.path} · [tf_hit_recurrence.csv]{.path} · [hit_counts_by_split.csv]{.path} |
+| Per-split GRNs, AUCell, logs | [data/interim/scenic/by_class/snRNASeq_\<tissue\>_\<class_label\>/]{.path} |
+| Run status | [data/processed/scenic_by_class/run_status.csv]{.path} |
+| Figures | [figures/SCENIC/snRNASeq_by_class/]{.path} |
+| Notebook | [notebooks/0X_SCENIC_pySCENIC.qmd]{.path} |
+
+```{r}
+#| label: cell-tbl-src-scenic
+#| echo: false
+#| results: asis
+x <- read_if(src$scenic_splits)
+if (is.null(x)) not_computed(src$scenic_splits) else {
+  cat(glue("{format(nrow(x), big.mark=',')} regulon tests across {n_distinct(paste(x$tissue, x$class_label))} splits; ",
+           "{sum(x$padj < 0.05, na.rm=TRUE)} at padj < 0.05."), "\n\n")
+  x %>% arrange(padj) %>% head(5) %>%
+    transmute(tissue, class_name, regulon, delta = signif(delta, 3), n_SPF, n_WildR, padj = signif(padj, 3)) %>%
+    kable(caption = "pySCENIC: five strongest regulon tests (preview).") %>% print()
+}
+```
+
+:::: {.section-rule}
+::::
+
+### The harmonized table
+
+All four sources are stacked into one long table with a fixed schema. popAlign contributes two
+rows per component, one per test. A row's `significant` flag uses a single harmonized threshold
+(**adjusted p < `r sig_q`**). `native_hit` keeps each method's own call, so neither convention
+is lost. Every unit is mapped to its parent Allen subclass and class through a hierarchy lookup
+built from the cell metadata, which allows class-only (pySCENIC) and supertype-only (D-SPIN)
+results to be compared.
+
+| Column | Meaning |
+|---|---|
+| `method` | MAST · popAlign · DSPIN · pySCENIC |
+| `unit_key` | `<level>__<tissue>__<celltype_label>`: the join key across methods |
+| `tissue`, `level`, `celltype_label`, `celltype_name` | Allen unit tested (`level` ∈ class / subclass / supertype) |
+| `class_label/name`, `subclass_label/name` | parent Allen labels (from the hierarchy lookup) |
+| `feature_type`, `feature_id` | gene · subpopulation (`compN`) · program (`PN`) · regulon (`Tf.pos`) |
+| `genes` | gene symbol(s) for the feature: the gene, top component markers, first 10 program genes, or the TF |
+| `test`, `effect`, `effect_metric`, `direction` | test name; WildR − SPF effect on the method's own scale; `WildR_up` / `SPF_up` |
+| `p_value`, `p_adj`, `padj_scope` | nominal p; adjusted p; the family it was adjusted over |
+| `significant` | `p_adj < 0.1` (harmonized) |
+| `native_hit`, `native_rule` | the method's own significance call and its rule |
+| `inference_unit` | nuclei vs animals (see callout above) |
+| `n_SPF`, `n_WildR`, `source_file` | group sizes where reported; exact input file |
+
+: Schema of the harmonized long table. {#tbl-schema}
+
+Outputs: [tables/SN_Integration/SN_Integration_harmonized_long_2026-10-06_r2.csv]{.path} (also as
+RDS: [data/interim/sn_integration/sn_harmonized_results_2026-10-06_r2.rds]{.path}), the per-unit
+wide summary [tables/SN_Integration/SN_Integration_celltype_summary_2026-10-06_r2.csv]{.path}, the
+class rollup [tables/SN_Integration/SN_Integration_class_rollup_2026-10-06_r2.csv]{.path}, and the
+input registry [tables/SN_Integration/SN_Integration_source_registry_2026-10-06_r2.csv]{.path}.
+
+```{r}
+#| label: tbl-registry-display
+#| echo: false
+#| results: asis
+if (is.null(h_reg)) not_computed(h_reg_f) else {
+  h_reg %>% mutate(source_file = str_remove(source_file, fixed(paste0(wkdir, "/")))) %>%
+    kable(caption = "Inputs read by the harmonization, with row counts and file modification times.") %>% print()
+}
+```
+
+[Source: cell `cell-harmonize`](#cell-harmonize){.provenance}
+
+::: {.figure-card}
+::: {.panel-grid}
+[A]{.panel-label}
+```{r}
+#| echo: false
+show_fig(glue("SN_Integration_min-padj_by_method_{run_tag}.png"))
+```
+
+[B]{.panel-label}
+```{r}
+#| echo: false
+show_fig(glue("SN_Integration_class-rollup_tile_{run_tag}.png"))
+```
+:::
+
+::: {.fig-caption}
+[**Figure 1.**]{.fig-num} Cross-method view of the harmonized table. (A) For every tissue ×
+cell-type unit, the smallest adjusted p across that method's features. Dashed line: the
+harmonized threshold (0.1). (B) Number of significant features (adjusted p < 0.1) per tissue ×
+Allen class and method. Hits at subclass and supertype level are counted under their parent
+class. "–" means the method has no rows for that class. For MAST this can mean "tested, no hits",
+because only hits were saved.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- At a common threshold, only the two **nuclei-level** methods (MAST, pySCENIC) give
+  significant WildR vs SPF features. Neither **animal-level** method (popAlign, D-SPIN Welch)
+  reaches adjusted p < 0.1 in any unit.
+- MAST and pySCENIC agree on *where* the signal is. 22 tissue × class units carry both DE genes
+  and differential regulons, led by glia (Astro-Epen, OPC-Oligo) in both tissues and HY / CNU
+  neurons in HYP.
+- Because of the inference-unit gap, a "convergent" call should rest on animal-consistent
+  evidence (D-SPIN star programs, popAlign nominal effects, pseudobulk), not on MAST/SCENIC
+  p-values alone.
+:::
+
+[Source: cells `cell-fig-min-padj`, `cell-fig-class-rollup`](#cell-fig-min-padj){.provenance}
+:::
+
+#### Per-unit summary (all methods side by side)
+
+One row per tissue × level × cell type, with the number of features tested, significant and
+natively called, plus the smallest adjusted p for each method. `n_methods_sig` counts methods
+with at least one significant feature in that exact unit. `MAST_n_tested` is blank because only
+MAST hits were saved.
+
+```{r}
+#| label: tbl-summary-display
+#| echo: false
+if (is.null(h_summ)) not_computed(h_summ_f) else {
+  h_summ %>%
+    select(tissue, level, celltype_name, n_methods_sig, ends_with("_n_sig"), ends_with("_n_native"), ends_with("_min_padj")) %>%
+    mutate(across(ends_with("_min_padj"), ~ signif(.x, 2))) %>%
+    datatable(rownames = FALSE, filter = "top", extensions = "Buttons",
+              options = list(pageLength = 15, scrollX = TRUE, dom = "Bfrtip", buttons = c("csv")))
+}
+```
+
+[Source: cell `cell-harmonize`](#cell-harmonize){.provenance} · Full CSV:
+[tables/SN_Integration/SN_Integration_celltype_summary_2026-10-06_r2.csv]{.path}
+
+#### Feature-level hits (browsable)
+
+All significant or natively called features from popAlign, D-SPIN and pySCENIC, plus the top 5
+MAST genes per unit. The full long table, including every non-significant popAlign, D-SPIN and
+pySCENIC test, is in the CSV.
+
+```{r}
+#| label: tbl-long-display
+#| echo: false
+if (is.null(h_long)) not_computed(h_long_f) else {
+  bind_rows(
+    h_long %>% filter(method != "MAST", significant | native_hit),
+    h_long %>% filter(method == "MAST") %>% group_by(unit_key) %>% slice_min(p_adj, n = 5, with_ties = FALSE) %>% ungroup()
+  ) %>%
+    transmute(method, tissue, level, celltype_name, feature_id, genes = str_trunc(genes, 60), test,
+              effect = signif(effect, 3), direction, p_adj = signif(p_adj, 3), significant, native_hit,
+              inference_unit) %>%
+    arrange(p_adj) %>%
+    datatable(rownames = FALSE, filter = "top", extensions = "Buttons",
+              options = list(pageLength = 15, scrollX = TRUE, dom = "Bfrtip", buttons = c("csv")))
+}
+```
+
+[Source: cell `cell-harmonize`](#cell-harmonize){.provenance} · Full CSV:
+[tables/SN_Integration/SN_Integration_harmonized_long_2026-10-06_r2.csv]{.path}
+
+#### Using the harmonized table downstream
+
+```{r}
+#| label: example-usage
+#| eval: false
+#| code-fold: false
+h <- readRDS(file.path(wkdir, "data/interim/sn_integration/sn_harmonized_results_2026-10-06_r2.rds"))
+
+# Units where expression (MAST) and a D-SPIN star program both point the same way
+mast_dir  <- h %>% filter(method == "MAST", significant) %>% count(unit_key, direction, name = "n_genes")
+dspin_dir <- h %>% filter(method == "DSPIN", native_hit) %>% count(unit_key, direction, name = "n_star")
+inner_join(mast_dir, dspin_dir, by = c("unit_key", "direction"))
+
+# Gene-level: MAST DE genes that also sit in a D-SPIN program in the same unit
+dspin_genes <- h %>% filter(method == "DSPIN") %>%
+  separate_rows(genes, sep = ", ") %>% select(unit_key, gene = genes, program = feature_id, dspin_star = native_hit)
+h %>% filter(method == "MAST", significant) %>% select(unit_key, gene = genes, coef = effect) %>%
+  inner_join(dspin_genes, by = c("unit_key", "gene"))
+```
+
+## Next Steps
+
+- **Done:** located and documented the current run of each primary SN analysis, and joined all
+  four into one schema-fixed table (26,056 rows) with a cell-type summary, a class rollup and an
+  input registry.
+- Add an **animal-level sensitivity layer for MAST and pySCENIC**. Pseudobulk DE (DESeq2 /
+  edgeR, already under [data/interim/DESeq2/]{.path}) and per-animal mean AUCell compared 6 vs 6
+  would put all four methods on the same unit of replication before convergence is scored.
+- Save full MAST results (all tested genes, not only hits) into one long file. This would give
+  MAST real `n_tested` counts and let MAST join gene-level with D-SPIN program genes and
+  popAlign markers without a selection bias.
+- Build a **convergence score** per unit (and per gene) from the harmonized table, weighting
+  animal-level evidence above nuclei-level evidence, and use it to choose follow-up cell types.
+
+# Code & Provenance {.code-appendix}
+
+Every chunk below is gated on `run_analysis` (set in `setup-display`), so rendering never
+recomputes. All logic lives in two scripts:
+[notebooks/R_scripts/harmonize_sn_results.R]{.path} (loaders for each method plus the
+harmonization) and [notebooks/R_scripts/plot_sn_integration_figures.R]{.path} (Figure 1). Both
+read only the saved outputs listed above. The scripts never overwrite outputs: a second run on
+the same day writes with a `_r2`, `_r3`, … suffix.
+
+| Run tag | Date | Status |
+|---|---|---|
+| `2026-10-06` | 2026-10-06 | Superseded. Five pilot D-SPIN units had a blank `supertype_label` in `fit_summary.csv`, which merged them into two unit keys. MAST `n_tested` counted hits only. |
+| `2026-10-06_r2` | 2026-10-06 | **Current.** D-SPIN label parsed from `unit_id`; MAST `n_tested` set to NA. |
+
+The only statistic computed here (not in the source notebooks) is the D-SPIN **Welch t-test** of
+`relative_h`, WildR vs SPF across animals (6 vs 6) per program, with BH across all 2,800 programs.
+The smallest nominal p is 2.9 × 10⁻⁴ and the smallest adjusted p is 0.80.
+
+```{bash}
+#| label: cell-commands
+#| eval: false
+# Exactly what was run (directly on the login node; ~15 s total), 2026-10-06
+cd /resnick/groups/mthomson/jboktor/WILDRxSPF_brains
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript \
+  notebooks/R_scripts/harmonize_sn_results.R                         # -> tag 2026-10-06_r2
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript \
+  notebooks/R_scripts/plot_sn_integration_figures.R 2026-10-06_r2
+```
+
+```{r}
+#| label: cell-harmonize
+#| eval: !expr run_analysis
+# Loads MAST hits, the popAlign catalog, per-unit D-SPIN responses and pySCENIC class splits,
+# maps them onto one schema, and writes the long table, summary, class rollup and registry.
+source(file.path(wkdir, "notebooks/R_scripts/harmonize_sn_results.R"))
+res <- run_harmonize_sn()   # prints the output tag; update `run_tag` in setup-display to match
+```
+
+```{r}
+#| label: cell-fig-min-padj
+#| eval: !expr run_analysis
+source(file.path(wkdir, "notebooks/R_scripts/plot_sn_integration_figures.R"))
+summ <- read_csv(h_summ_f, show_col_types = FALSE)
+ggsave(file.path(fig_dir, glue("SN_Integration_min-padj_by_method_{run_tag}.png")),
+       plot_min_padj(summ, sig_q), width = 8, height = 4.5, dpi = 200, bg = "white")
+```
+
+```{r}
+#| label: cell-fig-class-rollup
+#| eval: !expr run_analysis
+roll <- read_csv(h_roll_f, show_col_types = FALSE)
+ggsave(file.path(fig_dir, glue("SN_Integration_class-rollup_tile_{run_tag}.png")),
+       plot_class_rollup(roll), width = 7, height = 9.5, dpi = 200, bg = "white")
+```

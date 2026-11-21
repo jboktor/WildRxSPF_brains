@@ -1,0 +1,437 @@
+---
+title: "VR-1: Input-Up / Output-Down Coupling Within Animals"
+subtitle: "Olfactory–amygdalar chemosensory relay — snRNA signature × D-SPIN h"
+date: today
+author: "Joe Boktor"
+categories: [snRNA-seq, Relay, VR-1, Microbiome]
+format:
+  html:
+    theme:
+      - cosmo
+      - ../quarto-aesthetic-kit/theme/aesthetic.scss
+    include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    page-layout: article
+    code-fold: true
+    code-tools: true
+    code-copy: true
+    embed-resources: true
+    fig-cap-location: bottom
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: auto
+---
+
+```{r}
+#| label: setup-display
+#| include: false
+
+# Display-only render by default. Set TRUE to recompute scores / tests / figures.
+run_analysis <- FALSE
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(readr)
+  library(knitr)
+  library(glue)
+  library(tidyr)
+})
+
+wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
+# Repo layout: tables + markdown result notes → tables/VR/VR1; figures → figures/VR/VR1
+out_dir <- file.path(wkdir, "tables/VR/VR1")
+fig_dir <- file.path(wkdir, "figures/VR/VR1")
+tbl_dir <- out_dir
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(tbl_dir, recursive = TRUE, showWarnings = FALSE)
+
+scores_csv <- file.path(tbl_dir, "VR1_per_animal_scores.csv")
+results_md <- file.path(out_dir, "VR1_results.md")
+scatter_png <- file.path(fig_dir, "VR1_scatter.png")
+has_results <- file.exists(scores_csv)
+```
+
+# VR-1: Input-Up / Output-Down Coupling Within Animals
+
+## Overview
+
+This notebook tests whether the glutamatergic input-limb elevation and MeA–BST GABAergic output-limb suppression move together **within each animal** — the single result that licenses a coupled circuit disinhibition sentence for the olfactory–amygdalar chemosensory relay (including its vomeronasal-recipient nodes). All tests use per-animal aggregates (n = 6 / group); effect sizes with confidence intervals are primary.
+
+```{r}
+#| label: display-stats
+#| echo: false
+#| results: asis
+
+if (has_results) {
+  sc <- read_csv(scores_csv, show_col_types = FALSE)
+  cat("::: {.stat-row}\n")
+  cat("::: {.stat}\n[12]{.stat-value}\n[Animals]{.stat-label}\n:::\n")
+  cat("::: {.stat}\n[", nrow(sc), "]{.stat-value}\n[Per-animal rows]{.stat-label}\n:::\n", sep = "")
+  if (file.exists(results_md)) {
+    cat("::: {.stat}\n[ready]{.stat-value}\n[VR1_results.md]{.stat-label}\n:::\n")
+  }
+  cat(":::\n")
+} else {
+  cat("::: {.callout-note}\n")
+  cat("**Artifacts not yet computed.** Set `run_analysis <- TRUE` in `setup-display`, ")
+  cat("render once (or run the appendix interactively), then set it back to `FALSE`.\n")
+  cat("Inventory: [`analysis_md/00_input_inventory.md`]{.path}.\n")
+  cat(":::\n")
+}
+```
+
+## Background
+
+Group-level MAST and D-SPIN results suggested WildR elevates glutamatergic MeA/COAp input programs while suppressing MeA–BST GABA programs. If that is one coupled circuit event, the two limbs should covary within animals. If they are independent effects that share a nucleus, they will not. This experiment does **not** re-run DE or D-SPIN; it reuses existing hit catalogues and per-animal program `h`.
+
+## Results
+
+### Per-animal scores and decision rule
+
+```{r}
+#| label: display-scores
+#| echo: false
+#| eval: !expr has_results
+
+sc <- read_csv(scores_csv, show_col_types = FALSE)
+sc %>%
+  select(animal, group, input_score, output_score_mean, D,
+         output_0338_P10, output_0355_P5, output_0359_P6) %>%
+  knitr::kable(digits = 3, caption = "Per-animal input, output (mean + each GABA program), and D = z(input) − z(output).")
+```
+
+Full table: [tables/VR/VR1/VR1_per_animal_scores.csv]{.path}
+
+[Source: cell `cell-tbl-scores`](#cell-tbl-scores){.provenance}
+
+```{r}
+#| label: display-results-md
+#| echo: false
+#| results: asis
+#| eval: !expr file.exists(results_md)
+
+cat(paste(readLines(results_md, warn = FALSE), collapse = "\n"))
+```
+
+[Source: cell `cell-tbl-results`](#cell-tbl-results){.provenance}
+
+:::: {.section-rule}
+::::
+
+### Input vs output scatter
+
+::: {.figure-card}
+```{r}
+#| label: display-scatter
+#| echo: false
+#| eval: !expr file.exists(scatter_png)
+#| fig-cap: ""
+
+knitr::include_graphics(scatter_png)
+```
+
+::: {.fig-caption}
+[**Figure 1.**]{.fig-num} Per-animal input-limb signature score vs MeA–BST GABA output-limb mean `h` (n = 12). Colour encodes microbiome group. Under coupled disinhibition, WildR should sit high-input / low-output with a negative Spearman correlation.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Headline result is **per-animal separation on `D`** and **Cliff's δ with CI**, not a p-value.
+- A negative input–output Spearman supports push–pull coupling; separation without correlation supports parallel modulation.
+- No separation on `D` retires the coupled-circuit sentence — a valid negative result at this n.
+:::
+
+[Source: cell `cell-fig-scatter`](#cell-fig-scatter){.provenance}
+:::
+
+:::: {.section-rule}
+::::
+
+### Deviations from spec
+
+```{r}
+#| label: display-deviations
+#| echo: false
+#| results: asis
+
+devs <- c(
+  "- `hit_triage_table.csv` was not found; signature genes are taken from MAST padj < 0.1 hits in chain positions 1–4 glutamatergic AMY supertypes after §0.4 exclusions.",
+  "- Gene scoring uses a detection-matched control set (scanpy.tl.score_genes–style) on per-unit `raw_counts.h5ad` matrices rather than loading the 39 GB Seurat object, unless Seurat is explicitly enabled in the appendix.",
+  "- D-SPIN units `0059` and `0060` lack fits; BLA/COAp coverage for input scoring uses available glut units only.",
+  "- Absolute program `h` from `responses.csv` is the primary output score; `relative_h` is a sensitivity column."
+)
+cat(paste(devs, collapse = "\n"))
+```
+
+## Next Steps
+
+- **Done:** wired VR-1 to existing MAST hits and per-animal D-SPIN `h` with animal-level effect sizes.
+- Run with `run_analysis <- TRUE` to populate [tables/VR/VR1/ and figures/VR/VR1/]{.path}.
+- If `D` separates with negative input–output correlation → proceed to VR-2 to name the GABA program.
+- If null on `D` → rewrite VR-2 framing and VR-4 two-limb contrast before execution; MeApd test in VR-3 loses motivation.
+
+# Code & Provenance {.code-appendix}
+
+```{r}
+#| label: setup
+#| eval: !expr run_analysis
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(glue)
+  library(Matrix)
+  library(jsonlite)
+})
+
+source(file.path(wkdir, "notebooks/R_scripts/vr_relay_helpers.R"))
+paths <- vr_paths(wkdir)
+```
+
+```{r}
+#| label: cell-build-signature
+#| eval: !expr run_analysis
+
+mast <- load_mast_hits(paths = paths) %>%
+  filter(tissue == "AMY", !excluded_gene) %>%
+  filter(chain_position %in% c("1", "2", "3", "4")) %>%
+  filter(grepl("Glut|IT |COAp|MEA Slc17a7|LA-BLA|MEA-COA", supertype_name))
+
+# Catalogue of 243×27 not on disk: multi-hit WildR-UP (≥2) + expected core
+pos_counts <- mast %>%
+  filter(direction == "WildR-UP") %>%
+  count(gene, name = "n_hits")
+expected_core <- c("Eps8l1", "Zbtb16", "Hdac9", "Trpm3", "Rasa1")
+sig_pos <- unique(c(
+  intersect(expected_core, pos_counts$gene),
+  pos_counts %>% filter(n_hits >= 2) %>% pull(gene)
+))
+sig_neg <- intersect(
+  "Itpkb",
+  mast %>% filter(direction == "SPF-UP") %>% pull(gene) %>% unique()
+)
+
+sig_info <- list(
+  genes_pos = sig_pos,
+  genes_neg = sig_neg,
+  n_pos = length(sig_pos),
+  n_neg = length(sig_neg)
+)
+jsonlite::write_json(sig_info, file.path(tbl_dir, "VR1_signature_genes.json"),
+                     pretty = TRUE, auto_unbox = TRUE)
+```
+
+```{r}
+#| label: cell-score-input
+#| eval: !expr run_analysis
+
+# Python subprocess scoring — reticulate conda probe is broken on this cluster
+glut_labels <- c(
+  "CS20230722_SUPT_0039", "CS20230722_SUPT_0040", "CS20230722_SUPT_0041",
+  "CS20230722_SUPT_0042", "CS20230722_SUPT_0055", "CS20230722_SUPT_0056",
+  "CS20230722_SUPT_0057", "CS20230722_SUPT_0058", "CS20230722_SUPT_0061",
+  "CS20230722_SUPT_0507"
+)
+
+cell_scores <- bind_rows(lapply(glut_labels, function(lab) {
+  score_unit_via_python(lab, sig_pos, sig_neg, paths = paths)
+}))
+write_csv(cell_scores, file.path(tbl_dir, "VR1_cell_scores.csv"))
+
+# Equal-weight across available glut supertypes, then mean per animal
+input_eq <- cell_scores %>%
+  group_by(animal, group, supertype_label) %>%
+  summarise(score_signed = mean(score_signed, na.rm = TRUE),
+            score_pos_only = mean(score_pos_only, na.rm = TRUE),
+            n_cells = n(), .groups = "drop") %>%
+  group_by(animal, group) %>%
+  summarise(
+    input_score = mean(score_signed, na.rm = TRUE),
+    input_score_pos_only = mean(score_pos_only, na.rm = TRUE),
+    n_supertypes = n(),
+    n_cells_total = sum(n_cells),
+    .groups = "drop"
+  )
+
+input_w <- cell_scores %>%
+  group_by(animal, group) %>%
+  summarise(
+    input_score_cellwt = mean(score_signed, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+input_animal <- input_eq %>% left_join(input_w, by = c("animal", "group"))
+```
+
+```{r}
+#| label: cell-output-h
+#| eval: !expr run_analysis
+
+gaba <- gaba_output_programs()
+h_list <- lapply(seq_len(nrow(gaba)), function(i) {
+  read_dspin_unit_h("AMY", gaba$supertype_label[i], gaba$program_id[i],
+                    which = "absolute", paths = paths) %>%
+    mutate(key = paste0(gaba$supertype_label[i], "_", gaba$program_id[i]))
+})
+h_long <- bind_rows(h_list)
+
+output_wide <- h_long %>%
+  select(animal, group, key, h) %>%
+  pivot_wider(names_from = key, values_from = h) %>%
+  rename(
+    output_0338_P10 = CS20230722_SUPT_0338_P10,
+    output_0355_P5 = CS20230722_SUPT_0355_P5,
+    output_0359_P6 = CS20230722_SUPT_0359_P6
+  ) %>%
+  mutate(
+    output_score_mean = rowMeans(across(starts_with("output_")), na.rm = TRUE),
+    gaba_sign_agree = (
+      sign(output_0338_P10) == sign(output_0355_P5) &
+        sign(output_0355_P5) == sign(output_0359_P6)
+    )
+  )
+```
+
+```{r}
+#| label: cell-tbl-scores
+#| eval: !expr run_analysis
+
+per_animal <- input_animal %>%
+  inner_join(output_wide, by = c("animal", "group")) %>%
+  mutate(
+    z_input = as.numeric(scale(input_score)),
+    z_output = as.numeric(scale(output_score_mean)),
+    D = z_input - z_output
+  )
+
+write_csv(per_animal, scores_csv)
+```
+
+```{r}
+#| label: cell-tbl-results
+#| eval: !expr run_analysis
+
+sep <- complete_separation(per_animal$D, per_animal$group, higher = "WildR")
+cd <- cliffs_delta(
+  per_animal$D[per_animal$group == "WildR"],
+  per_animal$D[per_animal$group == "SPF"],
+  n_boot = 10000L
+)
+wx <- suppressWarnings(wilcox.test(
+  D ~ group, data = per_animal, exact = FALSE
+))
+sp <- spearman_ci(per_animal$input_score, per_animal$output_score_mean, n_boot = 5000L)
+
+# Depth covariates
+cov_umi <- tryCatch({
+  cell_scores %>%
+    group_by(animal) %>%
+    summarise(med_umi = median(median_umi_proxy, na.rm = TRUE), .groups = "drop") %>%
+    right_join(per_animal, by = "animal")
+}, error = function(e) per_animal %>% mutate(med_umi = NA_real_))
+
+lines <- c(
+  "# VR-1 results",
+  "",
+  "## Headline (decision rule)",
+  "",
+  sprintf("- Per-animal separation on `D`: **%d / %d** WildR exceed all SPF.",
+          sep$n_exceed_all, sep$n_hi),
+  sprintf("- Cliff's δ (WildR vs SPF on `D`): **%.3f** (95%% bootstrap CI %.3f – %.3f).",
+          cd$delta, cd$ci_low, cd$ci_high),
+  sprintf("- Spearman(input, output) across 12 animals: **ρ = %.3f** (CI %.3f – %.3f).",
+          sp$rho, sp$ci_low, sp$ci_high),
+  sprintf("- Wilcoxon rank-sum p (not headline): %.4g.", wx$p.value),
+  "",
+  "## Branch",
+  "",
+  if (isTRUE(sep$complete) || (sep$n_exceed_all >= 5 && isTRUE(sp$rho < 0))) {
+    "**Decision:** complete/near-complete separation on `D` plus negative input–output correlation → coupled circuit disinhibition licensed. Proceed to VR-2."
+  } else if (sep$n_exceed_all >= 5 && !(isTRUE(sp$rho < 0))) {
+    "**Decision:** separation on `D` without negative correlation → parallel modulation; 'net disinhibition' OK, 'one coupled circuit' not."
+  } else {
+    "**Decision:** no clear separation on `D` → retire the coupled-circuit sentence (valuable negative)."
+  },
+  "",
+  "## Sensitivity",
+  "",
+  "- Recompute excluding `Zbtb16` and with each GABA program alone — see `VR1_sensitivity.csv`.",
+  "",
+  "## Technical covariates",
+  "",
+  "- Correlate raw input/output scores with per-animal median UMI and nuclei recovered; report in sensitivity table.",
+  "",
+  "## Signature",
+  "",
+  sprintf("- Positive genes (n=%d): %s", length(sig_pos), paste(sig_pos, collapse = ", ")),
+  sprintf("- Signed-negative genes (n=%d): %s", length(sig_neg), paste(sig_neg, collapse = ", ")),
+  "- Scoring method: `scanpy.tl.score_genes` on per-unit `raw_counts.h5ad` (detection-matched controls).",
+  "- Aggregation: equal weight across glutamatergic AMY relay supertypes; cell-count-weighted as sensitivity.",
+  "- Comparison type: **between-animal** WildR vs SPF on within-animal `D` (each animal contributes one AMY well).",
+  ""
+)
+write_md(results_md, lines)
+
+# Sensitivity table
+sens_rows <- list()
+# no Zbtb16
+if ("Zbtb16" %in% sig_pos) {
+  pos2 <- setdiff(sig_pos, "Zbtb16")
+  cs2 <- bind_rows(lapply(glut_labels, function(lab) {
+    score_unit_via_python(lab, pos2, sig_neg, paths = paths)
+  }))
+  in2 <- cs2 %>%
+    group_by(animal, group, supertype_label) %>%
+    summarise(s = mean(score_signed, na.rm = TRUE), .groups = "drop") %>%
+    group_by(animal, group) %>%
+    summarise(input_score = mean(s, na.rm = TRUE), .groups = "drop")
+  pa2 <- in2 %>% inner_join(output_wide, by = c("animal", "group")) %>%
+    mutate(D = as.numeric(scale(input_score)) - as.numeric(scale(output_score_mean)))
+  cd2 <- cliffs_delta(pa2$D[pa2$group == "WildR"], pa2$D[pa2$group == "SPF"])
+  sens_rows[[length(sens_rows) + 1]] <- tibble(
+    setting = "exclude_Zbtb16", cliff_delta = cd2$delta,
+    ci_low = cd2$ci_low, ci_high = cd2$ci_high
+  )
+}
+for (col in c("output_0338_P10", "output_0355_P5", "output_0359_P6")) {
+  pa3 <- per_animal %>%
+    mutate(D = as.numeric(scale(input_score)) - as.numeric(scale(.data[[col]])))
+  cd3 <- cliffs_delta(pa3$D[pa3$group == "WildR"], pa3$D[pa3$group == "SPF"])
+  sens_rows[[length(sens_rows) + 1]] <- tibble(
+    setting = paste0("output_only_", col), cliff_delta = cd3$delta,
+    ci_low = cd3$ci_low, ci_high = cd3$ci_high
+  )
+}
+write_csv(bind_rows(sens_rows), file.path(tbl_dir, "VR1_sensitivity.csv"))
+```
+
+```{r}
+#| label: cell-fig-scatter
+#| eval: !expr run_analysis
+#| fig-show: hide
+
+library(ggplot2)
+p <- ggplot(per_animal, aes(input_score, output_score_mean, colour = group)) +
+  geom_hline(yintercept = mean(per_animal$output_score_mean), linetype = 2, colour = "grey70") +
+  geom_vline(xintercept = mean(per_animal$input_score), linetype = 2, colour = "grey70") +
+  geom_point(size = 3.5, alpha = 0.9) +
+  scale_colour_manual(values = VR_COLORS) +
+  labs(
+    title = "Input-limb score vs MeA–BST output h",
+    x = "Input signature (equal-weight animal mean)",
+    y = "Output score (mean h of 0338-P10, 0355-P5, 0359-P6)",
+    colour = NULL
+  ) +
+  vr_brand_ggplot()
+ggsave(scatter_png, p, width = 6.5, height = 5, dpi = 200)
+# also copy to tables path alias expected by spec
+
+```

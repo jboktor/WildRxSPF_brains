@@ -1,0 +1,651 @@
+---
+title: "MapMyCells Cell Neighborhoods Across seqFISH Brain Sections"
+subtitle: "Subclass and supertype neighborhoods in whole slices and manually drawn anatomical regions"
+date: today
+author: "Joe Boktor"
+categories: [seqFISH, Spatial Analysis, Cell Neighborhoods]
+format:
+  html:
+    theme:
+      - cosmo
+      - ../quarto-aesthetic-kit/theme/aesthetic.scss
+    include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    page-layout: article
+    code-fold: true
+    code-tools: true
+    code-copy: true
+    embed-resources: true
+    fig-cap-location: bottom
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: auto
+---
+
+```{r}
+#| label: setup-display
+#| include: false
+
+run_analysis <- FALSE
+
+suppressPackageStartupMessages({
+  library(data.table)
+  library(glue)
+  library(knitr)
+})
+
+wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
+analysis_date <- "2026-11-06"
+analysis_dir <- file.path(
+  wkdir,
+  "data/interim/cell_neighborhoods_mapmycells",
+  analysis_date
+)
+manifest_path <- file.path(
+  analysis_dir,
+  glue("cell_neighborhood_jobs_{analysis_date}.csv")
+)
+prep_qc_path <- file.path(
+  analysis_dir,
+  glue("cell_neighborhood_prepare_qc_{analysis_date}.csv")
+)
+job_qc_path <- file.path(
+  analysis_dir,
+  glue("cell_neighborhood_job_qc_{analysis_date}.csv")
+)
+summary_path <- file.path(
+  analysis_dir,
+  glue("cell_neighborhood_roi_summary_{analysis_date}.rds")
+)
+
+figure_dir <- file.path(wkdir, "figures/CellNeighborhoods")
+confidence_figure <- file.path(
+  figure_dir,
+  "CellNeighborhoods_MapMyCells_confidence_retention.png"
+)
+whole_slice_figure <- file.path(
+  figure_dir,
+  "CellNeighborhoods_MapMyCells_whole_slice_subclass_heatmap.png"
+)
+manual_gate_figure <- file.path(
+  figure_dir,
+  "CellNeighborhoods_MapMyCells_manual_gate_supertype_self_neighborhood.png"
+)
+group_results_path <- file.path(
+  analysis_dir,
+  glue(
+    "cell_neighborhood_spf_wildr_roi_exploratory_",
+    "r3_{analysis_date}.rds"
+  )
+)
+group_global_path <- file.path(
+  wkdir,
+  "tables/CellNeighborhoods",
+  glue(
+    "CellNeighborhoods_SPF-WildR_global_roi_exploratory_",
+    "r3_{analysis_date}.csv"
+  )
+)
+group_sensitivity_path <- file.path(
+  wkdir,
+  "tables/CellNeighborhoods",
+  glue(
+    "CellNeighborhoods_SPF-WildR_confidence_sensitivity_",
+    "r3_{analysis_date}.csv"
+  )
+)
+group_hits_path <- file.path(
+  wkdir,
+  "tables/CellNeighborhoods",
+  glue("CellNeighborhoods_SPF-WildR_top_pairs_r3_{analysis_date}.csv")
+)
+group_global_figure <- file.path(
+  figure_dir,
+  "CellNeighborhoods_SPF-WildR_global_permutation_r3.png"
+)
+group_effect_figure <- file.path(
+  figure_dir,
+  "CellNeighborhoods_SPF-WildR_top_effects_r3.png"
+)
+group_sensitivity_figure <- file.path(
+  figure_dir,
+  "CellNeighborhoods_SPF-WildR_confidence_sensitivity_r3.png"
+)
+
+manifest <- if (file.exists(manifest_path)) fread(manifest_path) else NULL
+prep_qc <- if (file.exists(prep_qc_path)) fread(prep_qc_path) else NULL
+group_global <- if (file.exists(group_global_path)) {
+  fread(group_global_path)
+} else {
+  NULL
+}
+group_sensitivity <- if (file.exists(group_sensitivity_path)) {
+  fread(group_sensitivity_path)
+} else {
+  NULL
+}
+group_hits <- if (file.exists(group_hits_path)) {
+  fread(group_hits_path)
+} else {
+  NULL
+}
+n_jobs <- if (is.null(manifest)) 0L else nrow(manifest)
+n_complete <- if (is.null(manifest)) 0L else sum(file.exists(manifest$output_path))
+has_results <- file.exists(summary_path)
+has_figures <- all(file.exists(c(
+  confidence_figure,
+  whole_slice_figure,
+  manual_gate_figure
+)))
+has_group_results <- file.exists(group_results_path)
+has_group_figures <- all(file.exists(c(
+  group_global_figure,
+  group_effect_figure,
+  group_sensitivity_figure
+)))
+```
+
+# MapMyCells Cell Neighborhoods Across seqFISH Brain Sections
+
+## Overview
+
+This analysis updates the original cell-localization workflow to use Allen
+MapMyCells subclass and supertype assignments from the latest seqFISH Seurat
+object. Neighborhoods are defined within 60 µm and summarized separately for
+all cells in each section and for the existing manually drawn anatomical
+regions. The primary analysis requires MapMyCells bootstrap probability ≥ 0.5;
+all assigned labels are retained as a sensitivity analysis. An exploratory
+ROI-section analysis tests SPF–WildR differences with imaging run blocked; it
+does not replace an animal-level analysis.
+
+```{r}
+#| label: display-stats
+#| echo: false
+#| results: asis
+
+cat("::: {.stat-row}\n")
+cat("::: {.stat}\n[1,086,336]{.stat-value}\n[Whole-slice cells]{.stat-label}\n:::\n")
+cat("::: {.stat}\n[443,663]{.stat-value}\n[Manually gated cells]{.stat-label}\n:::\n")
+cat("::: {.stat}\n[10]{.stat-value}\n[Anatomical gates]{.stat-label}\n:::\n")
+cat("::: {.stat}\n[", n_complete, "/", n_jobs,
+    "]{.stat-value}\n[Jobs complete]{.stat-label}\n:::\n", sep = "")
+cat(":::\n")
+```
+
+## Background
+
+The original analysis used broad SingleR classes and repeatedly calculated
+dense pairwise distance matrices for each query class. V2 instead uses the
+MapMyCells hierarchy already stored in
+[data/interim/seurat/seqFISH/merged_roi_seurat_prenorm_2026-02-16.rds]{.path},
+finds radius neighbors once per spatial unit, and reports neighborhoods at
+subclass and supertype resolution.
+
+Whole-slice summaries include every cell in the latest Seurat object. Anatomical
+summaries use `final_gate` calls joined by `cell_id` from
+[data/interim/gated-seurat-metadata_2024-12-31.rds]{.path}. All 977,050 cells in
+that older metadata match the latest object exactly, and 443,663 have a
+non-empty final gate. The project does not contain an ROI-to-animal key, so the
+SPF–WildR section uses one observation per ROI section and is explicitly
+exploratory. It improves on V1's cell-level mixed model by removing cell-level
+pseudoreplication, blocking imaging run, treating eligible absent pairs as
+zeros, and correcting for multiple testing.
+
+## Results
+
+```{r}
+#| label: display-analysis-status
+#| echo: false
+#| results: asis
+
+if (!has_figures) {
+  cat("::: {.callout-note}\n")
+  cat("**Analysis is still running or has not been aggregated.** ",
+      "Current progress: ", n_complete, " of ", n_jobs,
+      " jobs. Figures appear automatically after the dependent aggregation job completes.\n")
+  cat(":::\n")
+}
+```
+
+### MapMyCells confidence retention
+
+::: {.figure-card .fig-wide}
+![](../figures/CellNeighborhoods/CellNeighborhoods_MapMyCells_confidence_retention.png)
+
+::: {.fig-caption}
+[**Figure 1.**]{.fig-num} Fraction of cells retained by the primary MapMyCells
+bootstrap-probability threshold (≥ 0.5), shown for subclass and supertype labels
+in whole slices and each manually drawn anatomical region.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Whole-slice retention is 82.1% at subclass and 89.1% at supertype level.
+- Subclass retention varies most across gates (74.5% in AMYG_CT to 94.3% in
+  THAL); supertype retention ranges from 81.9% in CAUD to 97.3% in RT.
+- The all-label sensitivity output preserves every assignment, allowing direct
+  assessment of whether confidence filtering changes a neighborhood pattern.
+:::
+
+[Source: cell `cell-fig-confidence`](#cell-fig-confidence){.provenance}
+:::
+
+### Whole-slice subclass neighborhoods
+
+::: {.figure-card .fig-wide}
+![](../figures/CellNeighborhoods/CellNeighborhoods_MapMyCells_whole_slice_subclass_heatmap.png)
+
+::: {.fig-caption}
+[**Figure 2.**]{.fig-num} Mean local relative abundance for the 15 most abundant
+MapMyCells subclasses across all 16 whole sections. Rows are query subclasses
+and columns are neighbor subclasses; the primary confidence-filtered labels are
+used.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Same-subclass clustering dominates: CHOR (mean local fraction 0.73), DG Glut
+  (0.61), and L2/3 IT PIR–ENTl Glut (0.51) have the strongest diagonals among
+  the 15 most abundant subclasses.
+- Astro-TE is the most abundant confident subclass and is a recurrent neighbor
+  of both neuronal and immune query populations.
+- Values are descriptive averages across ROI sections, not animal-level effect
+  estimates.
+:::
+
+[Source: cell `cell-fig-whole-slice`](#cell-fig-whole-slice){.provenance}
+:::
+
+### Supertype self-neighborhoods within anatomical gates
+
+::: {.figure-card .fig-wide}
+![](../figures/CellNeighborhoods/CellNeighborhoods_MapMyCells_manual_gate_supertype_self_neighborhood.png)
+
+::: {.fig-caption}
+[**Figure 3.**]{.fig-num} Mean same-supertype relative abundance within each
+manually drawn anatomical region for the 20 most abundant supertypes. Empty
+combinations were not observed in that region.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- The strongest self-neighborhoods match the hand-drawn anatomy: hippocampal
+  CA1–ProS Glut_1 (0.52) and DG Glut_2 (0.50), BLA
+  LA–BLA–BMA–PA Glut_3 (0.44), RT Gnb3 Gaba_5 (0.44), and SSC L4/5 IT CTX
+  Glut_2 (0.43).
+- Same-supertype abundance is summarized per ROI before pooling, so large ROIs
+  do not contribute one row per cell to the displayed value.
+- Group comparisons remain intentionally deferred until ROI sections can be
+  mapped to animals.
+:::
+
+[Source: cell `cell-fig-manual-gates`](#cell-fig-manual-gates){.provenance}
+:::
+
+### Exploratory SPF–WildR differences
+
+::: {.callout-warning}
+**ROI sections are not documented animals.** These tests use one value per ROI
+section and block imaging run, but they are not valid animal-level inference if
+multiple sections came from the same mouse. The four poor-quality sections
+excluded in V1 are also excluded here, leaving six SPF and six WildR sections.
+:::
+
+```{r}
+#| label: display-group-stats
+#| echo: false
+#| results: asis
+
+if (has_group_results && !is.null(group_global) && !is.null(group_hits)) {
+  primary_global <- group_global[label_set == "primary_confident"]
+  min_global_p <- min(primary_global$permutation_p)
+  min_global_fdr <- min(primary_global$global_fdr)
+  cat("::: {.stat-row}\n")
+  cat("::: {.stat}\n[32,889]{.stat-value}\n[Primary pairs tested]{.stat-label}\n:::\n")
+  cat("::: {.stat}\n[", nrow(primary_global),
+      "]{.stat-value}\n[Global families]{.stat-label}\n:::\n", sep = "")
+  cat("::: {.stat}\n[", nrow(group_hits),
+      "]{.stat-value}\n[Within-family FDR < 0.10]{.stat-label}\n:::\n", sep = "")
+  cat("::: {.stat}\n[0]{.stat-value}\n[Study-wide FDR < 0.10]{.stat-label}\n:::\n")
+  cat(":::\n")
+}
+```
+
+The primary test uses `asin(sqrt(mean_rel_abund)) ~ run + group` with limma
+empirical-Bayes moderation. A pair enters only when both cell types have at
+least 20 cells, each group contributes at least half its available sections
+(minimum three), and at least three imaging runs are represented. Exact
+run-stratified label permutations test each region × taxonomy family jointly.
+
+::: {.figure-card .fig-wide}
+![](../figures/CellNeighborhoods/CellNeighborhoods_SPF-WildR_global_permutation_r3.png)
+
+::: {.fig-caption}
+[**Figure 4.**]{.fig-num} Family-level omnibus tests for SPF–WildR neighborhood
+differences. Each point summarizes all eligible query→neighbor pairs within one
+scope, anatomical region and taxonomy level; permutations preserve the observed
+SPF/WildR counts within imaging run.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- No primary family survives correction across the 22 whole-slice/manual-gate
+  subclass and supertype families (minimum global FDR = 0.41).
+- AMYG_BLA supertype is the strongest nominal family (exact p = 1/54 = 0.019),
+  but it is not significant after family-level correction.
+- The global result does not support a coherent SPF–WildR shift in neighborhood
+  composition at either MapMyCells resolution.
+:::
+
+[Source: cell `cell-fig-group-global`](#cell-fig-group-global){.provenance}
+:::
+
+::: {.figure-card .fig-wide}
+![](../figures/CellNeighborhoods/CellNeighborhoods_SPF-WildR_top_effects_r3.png)
+
+::: {.fig-caption}
+[**Figure 5.**]{.fig-num} Run-adjusted WildR−SPF differences for the 30
+smallest moderated p-values. Intervals are 95% empirical-Bayes confidence
+intervals on the raw mean local relative-abundance scale. Filled points pass
+FDR < 0.10 within their own region × level family.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Seven primary pairs pass FDR within their own family, including five CAUD
+  pairs, one AMYG_CT pair and one HIPP pair.
+- None survives correction across all 32,889 primary pairs (minimum study-wide
+  FDR = 0.88), and no parent family is globally significant.
+- These isolated effects are hypothesis-generating only. The strongest include
+  lower CAUD STR D1→D2 proximity in WildR and higher HIPP
+  Microglia→CA1–ProS proximity, each based on only 3–6 ROI sections per group.
+:::
+
+[Source: cell `cell-fig-group-effects`](#cell-fig-group-effects){.provenance}
+:::
+
+```{r}
+#| label: display-group-hits
+#| echo: false
+
+if (!is.null(group_hits) && nrow(group_hits)) {
+  display_hits <- group_hits[
+    ,
+    .(
+      Region = region,
+      Level = level,
+      Query = query_name,
+      Neighbor = neighbor_name,
+      `WildR-SPF` = sprintf("%.3f", delta_raw_adjusted),
+      `95% CI` = sprintf("[%.3f, %.3f]", delta_raw_ci_low, delta_raw_ci_high),
+      `Family FDR` = format.pval(fdr_family, digits = 2),
+      `Study-wide FDR` = format.pval(fdr_studywide, digits = 2)
+    )
+  ]
+  knitr::kable(
+    display_hits,
+    caption = "Primary pairs passing FDR < 0.10 within their own family. None passes study-wide FDR."
+  )
+}
+```
+
+[Source: cell `cell-tbl-group-hits`](#cell-tbl-group-hits){.provenance}
+
+::: {.figure-card .fig-wide}
+![](../figures/CellNeighborhoods/CellNeighborhoods_SPF-WildR_confidence_sensitivity_r3.png)
+
+::: {.fig-caption}
+[**Figure 6.**]{.fig-num} Concordance of run-adjusted effect estimates between
+the primary bootstrap ≥ 0.5 analysis and the all-label sensitivity analysis.
+Point size is the number of matched query→neighbor pairs.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Confidence-filter sensitivity is generally strong: median Spearman ρ = 0.91
+  across 22 scope × region × level families (range 0.72–0.99).
+- Median effect-direction agreement is 88.8%, so the null global conclusion is
+  not driven by the bootstrap threshold.
+- Mapping-confidence robustness does not solve the missing animal identity;
+  animal-level confirmation remains required.
+:::
+
+[Source: cell `cell-fig-group-sensitivity`](#cell-fig-group-sensitivity){.provenance}
+:::
+
+The aggregated descriptive results are stored at
+[data/interim/cell_neighborhoods_mapmycells/2026-11-06/cell_neighborhood_roi_summary_2026-11-06.rds]{.path}
+and exported to
+[tables/CellNeighborhoods/CellNeighborhoods_MapMyCells_roi_summary_2026-11-06.csv.gz]{.path}.
+Per-cell sparse neighborhood summaries remain in the individual job artifacts
+under [data/interim/cell_neighborhoods_mapmycells/2026-11-06/jobs/]{.path}.
+The final exploratory group-test object is
+[data/interim/cell_neighborhoods_mapmycells/2026-11-06/cell_neighborhood_spf_wildr_roi_exploratory_r3_2026-11-06.rds]{.path};
+pairwise and global tables are under [tables/CellNeighborhoods/]{.path}.
+
+## Next Steps
+
+- **Done:** replaced SingleR classes with MapMyCells subclass and supertype
+  assignments and analyzed whole slices plus ten manually drawn regions.
+- **Done:** made bootstrap ≥ 0.5 the primary label set and retained all-label
+  sensitivity outputs.
+- **Done:** tested SPF–WildR differences at the ROI-section level with run
+  blocking, empirical-Bayes moderation, exact family-level permutations and
+  both within-family and study-wide FDR.
+- Add the ROI-to-animal map and rerun the seven isolated within-family leads;
+  the current global and study-wide results are null.
+- Prespecify the CAUD D1/D2 and HIPP Microglia→CA1–ProS pairs before
+  animal-level confirmation rather than screening the complete pair set again.
+
+# Code & Provenance {.code-appendix}
+
+The heavy analysis is implemented in
+[notebooks/R_scripts/run_cell_localization_analysis_v2.R]{.path}. Rendering this
+notebook never submits jobs or recomputes neighborhoods because
+`run_analysis <- FALSE`. Array logs are under
+[.cluster_runs/cell_neighborhoods_mapmycells/]{.path}; all 161 tasks in jobs
+`6356434` and `6356253` completed, followed by aggregation/figure job `6356436`.
+Exploratory group testing is implemented in
+[notebooks/R_scripts/run_cell_neighborhood_group_tests_v2.R]{.path}. Final job
+`6369866` produced revision `r3`; jobs `6361649` and `6368516` are retained as
+superseded development runs (non-estimable sparse pairs/global-statistic fix,
+then addition of study-wide FDR, respectively).
+
+The notebook was rendered from `notebooks/` with the `spatialomics` Quarto and
+R installation. This conda Quarto build requires its packaged share directory
+to be supplied explicitly:
+
+```bash
+PATH=/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin:${PATH} \
+QUARTO_SHARE_PATH=/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/share/quarto \
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/quarto \
+render 0X_Cell-Neighborhoods-V2_SeqFISH.qmd --to html
+```
+
+```{r}
+#| label: cell-prepare
+#| eval: !expr run_analysis
+
+R_BIN <- paste0(
+  "/resnick/groups/MazmanianLab/jboktor/software/",
+  "miniforge3/envs/spatialomics/bin/Rscript"
+)
+system2(
+  R_BIN,
+  file.path(
+    wkdir,
+    "notebooks/R_scripts/run_cell_localization_analysis_v2.R"
+  ),
+  args = "prepare"
+)
+```
+
+```{r}
+#| label: cell-submit-array
+#| eval: !expr run_analysis
+
+# Submitted 2026-11-06 from the canonical project root.
+# Manual gates: job 6356434 (array 1-145%24; 16G, 2 CPUs, 1 h).
+system2(
+  "sbatch",
+  file.path(
+    wkdir,
+    "notebooks/shell_scripts/run_cell_localization_analysis_v2.sh"
+  )
+)
+
+# Whole slices: job 6356253 (array 146-161%4; 96G, 4 CPUs, 8 h).
+system2(
+  "sbatch",
+  c(
+    "--array=146-161%4",
+    "--time=08:00:00",
+    "--cpus-per-task=4",
+    "--mem=96G",
+    file.path(
+      wkdir,
+      "notebooks/shell_scripts/run_cell_localization_analysis_v2.sh"
+    )
+  )
+)
+```
+
+```{r}
+#| label: cell-aggregate
+#| eval: !expr run_analysis
+
+# Submitted as job 6356436, dependent on both arrays completing successfully.
+system2(
+  "sbatch",
+  c(
+    "--dependency=afterok:6356253:6356434",
+    file.path(
+      wkdir,
+      paste0(
+        "notebooks/shell_scripts/",
+        "run_cell_localization_analysis_v2_aggregate.sh"
+      )
+    )
+  )
+)
+```
+
+```{r}
+#| label: cell-fig-confidence
+#| eval: !expr run_analysis
+
+system2(
+  R_BIN,
+  file.path(
+    wkdir,
+    "notebooks/R_scripts/run_cell_localization_analysis_v2.R"
+  ),
+  args = "plot-confidence"
+)
+```
+
+```{r}
+#| label: cell-fig-whole-slice
+#| eval: !expr run_analysis
+
+system2(
+  R_BIN,
+  file.path(
+    wkdir,
+    "notebooks/R_scripts/run_cell_localization_analysis_v2.R"
+  ),
+  args = "plot-whole-slice"
+)
+```
+
+```{r}
+#| label: cell-fig-manual-gates
+#| eval: !expr run_analysis
+
+system2(
+  R_BIN,
+  file.path(
+    wkdir,
+    "notebooks/R_scripts/run_cell_localization_analysis_v2.R"
+  ),
+  args = "plot-manual-gates"
+)
+```
+
+```{r}
+#| label: cell-run-group-tests
+#| eval: !expr run_analysis
+
+# Final exploratory ROI-section run: SLURM job 6369866 (12 min 59 sec).
+system2(
+  "sbatch",
+  file.path(
+    wkdir,
+    "notebooks/shell_scripts/run_cell_neighborhood_group_tests_v2.sh"
+  )
+)
+```
+
+```{r}
+#| label: cell-tbl-group-hits
+#| eval: !expr run_analysis
+
+system2(
+  R_BIN,
+  file.path(
+    wkdir,
+    "notebooks/R_scripts/run_cell_neighborhood_group_tests_v2.R"
+  ),
+  args = "display-tables"
+)
+```
+
+```{r}
+#| label: cell-fig-group-global
+#| eval: !expr run_analysis
+
+source(file.path(
+  wkdir,
+  "notebooks/R_scripts/run_cell_neighborhood_group_tests_v2.R"
+))
+group_results <- readRDS(RESULT_RDS)
+plot_global_results(group_results$global)
+```
+
+```{r}
+#| label: cell-fig-group-effects
+#| eval: !expr run_analysis
+
+source(file.path(
+  wkdir,
+  "notebooks/R_scripts/run_cell_neighborhood_group_tests_v2.R"
+))
+group_results <- readRDS(RESULT_RDS)
+plot_top_effects(group_results$pairwise)
+```
+
+```{r}
+#| label: cell-fig-group-sensitivity
+#| eval: !expr run_analysis
+
+source(file.path(
+  wkdir,
+  "notebooks/R_scripts/run_cell_neighborhood_group_tests_v2.R"
+))
+group_results <- readRDS(RESULT_RDS)
+plot_sensitivity_results(group_results$sensitivity_summary)
+```

@@ -1,0 +1,324 @@
+---
+title: "D-SPIN Paper Figure Options"
+subtitle: "A complete testing landscape and an exploratory MeA–BST social-behavior hypothesis figure"
+date: today
+author: "Joe Boktor"
+categories: [snRNA-seq, D-SPIN, Paper figures, MeA–BST]
+format:
+  html:
+    theme:
+      - cosmo
+      - ../quarto-aesthetic-kit/theme/aesthetic.scss
+    include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    page-layout: article
+    code-fold: true
+    code-tools: true
+    code-copy: true
+    embed-resources: true
+    fig-cap-location: bottom
+    lightbox: true
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: false
+---
+
+```{r}
+#| label: setup-display
+#| include: false
+
+# Display-only render. Figure generation is recorded in Code & Provenance and
+# remains gated on run_analysis.
+run_analysis <- FALSE
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(glue)
+  library(knitr)
+  library(DT)
+})
+
+wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
+summary_tag <- "2026-10-06"
+output_tag <- "2026-11-06"
+
+fig_dir <- file.path(
+  wkdir, "figures/DSPIN/snRNASeq",
+  glue("paper_options_{output_tag}")
+)
+tbl_dir <- file.path(
+  wkdir, "tables/DSPIN",
+  glue("paper_options_{output_tag}")
+)
+summary_dir <- file.path(
+  wkdir, "tables/DSPIN",
+  glue("summary_{summary_tag}")
+)
+
+option_a_f <- file.path(
+  fig_dir,
+  "DSPIN_paper_option_A_calibrated_landscape.png"
+)
+option_b_f <- file.path(
+  fig_dir,
+  "DSPIN_paper_option_B_mea_bst_hypotheses.png"
+)
+candidate_f <- file.path(tbl_dir, "DSPIN_mea_bst_candidate_evidence.csv")
+registry_f <- file.path(tbl_dir, "DSPIN_paper_figure_source_registry.csv")
+global_f <- file.path(summary_dir, "DSPIN_global_summary.csv")
+
+read_if <- function(f) {
+  if (file.exists(f)) read_csv(f, show_col_types = FALSE) else NULL
+}
+show_fig <- function(f) {
+  if (file.exists(f)) {
+    include_graphics(f)
+  } else {
+    cat(glue("*Figure not yet generated: `{f}`. Set `run_analysis <- TRUE`.*\n"))
+  }
+}
+
+candidates <- read_if(candidate_f)
+registry <- read_if(registry_f)
+global <- read_if(global_f)
+
+has_results <- !is.null(candidates) && !is.null(global) &&
+  file.exists(option_a_f) && file.exists(option_b_f)
+
+fmt_n <- function(x) {
+  if (is.null(x) || !length(x) || is.na(x)) "—" else format(x, big.mark = ",")
+}
+```
+
+# D-SPIN Paper Figure Options
+
+## Overview
+
+Two publication-ready figures present the same completed D-SPIN analysis at different levels. **Option A** shows the full animal-replicated testing landscape and its calibrated negative result. **Option B** places all AMY MeA/COA/CEA/BST-labelled programs in context, then expands three biologically interpretable but explicitly exploratory hypotheses using raw animal responses and oNMF gene weights.
+
+::: {.stat-row}
+::: {.stat}
+[2]{.stat-value}
+[Paper figure options]{.stat-label}
+:::
+::: {.stat}
+[`r if (has_results) fmt_n(global$n_units) else "—"`]{.stat-value}
+[Supertype × tissue units]{.stat-label}
+:::
+::: {.stat}
+[`r if (has_results) fmt_n(global$n_programs) else "—"`]{.stat-value}
+[Animal-level program tests]{.stat-label}
+:::
+::: {.stat}
+[`r if (has_results) sum(candidates$role == "Biological anchor") else "—"`]{.stat-value}
+[Exploratory biological anchors]{.stat-label}
+:::
+:::
+
+## Background
+
+D-SPIN fit 20 gene programs and a shared interaction network within each of 140 Allen supertype × tissue units. WildR versus SPF was tested on one response vector per animal, using exact permutations of six WildR and six SPF labels. Across all 2,800 program tests and 140 unit-level omnibus tests, no result survives FDR and the p-value distribution follows the permutation null. A paper figure should make that broad, calibrated result visible rather than presenting a short nominal list as discovery.
+
+MeA and BST are nevertheless useful hypothesis-generating regions because of their established anatomy and the genes carried by several nominal programs. **Social behavior was not measured in this experiment.** The focused option therefore uses “social-behavior-related” only for anatomical and gene-based context. It does not revive the VR-1 coupled-disinhibition model, treat the VR-2 GABA programs as one module, or describe nominal D-SPIN/popAlign agreement in the same animals as independent replication.
+
+## Results
+
+::: {.callout-note}
+## Choosing between the options
+
+Use **Option A** as the primary D-SPIN result: it represents the full analysis and communicates the calibrated negative directly. Use **Option B** as a hypothesis or discussion figure only, preferably beside Option A or with equally prominent language that every highlighted program has `q ≈ 0.994`.
+:::
+
+### Option A — calibrated testing landscape
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: cell-fig-option-a
+#| echo: false
+#| fig-cap: ""
+
+show_fig(option_a_f)
+```
+
+::: {.fig-caption}
+[**Figure option A.**]{.fig-num} Breadth and calibration of the single-nucleus D-SPIN analysis. (A) Sampling across all 140 supertype × tissue units; outlined points are AMY units with MeA, COA, CEA, PAA or BST in the Allen label. (B) Exact permutation evidence for all 2,800 program tests, with MeA/BST-family programs outlined and coloured by direction. (C) Unit-level omnibus evidence across all 140 fitted units. (D) Distribution of all program p-values relative to the expected count under the permutation null.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- The analysis covers the complete fitted atlas: 140 units, 20 programs per unit and one response vector per animal.
+- Neither program-level nor unit-level evidence departs from the calibrated null after multiplicity correction.
+- MeA/BST-family results are visible in the full landscape, but they do not form a separate significant class.
+- This option supports the defensible headline: **D-SPIN captures coordinated expression structure, but no microbiome-driven program clears animal-level multiplicity at this resolution.**
+:::
+
+[Source: cell `cell-fig-option-a`](#cell-fig-option-a){.provenance} · PNG: [figures/DSPIN/snRNASeq/paper_options_2026-11-06/DSPIN_paper_option_A_calibrated_landscape.png]{.path} · Vector PDF: [figures/DSPIN/snRNASeq/paper_options_2026-11-06/DSPIN_paper_option_A_calibrated_landscape.pdf]{.path}
+:::
+
+### Option B — exploratory MeA–BST hypotheses
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: cell-fig-option-b
+#| echo: false
+#| fig-cap: ""
+
+show_fig(option_b_f)
+```
+
+::: {.fig-caption}
+[**Figure option B.**]{.fig-num} Exploratory MeA–BST program hypotheses. (A) Hedges' g for every program in AMY units with MeA, COA, CEA, PAA or BST in the Allen label; point size reflects nominal exact-permutation evidence. (B) Raw SPF-centred response for each animal in three biological anchors and the strongest nominal D-SPIN benchmark. Crossbars show group means. (C) Highest-weight oNMF genes for the three biological anchors; orange identifies genes used to name each hypothesis.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- `0056 P7` nominates a steroid/serotonin-receptor hypothesis (`Ar`, `Esr1`, `Htr7`) in MeA glutamatergic cells.
+- `0338 P10` and `0355 P5` nominate separate synaptic/adhesion hypotheses in MeA–BST GABA cells; they should not be described as one coordinated output module.
+- The `0355` unit also has a nominal popAlign state shift, but both methods use the same animals and neither passes FDR.
+- `0511 P19` shows the strongest nominal separation and is retained as a statistical benchmark, not a mechanistic anchor.
+- Every highlighted program is exploratory (`q ≈ 0.994`); the figure does not demonstrate a social-behavior phenotype.
+:::
+
+[Source: cell `cell-fig-option-b`](#cell-fig-option-b){.provenance} · PNG: [figures/DSPIN/snRNASeq/paper_options_2026-11-06/DSPIN_paper_option_B_mea_bst_hypotheses.png]{.path} · Vector PDF: [figures/DSPIN/snRNASeq/paper_options_2026-11-06/DSPIN_paper_option_B_mea_bst_hypotheses.pdf]{.path}
+:::
+
+### Candidate evidence audit
+
+The table records both inclusions and exclusions. `n_mast_hits` and `mast_genes` are the exact-unit overlaps produced by the current animal-level D-SPIN summary; the broader VR-2 MAST catalogue bridge is described separately in [tables/VR/VR2/VR2_mast_bridge.md]{.path}. PopAlign columns report the smallest state-shift p within the matching supertype, not a program-to-component correspondence.
+
+```{r}
+#| label: cell-tbl-candidate-audit
+#| echo: false
+
+if (!is.null(candidates)) {
+  candidates %>%
+    transmute(
+      Role = role,
+      `Cell type` = str_remove(supertype_name, "^\\d+ "),
+      Program = program_id,
+      `Top genes` = top_genes,
+      `Hedges g` = round(hedges_g, 2),
+      `Exact p` = signif(p_perm, 2),
+      q = signif(q_perm, 2),
+      `WildR beyond SPF` = glue("{separation}/6"),
+      `Exact-unit MAST genes` = coalesce(mast_genes, "—"),
+      `popAlign context` = popalign_context,
+      Rationale = rationale,
+      Caution = caution
+    ) %>%
+    datatable(
+      rownames = FALSE,
+      filter = "top",
+      class = "compact stripe hover",
+      extensions = "Buttons",
+      caption = "Auditable evidence and exclusion rationale for the MeA–BST figure candidates.",
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE,
+        dom = "Bfrtip",
+        buttons = c("copy", "csv", "colvis"),
+        columnDefs = list(
+          list(width = "210px", targets = c(1, 3, 8, 9)),
+          list(width = "300px", targets = c(10, 11))
+        )
+      )
+    )
+} else {
+  cat("*Candidate table not yet generated. Set `run_analysis <- TRUE`.*\n")
+}
+```
+
+[Source: cell `cell-tbl-candidate-audit`](#cell-tbl-candidate-audit){.provenance} · [tables/DSPIN/paper_options_2026-11-06/DSPIN_mea_bst_candidate_evidence.csv]{.path}
+
+### Recommended manuscript language
+
+::: {.callout-note}
+## Primary result language
+
+“Across 140 supertype-by-tissue D-SPIN models and 2,800 exact animal-level program tests, the p-value distribution followed the permutation null and no program or unit survived FDR correction. Nominal MeA/BST-family shifts therefore define hypotheses for orthogonal validation rather than discoveries.”
+:::
+
+::: {.callout-warning}
+## Claims to avoid
+
+- Do not say D-SPIN identifies a significant MeA–BST social-behavior pathway.
+- Do not call `0338 P10`, `0355 P5` and `0359 P6` one shared program; their VR-2 gene-set overlap is zero.
+- Do not use `0384 P7` or `0359 P6` as neuronal pathway anchors: their genes indicate OPC/astrocyte contamination.
+- Do not claim a coupled glutamatergic-input/GABA-output circuit; the saved VR-1 animal-level test did not support coupling.
+- Do not describe popAlign agreement as replication; it uses the same twelve animals.
+:::
+
+### Input registry
+
+```{r}
+#| label: cell-tbl-source-registry
+#| echo: false
+
+if (!is.null(registry)) {
+  registry %>%
+    mutate(path = str_remove(path, fixed(paste0(wkdir, "/")))) %>%
+    kable(caption = "Saved artifacts read by the paper-figure script.")
+} else {
+  cat("*Source registry not yet generated. Set `run_analysis <- TRUE`.*\n")
+}
+```
+
+[Source: cell `cell-tbl-source-registry`](#cell-tbl-source-registry){.provenance} · [tables/DSPIN/paper_options_2026-11-06/DSPIN_paper_figure_source_registry.csv]{.path}
+
+## Next Steps
+
+- **Done:** produced a full calibrated-landscape figure and a separate MeA–BST hypothesis figure from saved D-SPIN outputs, with raw animal points and vector PDFs.
+- Use Option A as the main D-SPIN figure; reserve Option B for hypothesis framing or supplementary discussion.
+- Test the three biological anchors in seqFISH at the **animal** level once complete MeA/BST spatial labels are available.
+- If a focused confirmatory analysis is planned, pre-register the three anchor programs and avoid correcting across all 2,800 programs.
+- Treat the first generated `paper_options_2026-11-06_initial` folders as superseded diagnostics; they were retained because project rules prohibit deletion.
+
+# Code & Provenance {.code-appendix}
+
+All figures and tables above are generated by [notebooks/R_scripts/plot_dspin_paper_options_sn.R]{.path}. The script reads completed CSV outputs only, verifies the expected 140 units and 2,800 programs, and refuses to overwrite a non-empty output directory.
+
+```{r}
+#| label: cell-generate-paper-options
+#| eval: !expr run_analysis
+
+rscript <- "/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript"
+script <- file.path(
+  wkdir,
+  "notebooks/R_scripts/plot_dspin_paper_options_sn.R"
+)
+
+system2(
+  rscript,
+  c(
+    script,
+    "--tag", summary_tag,
+    "--output-tag", format(Sys.Date(), "%Y-%m-%d")
+  )
+)
+```
+
+```{bash}
+#| label: cell-commands
+#| eval: false
+
+# Exact plotting command run from the project root:
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript \
+  notebooks/R_scripts/plot_dspin_paper_options_sn.R \
+  --tag 2026-10-06 --output-tag 2026-11-06
+
+# Render from notebooks/ with the configured spatialomics Quarto installation:
+PATH=/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin:$PATH \
+QUARTO_SHARE_PATH=/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/share/quarto \
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/quarto \
+  render 0X_DSPIN-Paper-Figure-Options_SN.qmd --to html
+```

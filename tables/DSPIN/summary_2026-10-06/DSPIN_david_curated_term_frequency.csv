@@ -1,0 +1,415 @@
+category,term,tissue,n_programs,total
+GO CC,plasma membrane,AMY,24,67
+GO CC,plasma membrane,HYP,43,67
+GO CC,glutamatergic synapse,AMY,19,52
+GO CC,glutamatergic synapse,HYP,33,52
+GO CC,cell surface,AMY,19,45
+GO CC,cell surface,HYP,26,45
+GO CC,postsynaptic membrane,AMY,12,35
+GO CC,postsynaptic membrane,HYP,23,35
+GO MF,L-amino acid transmembrane transporter activity,AMY,6,33
+GO MF,L-amino acid transmembrane transporter activity,HYP,27,33
+KEGG,Neuroactive ligand-receptor interaction,AMY,9,28
+KEGG,Neuroactive ligand-receptor interaction,HYP,19,28
+GO BP,axon guidance,AMY,8,27
+GO BP,axon guidance,HYP,19,27
+GO CC,extracellular matrix,AMY,6,27
+GO CC,extracellular matrix,HYP,21,27
+GO CC,axon,AMY,12,24
+GO CC,axon,HYP,12,24
+GO CC,membrane,AMY,9,24
+GO CC,membrane,HYP,15,24
+KEGG,Axon guidance,AMY,8,23
+KEGG,Axon guidance,HYP,15,23
+GO CC,neuronal cell body,AMY,13,22
+GO CC,neuronal cell body,HYP,9,22
+KEGG,Neuroactive ligand signaling,AMY,6,19
+KEGG,Neuroactive ligand signaling,HYP,13,19
+GO BP,regulation of synapse organization,AMY,1,18
+GO BP,regulation of synapse organization,HYP,17,18
+GO CC,9+2 motile cilium,AMY,6,17
+GO CC,9+2 motile cilium,HYP,11,17
+GO CC,postsynaptic density membrane,AMY,7,15
+GO CC,postsynaptic density membrane,HYP,8,15
+KEGG,IgSF CAM signaling,AMY,7,15
+KEGG,IgSF CAM signaling,HYP,8,15
+GO CC,presynaptic membrane,AMY,5,14
+GO CC,presynaptic membrane,HYP,9,14
+GO CC,dendrite,AMY,8,13
+GO CC,dendrite,HYP,5,13
+GO CC,GABA-ergic synapse,AMY,5,12
+GO CC,GABA-ergic synapse,HYP,7,12
+GO CC,synapse,AMY,4,12
+GO CC,synapse,HYP,8,12
+GO BP,monoatomic ion transport,AMY,2,11
+GO BP,monoatomic ion transport,HYP,9,11
+GO CC,axonemal dynein complex,AMY,2,11
+GO CC,axonemal dynein complex,HYP,9,11
+GO CC,axoneme,AMY,5,11
+GO CC,axoneme,HYP,6,11
+GO BP,cell adhesion,AMY,5,10
+GO BP,cell adhesion,HYP,5,10
+GO CC,membrane raft,AMY,5,10
+GO CC,membrane raft,HYP,5,10
+GO MF,monoatomic ion channel activity,AMY,2,10
+GO MF,monoatomic ion channel activity,HYP,8,10
+KEGG,Glycosaminoglycan biosynthesis - heparan sulfate / heparin,AMY,2,10
+KEGG,Glycosaminoglycan biosynthesis - heparan sulfate / heparin,HYP,8,10
+GO BP,cilium movement,AMY,4,9
+GO BP,cilium movement,HYP,5,9
+GO BP,heparan sulfate proteoglycan biosynthetic process,AMY,2,9
+GO BP,heparan sulfate proteoglycan biosynthetic process,HYP,7,9
+GO CC,sperm flagellum,AMY,5,9
+GO CC,sperm flagellum,HYP,4,9
+GO MF,sulfotransferase activity,AMY,3,9
+GO MF,sulfotransferase activity,HYP,6,9
+KEGG,Nicotine addiction,AMY,3,9
+KEGG,Nicotine addiction,HYP,6,9
+GO CC,dynein complex,AMY,2,8
+GO CC,dynein complex,HYP,6,8
+GO CC,extracellular region,AMY,4,8
+GO CC,extracellular region,HYP,4,8
+GO CC,motile cilium,AMY,4,8
+GO CC,motile cilium,HYP,4,8
+GO MF,calcium ion binding,AMY,5,8
+GO MF,calcium ion binding,HYP,3,8
+GO MF,dynein intermediate chain binding,AMY,2,8
+GO MF,dynein intermediate chain binding,HYP,6,8
+GO MF,dynein light intermediate chain binding,AMY,3,8
+GO MF,dynein light intermediate chain binding,HYP,5,8
+GO MF,minus-end-directed microtubule motor activity,AMY,3,8
+GO MF,minus-end-directed microtubule motor activity,HYP,5,8
+KEGG,ECM-receptor interaction,AMY,5,8
+KEGG,ECM-receptor interaction,HYP,3,8
+KEGG,Integrin signaling,AMY,6,8
+KEGG,Integrin signaling,HYP,2,8
+GO BP,cilium movement involved in cell motility,AMY,1,7
+GO BP,cilium movement involved in cell motility,HYP,6,7
+GO CC,inner dynein arm,AMY,2,7
+GO CC,inner dynein arm,HYP,5,7
+GO CC,astrocyte projection,AMY,5,6
+GO CC,astrocyte projection,HYP,1,6
+GO CC,dendritic spine,AMY,5,6
+GO CC,dendritic spine,HYP,1,6
+GO CC,postsynaptic specialization membrane,AMY,2,6
+GO CC,postsynaptic specialization membrane,HYP,4,6
+GO MF,extracellular matrix structural constituent conferring tensile strength,AMY,1,6
+GO MF,extracellular matrix structural constituent conferring tensile strength,HYP,5,6
+GO MF,transmitter-gated monoatomic ion channel activity involved in regulation of postsynaptic membrane potential,AMY,2,6
+GO MF,transmitter-gated monoatomic ion channel activity involved in regulation of postsynaptic membrane potential,HYP,4,6
+KEGG,Cytoskeleton in muscle cells,AMY,3,6
+KEGG,Cytoskeleton in muscle cells,HYP,3,6
+KEGG,Glyoxylate and dicarboxylate metabolism,AMY,6,6
+GO BP,axon extension involved in axon guidance,AMY,3,5
+GO BP,axon extension involved in axon guidance,HYP,2,5
+GO BP,chemical synaptic transmission,AMY,1,5
+GO BP,chemical synaptic transmission,HYP,4,5
+GO BP,intracellular signal transduction,AMY,4,5
+GO BP,intracellular signal transduction,HYP,1,5
+GO BP,positive regulation of cell migration,AMY,4,5
+GO BP,positive regulation of cell migration,HYP,1,5
+GO BP,positive regulation of synapse assembly,AMY,4,5
+GO BP,positive regulation of synapse assembly,HYP,1,5
+GO CC,cellular_component,AMY,2,5
+GO CC,cellular_component,HYP,3,5
+GO CC,cytoplasm,AMY,3,5
+GO CC,cytoplasm,HYP,2,5
+GO CC,microtubule,AMY,3,5
+GO CC,microtubule,HYP,2,5
+GO CC,neuron projection,AMY,3,5
+GO CC,neuron projection,HYP,2,5
+GO CC,postsynapse,AMY,2,5
+GO CC,postsynapse,HYP,3,5
+KEGG,Amyotrophic lateral sclerosis,AMY,2,5
+KEGG,Amyotrophic lateral sclerosis,HYP,3,5
+KEGG,Focal adhesion,AMY,3,5
+KEGG,Focal adhesion,HYP,2,5
+KEGG,Motor proteins,AMY,2,5
+KEGG,Motor proteins,HYP,3,5
+GO BP,integrin-mediated signaling pathway,AMY,3,4
+GO BP,integrin-mediated signaling pathway,HYP,1,4
+GO BP,microtubule-based movement,AMY,1,4
+GO BP,microtubule-based movement,HYP,3,4
+GO BP,nervous system development,AMY,1,4
+GO BP,nervous system development,HYP,3,4
+GO BP,regulation of postsynaptic membrane potential,AMY,1,4
+GO BP,regulation of postsynaptic membrane potential,HYP,3,4
+GO BP,"synaptic transmission, glutamatergic",AMY,3,4
+GO BP,"synaptic transmission, glutamatergic",HYP,1,4
+GO CC,nucleoplasm,AMY,1,4
+GO CC,nucleoplasm,HYP,3,4
+GO CC,signaling receptor complex,AMY,3,4
+GO CC,signaling receptor complex,HYP,1,4
+GO MF,ATP binding,AMY,2,4
+GO MF,ATP binding,HYP,2,4
+GO MF,signaling receptor binding,AMY,2,4
+GO MF,signaling receptor binding,HYP,2,4
+GO MF,transmembrane receptor protein tyrosine kinase activity,AMY,2,4
+GO MF,transmembrane receptor protein tyrosine kinase activity,HYP,2,4
+GO MF,transmembrane signaling receptor activity,AMY,2,4
+GO MF,transmembrane signaling receptor activity,HYP,2,4
+KEGG,Calcium signaling pathway,AMY,3,4
+KEGG,Calcium signaling pathway,HYP,1,4
+KEGG,Hormone signaling,AMY,1,4
+KEGG,Hormone signaling,HYP,3,4
+KEGG,Huntington disease,AMY,2,4
+KEGG,Huntington disease,HYP,2,4
+KEGG,PI3K-Akt signaling pathway,AMY,4,4
+KEGG,Pathways of neurodegeneration - multiple diseases,AMY,2,4
+KEGG,Pathways of neurodegeneration - multiple diseases,HYP,2,4
+GO BP,endodermal cell differentiation,AMY,1,3
+GO BP,endodermal cell differentiation,HYP,2,3
+GO BP,extracellular matrix organization,AMY,2,3
+GO BP,extracellular matrix organization,HYP,1,3
+GO BP,flagellated sperm motility,AMY,2,3
+GO BP,flagellated sperm motility,HYP,1,3
+GO BP,homophilic cell-cell adhesion,AMY,1,3
+GO BP,homophilic cell-cell adhesion,HYP,2,3
+GO BP,modulation of chemical synaptic transmission,AMY,1,3
+GO BP,modulation of chemical synaptic transmission,HYP,2,3
+GO CC,Schaffer collateral - CA1 synapse,AMY,1,3
+GO CC,Schaffer collateral - CA1 synapse,HYP,2,3
+GO CC,collagen trimer,AMY,1,3
+GO CC,collagen trimer,HYP,2,3
+GO CC,myelin sheath,AMY,2,3
+GO CC,myelin sheath,HYP,1,3
+GO CC,postsynaptic density,HYP,3,3
+GO CC,presynaptic active zone membrane,AMY,1,3
+GO CC,presynaptic active zone membrane,HYP,2,3
+GO CC,side of membrane,AMY,2,3
+GO CC,side of membrane,HYP,1,3
+GO MF,chemorepellent activity,AMY,1,3
+GO MF,chemorepellent activity,HYP,2,3
+GO MF,ligand-gated monoatomic ion channel activity involved in regulation of presynaptic membrane potential,AMY,1,3
+GO MF,ligand-gated monoatomic ion channel activity involved in regulation of presynaptic membrane potential,HYP,2,3
+GO MF,protein binding,AMY,2,3
+GO MF,protein binding,HYP,1,3
+GO MF,protein kinase activity,AMY,3,3
+GO MF,transmitter-gated monoatomic ion channel activity,HYP,3,3
+KEGG,Chemokine signaling pathway,AMY,2,3
+KEGG,Chemokine signaling pathway,HYP,1,3
+KEGG,Human papillomavirus infection,AMY,1,3
+KEGG,Human papillomavirus infection,HYP,2,3
+KEGG,Protein digestion and absorption,HYP,3,3
+GO BP,DNA repair,AMY,1,2
+GO BP,DNA repair,HYP,1,2
+GO BP,axoneme assembly,AMY,2,2
+GO BP,axonogenesis,AMY,1,2
+GO BP,axonogenesis,HYP,1,2
+GO BP,biological_process,AMY,2,2
+GO BP,chloride transmembrane transport,AMY,1,2
+GO BP,chloride transmembrane transport,HYP,1,2
+GO BP,embryonic cranial skeleton morphogenesis,AMY,1,2
+GO BP,embryonic cranial skeleton morphogenesis,HYP,1,2
+GO BP,immunological synapse formation,HYP,2,2
+GO BP,inhibitory synapse assembly,AMY,1,2
+GO BP,inhibitory synapse assembly,HYP,1,2
+GO BP,inner dynein arm assembly,AMY,2,2
+GO BP,negative chemotaxis,AMY,1,2
+GO BP,negative chemotaxis,HYP,1,2
+GO BP,positive regulation of filopodium assembly,AMY,2,2
+GO BP,protein autophosphorylation,AMY,1,2
+GO BP,protein autophosphorylation,HYP,1,2
+GO BP,regulation of presynaptic membrane potential,AMY,1,2
+GO BP,regulation of presynaptic membrane potential,HYP,1,2
+GO BP,semaphorin-plexin signaling pathway,AMY,1,2
+GO BP,semaphorin-plexin signaling pathway,HYP,1,2
+GO BP,sensory perception of pain,AMY,1,2
+GO BP,sensory perception of pain,HYP,1,2
+GO BP,signal transduction,AMY,1,2
+GO BP,signal transduction,HYP,1,2
+GO BP,transmembrane transport,AMY,1,2
+GO BP,transmembrane transport,HYP,1,2
+GO BP,vasculogenesis,AMY,2,2
+GO CC,apical plasma membrane,HYP,2,2
+GO CC,axon terminus,HYP,2,2
+GO CC,basolateral plasma membrane,AMY,2,2
+GO CC,cell junction,AMY,1,2
+GO CC,cell junction,HYP,1,2
+GO CC,chloride channel complex,AMY,1,2
+GO CC,chloride channel complex,HYP,1,2
+GO CC,cilium,AMY,1,2
+GO CC,cilium,HYP,1,2
+GO CC,cytoplasmic side of plasma membrane,HYP,2,2
+GO CC,cytosol,AMY,1,2
+GO CC,cytosol,HYP,1,2
+GO CC,focal adhesion,AMY,2,2
+GO CC,growth cone,AMY,1,2
+GO CC,growth cone,HYP,1,2
+GO CC,perikaryon,AMY,2,2
+GO CC,perinuclear region of cytoplasm,AMY,1,2
+GO CC,perinuclear region of cytoplasm,HYP,1,2
+GO CC,transcription regulator complex,AMY,2,2
+GO MF,ATP hydrolysis activity,HYP,2,2
+GO MF,"DNA-binding transcription activator activity, RNA polymerase II-specific",AMY,2,2
+GO MF,G protein-coupled peptide receptor activity,AMY,1,2
+GO MF,G protein-coupled peptide receptor activity,HYP,1,2
+GO MF,GPI-linked ephrin receptor activity,HYP,2,2
+GO MF,calcium channel activity,AMY,1,2
+GO MF,calcium channel activity,HYP,1,2
+GO MF,collagen binding,AMY,1,2
+GO MF,collagen binding,HYP,1,2
+GO MF,ephrin receptor activity,HYP,2,2
+GO MF,glutamate-gated receptor activity,AMY,1,2
+GO MF,glutamate-gated receptor activity,HYP,1,2
+GO MF,phosphoric diester hydrolase activity,HYP,2,2
+GO MF,transcription coactivator binding,AMY,1,2
+GO MF,transcription coactivator binding,HYP,1,2
+GO MF,zinc ion binding,AMY,1,2
+GO MF,zinc ion binding,HYP,1,2
+KEGG,Amphetamine addiction,AMY,1,2
+KEGG,Amphetamine addiction,HYP,1,2
+KEGG,Arrhythmogenic right ventricular cardiomyopathy,AMY,2,2
+KEGG,Chemical carcinogenesis - reactive oxygen species,AMY,2,2
+KEGG,Dilated cardiomyopathy,AMY,2,2
+KEGG,Hypertrophic cardiomyopathy,AMY,2,2
+KEGG,MAPK signaling pathway,AMY,1,2
+KEGG,MAPK signaling pathway,HYP,1,2
+KEGG,Melanoma,AMY,2,2
+KEGG,Oxidative phosphorylation,AMY,1,2
+KEGG,Oxidative phosphorylation,HYP,1,2
+KEGG,Phospholipase D signaling pathway,AMY,2,2
+KEGG,Rap1 signaling pathway,AMY,1,2
+KEGG,Rap1 signaling pathway,HYP,1,2
+KEGG,Retrograde endocannabinoid signaling,AMY,1,2
+KEGG,Retrograde endocannabinoid signaling,HYP,1,2
+KEGG,cAMP signaling pathway,AMY,1,2
+KEGG,cAMP signaling pathway,HYP,1,2
+KEGG,nvs05202:Transcriptional misregulation in cancer,AMY,2,2
+GO BP,B cell proliferation,HYP,1,1
+GO BP,B cell receptor signaling pathway,HYP,1,1
+GO BP,Wnt signaling pathway,HYP,1,1
+GO BP,calcium ion transmembrane transport,HYP,1,1
+GO BP,calcium ion transport,HYP,1,1
+GO BP,cell adhesion mediated by integrin,AMY,1,1
+GO BP,cell differentiation,HYP,1,1
+GO BP,cell migration,AMY,1,1
+GO BP,cell surface receptor protein tyrosine kinase signaling pathway,AMY,1,1
+GO BP,cell-cell adhesion,HYP,1,1
+GO BP,cellular response to calcium ion,HYP,1,1
+GO BP,cellular response to hormone stimulus,HYP,1,1
+GO BP,central nervous system development,AMY,1,1
+GO BP,defense response to virus,HYP,1,1
+GO BP,dendrite self-avoidance,AMY,1,1
+GO BP,ephrin receptor signaling pathway,HYP,1,1
+GO BP,estrogen receptor signaling pathway,AMY,1,1
+GO BP,excitatory synapse assembly,AMY,1,1
+GO BP,glial cell migration,AMY,1,1
+GO BP,heparin proteoglycan biosynthetic process,HYP,1,1
+GO BP,intracellular receptor signaling pathway,AMY,1,1
+GO BP,monoatomic ion transmembrane transport,HYP,1,1
+GO BP,negative regulation of cell adhesion,AMY,1,1
+GO BP,negative regulation of cell growth,HYP,1,1
+GO BP,negative regulation of cell migration,AMY,1,1
+GO BP,negative regulation of endothelial cell proliferation,AMY,1,1
+GO BP,negative regulation of epithelial cell proliferation,AMY,1,1
+GO BP,negative regulation of smooth muscle cell proliferation,AMY,1,1
+GO BP,neural crest cell migration,HYP,1,1
+GO BP,neuron development,AMY,1,1
+GO BP,neuron migration,AMY,1,1
+GO BP,phospholipid catabolic process,HYP,1,1
+GO BP,positive regulation of DNA-templated transcription,HYP,1,1
+GO BP,post-embryonic development,AMY,1,1
+GO BP,potassium ion transmembrane transport,HYP,1,1
+GO BP,prostate gland epithelium morphogenesis,AMY,1,1
+GO BP,regulation of cell population proliferation,HYP,1,1
+GO BP,regulation of developmental process,HYP,1,1
+GO BP,regulation of presynapse assembly,AMY,1,1
+GO BP,regulation of synapse assembly,AMY,1,1
+GO BP,response to virus,HYP,1,1
+GO BP,retinal ganglion cell axon guidance,HYP,1,1
+GO BP,small GTPase-mediated signal transduction,HYP,1,1
+GO BP,sodium ion transmembrane transport,HYP,1,1
+GO BP,sodium ion transport,HYP,1,1
+GO BP,synaptic membrane adhesion,AMY,1,1
+GO BP,ventricular septum morphogenesis,AMY,1,1
+GO CC,GABA-A receptor complex,HYP,1,1
+GO CC,T-tubule,HYP,1,1
+GO CC,Z disc,HYP,1,1
+GO CC,axon initial segment,AMY,1,1
+GO CC,basement membrane,HYP,1,1
+GO CC,calcium channel complex,HYP,1,1
+GO CC,collagen type VI trimer,AMY,1,1
+GO CC,cytoplasmic vesicle membrane,HYP,1,1
+GO CC,cytoskeleton,AMY,1,1
+GO CC,dendrite membrane,HYP,1,1
+GO CC,intercalated disc,HYP,1,1
+GO CC,microfibril,AMY,1,1
+GO CC,mitochondrial inner membrane,HYP,1,1
+GO CC,mitochondrion,HYP,1,1
+GO CC,nuclear body,AMY,1,1
+GO CC,nucleus,AMY,1,1
+GO CC,parallel fiber to Purkinje cell synapse,AMY,1,1
+GO CC,podosome,HYP,1,1
+GO CC,replication fork,HYP,1,1
+GO CC,sperm annulus,AMY,1,1
+GO CC,sperm midpiece,HYP,1,1
+GO CC,stereocilium,HYP,1,1
+GO CC,synaptic membrane,HYP,1,1
+GO CC,voltage-gated potassium channel complex,AMY,1,1
+GO MF,ATPase-coupled intramembrane lipid carrier activity,AMY,1,1
+GO MF,DNA-binding transcription factor activity,HYP,1,1
+GO MF,DNA-binding transcription factor binding,HYP,1,1
+GO MF,GABA-A receptor activity,HYP,1,1
+GO MF,GABA-gated chloride ion channel activity,HYP,1,1
+GO MF,R-SMAD binding,HYP,1,1
+GO MF,RNA polymerase II cis-regulatory region sequence-specific DNA binding,AMY,1,1
+GO MF,RNA polymerase II core promoter sequence-specific DNA binding,HYP,1,1
+GO MF,[heparan sulfate]-glucosamine 3-sulfotransferase activity,HYP,1,1
+GO MF,calcium-dependent phospholipid binding,HYP,1,1
+GO MF,cell-cell adhesion mediator activity,AMY,1,1
+GO MF,chloride channel activity,HYP,1,1
+GO MF,chromatin binding,HYP,1,1
+GO MF,cyclic-nucleotide phosphodiesterase activity,HYP,1,1
+GO MF,estrogen response element binding,AMY,1,1
+GO MF,extracellular ligand-gated monoatomic ion channel activity,AMY,1,1
+GO MF,glycosaminoglycan binding,HYP,1,1
+GO MF,growth factor activity,AMY,1,1
+GO MF,growth factor binding,HYP,1,1
+GO MF,guanyl-nucleotide exchange factor activity,AMY,1,1
+GO MF,heparin binding,HYP,1,1
+GO MF,hormone binding,AMY,1,1
+GO MF,hydrolase activity,AMY,1,1
+GO MF,ligand-gated monoatomic ion channel activity,HYP,1,1
+GO MF,microtubule motor activity,HYP,1,1
+GO MF,molecular_function,AMY,1,1
+GO MF,neuropeptide hormone activity,HYP,1,1
+GO MF,nuclear receptor activity,AMY,1,1
+GO MF,nuclear steroid receptor activity,AMY,1,1
+GO MF,peptide hormone binding,HYP,1,1
+GO MF,phosphatidylcholine floppase activity,AMY,1,1
+GO MF,protein serine kinase activity,AMY,1,1
+GO MF,protein serine/threonine kinase activity,AMY,1,1
+GO MF,scaffold protein binding,AMY,1,1
+GO MF,small GTPase binding,HYP,1,1
+GO MF,steroid binding,AMY,1,1
+GO MF,transcription coregulator activity,AMY,1,1
+KEGG,Alzheimer disease,AMY,1,1
+KEGG,Cadherin signaling,HYP,1,1
+KEGG,Chemical carcinogenesis - receptor activation,AMY,1,1
+KEGG,Choline metabolism in cancer,AMY,1,1
+KEGG,Coronavirus disease - COVID-19,HYP,1,1
+KEGG,Cytosolic DNA-sensing pathway,HYP,1,1
+KEGG,Diabetic cardiomyopathy,AMY,1,1
+KEGG,EGFR tyrosine kinase inhibitor resistance,AMY,1,1
+KEGG,Endocytosis,AMY,1,1
+KEGG,Estrogen signaling pathway,AMY,1,1
+KEGG,Fc gamma R-mediated phagocytosis,AMY,1,1
+KEGG,Hepatitis C,HYP,1,1
+KEGG,Herpes simplex virus 1 infection,HYP,1,1
+KEGG,Homologous recombination,AMY,1,1
+KEGG,Human cytomegalovirus infection,AMY,1,1
+KEGG,Influenza A,HYP,1,1
+KEGG,Measles,HYP,1,1
+KEGG,Metabolic pathways,HYP,1,1
+KEGG,Morphine addiction,HYP,1,1
+KEGG,Pancreatic cancer,HYP,1,1
+KEGG,Parkinson disease,AMY,1,1
+KEGG,Pathways in cancer,AMY,1,1
+KEGG,Polycomb repressive complex,AMY,1,1
+KEGG,Prion disease,AMY,1,1
+KEGG,Ras signaling pathway,AMY,1,1
+KEGG,Regulation of actin cytoskeleton,AMY,1,1
+KEGG,Taste transduction,HYP,1,1
+KEGG,Thermogenesis,AMY,1,1
+KEGG,cGMP-PKG signaling pathway,AMY,1,1

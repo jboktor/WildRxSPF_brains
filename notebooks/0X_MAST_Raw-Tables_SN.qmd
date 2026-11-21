@@ -1,0 +1,936 @@
+---
+title: "Full Single-Nucleus MAST Results for WildR vs SPF"
+subtitle: "Every tested gene in amygdala and hypothalamus, Allen class through supertype (fit 2026-01-04)"
+date: today
+author: "Joe Boktor"
+categories: [snRNA-seq, MAST, Differential Expression]
+format:
+  html:
+    theme:
+      - cosmo
+      - ../quarto-aesthetic-kit/theme/aesthetic.scss
+    include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    page-layout: article
+    code-fold: true
+    code-tools: true
+    code-copy: true
+    embed-resources: true
+    fig-cap-location: bottom
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: false
+---
+
+```{r}
+#| label: setup-display
+#| include: false
+
+# Display-only render. Reads saved MAST RDS files and draws the open unit.
+# Nothing here refits MAST or submits a job.
+#
+# To inspect another tissue x cell type, edit the three focus_* lines and re-render.
+# level must be class_label, subclass_label, or supertype_label.
+# Paste label and tissue from the catalog table in Results.
+run_analysis <- FALSE
+
+focus_level <- "supertype_label"
+focus_label <- "CS20230722_SUPT_0059"
+focus_tissue <- "AMY"
+
+# BH cutoff drawn on the figures and used for the shortlist. Adjustment in the
+# RDS is already within the tissue x cell type; this cutoff does not re-adjust.
+padj_cut <- 0.1
+
+# Set to an export symbol (primerid with "-GRCm39" removed), for example "Itpkb",
+# to pull that gene from every raw table. Leave "" to skip the scan (~1 min).
+query_gene <- ""
+
+raw_date <- "2026-01-04"
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(glue)
+  library(data.table)
+  library(knitr)
+  library(DT)
+  library(ggrepel)
+  library(patchwork)
+  library(plotly)
+})
+
+wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
+mast_dir <- file.path(wkdir, "data/interim/mast/snRNASeq")
+gene_meta_path <- file.path(wkdir, "data/interim/seurat/snRNASeq/seurat_gene_metadata_2026-10-05.csv")
+manifest_path <- file.path(wkdir, "data/interim/popalign/snRNASeq/manifest_2026-10-04.csv")
+fig_dir <- file.path(wkdir, "figures/MAST_Raw_SN")
+tbl_dir <- file.path(wkdir, "tables/MAST_Raw_SN")
+
+bh_orange <- "#FF6C0C"
+bh_slate <- "#27455C"
+bh_gray <- "#767676"
+bh_ns <- "#D4D4D4"
+col_dir <- c(
+  "Higher in WildR" = bh_orange,
+  "Higher in SPF" = bh_slate,
+  "Not significant" = bh_ns
+)
+
+theme_mast <- function() {
+  theme_bw(base_size = 12) +
+    theme(
+      panel.grid.minor = element_blank(),
+      legend.position = "bottom",
+      plot.title = element_text(face = "bold", size = 12),
+      plot.subtitle = element_text(size = 10, color = "#555555"),
+      axis.title = element_text(color = "#555555"),
+      legend.title = element_blank()
+    )
+}
+
+fmt_n <- function(x) format(as.integer(x), big.mark = ",")
+fmt_p <- function(x) {
+  if (length(x) != 1 || is.na(x)) return("—")
+  ax <- abs(x)
+  if (ax != 0 && (ax < 1e-3 || ax >= 1e4)) {
+    formatC(signif(x, 3), format = "e", digits = 2)
+  } else {
+    formatC(signif(x, 3), format = "fg")
+  }
+}
+
+# Nominal-p extracts (hurdle p < 0.05) carry Allen names and the original BH values.
+# A gene with BH p_adjust < 0.1 also has hurdle p < 0.05, so the BH count from
+# these files matches a count on the full raw table.
+read_signif_index <- function(path, level, name_col) {
+  if (!file.exists(path)) return(tibble())
+  readRDS(path) %>%
+    as_tibble() %>%
+    group_by(label = .data$cell_type, .data$tissue) %>%
+    summarise(
+      cell_type_name = first(.data[[name_col]]),
+      n_hurdle_p_lt_0.05 = n(),
+      n_padj_lt_0.1 = sum(.data$p_adjust < padj_cut, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    mutate(level = level)
+}
+
+signif_index <- bind_rows(
+  read_signif_index(file.path(mast_dir, "class_mast_signif_hits_2026-01-04.rds"), "class_label", "class_name"),
+  read_signif_index(file.path(mast_dir, "subclass_mast_signif_hits_2026-01-04.rds"), "subclass_label", "subclass_name"),
+  read_signif_index(file.path(mast_dir, "supertype_mast_signif_hits_2026-01-04.rds"), "supertype_label", "supertype_name")
+)
+
+manifest_names <- if (file.exists(manifest_path)) {
+  read_csv(manifest_path, show_col_types = FALSE) %>%
+    transmute(
+      level = paste0(.data$level, "_label"),
+      label = .data$label,
+      tissue = .data$tissue,
+      manifest_name = .data$name
+    ) %>%
+    distinct(level, label, tissue, .keep_all = TRUE)
+} else {
+  tibble()
+}
+
+raw_paths <- list.files(
+  file.path(mast_dir, c("class_label", "subclass_label", "supertype_label")),
+  pattern = glue("_{raw_date}\\.rds$"),
+  full.names = TRUE
+)
+
+catalog <- tibble(path = raw_paths) %>%
+  mutate(
+    file = basename(.data$path),
+    level = basename(dirname(.data$path)),
+    tissue = str_match(.data$file, "_(AMY|HYP)_\\d{4}-\\d{2}-\\d{2}\\.rds$")[, 2],
+    label = str_match(.data$file, "^(.*)_(AMY|HYP)_\\d{4}-\\d{2}-\\d{2}\\.rds$")[, 2],
+    rel_path = file.path("data/interim/mast/snRNASeq", .data$level, .data$file)
+  ) %>%
+  left_join(signif_index, by = c("level", "label", "tissue")) %>%
+  left_join(manifest_names, by = c("level", "label", "tissue")) %>%
+  mutate(
+    cell_type_name = coalesce(.data$cell_type_name, .data$manifest_name),
+    n_hurdle_p_lt_0.05 = coalesce(.data$n_hurdle_p_lt_0.05, 0L),
+    n_padj_lt_0.1 = coalesce(.data$n_padj_lt_0.1, 0L),
+    focus = .data$level == focus_level & .data$label == focus_label & .data$tissue == focus_tissue
+  ) %>%
+  arrange(desc(.data$focus), desc(.data$n_padj_lt_0.1), .data$level, .data$tissue, .data$label)
+
+gene_meta <- if (file.exists(gene_meta_path)) {
+  read_csv(gene_meta_path, show_col_types = FALSE) %>%
+    transmute(
+      feature,
+      gene_name,
+      gene_id,
+      symbol_shared = coalesce(.data$symbol_shared, FALSE)
+    ) %>%
+    distinct(.data$feature, .keep_all = TRUE)
+} else {
+  tibble(feature = character(), gene_name = character(), gene_id = character(), symbol_shared = logical())
+}
+
+focus_row <- catalog %>%
+  filter(.data$level == focus_level, .data$label == focus_label, .data$tissue == focus_tissue) %>%
+  slice(1)
+focus_ok <- nrow(focus_row) == 1 && isTRUE(file.exists(focus_row$path[[1]]))
+focus_path <- if (nrow(focus_row) == 1) focus_row$path[[1]] else {
+  file.path(mast_dir, focus_level, glue("{focus_label}_{focus_tissue}_{raw_date}.rds"))
+}
+focus_rel <- if (nrow(focus_row) == 1) focus_row$rel_path[[1]] else {
+  file.path("data/interim/mast/snRNASeq", focus_level, glue("{focus_label}_{focus_tissue}_{raw_date}.rds"))
+}
+
+level_short <- str_remove(focus_level, "_label$")
+focus_name <- if (nrow(focus_row) == 1 && !is.na(focus_row$cell_type_name[[1]])) {
+  focus_row$cell_type_name[[1]]
+} else {
+  focus_label
+}
+focus_heading <- glue("{focus_name} ({focus_tissue}, {level_short})")
+
+annotate_raw <- function(dt) {
+  dt %>%
+    as_tibble() %>%
+    rename(hurdle_p = `Pr(>Chisq)`, ci_hi = ci.hi, ci_lo = ci.lo) %>%
+    mutate(
+      gene = sub("-GRCm39$", "", .data$primerid),
+      neglog10_padj = -log10(pmax(.data$p_adjust, 1e-300)),
+      direction = case_when(
+        .data$p_adjust < padj_cut & .data$coef > 0 ~ "Higher in WildR",
+        .data$p_adjust < padj_cut & .data$coef < 0 ~ "Higher in SPF",
+        TRUE ~ "Not significant"
+      ),
+      direction = factor(.data$direction, levels = names(col_dir))
+    ) %>%
+    left_join(gene_meta, by = c("primerid" = "feature")) %>%
+    mutate(
+      plot_label = case_when(
+        .data$symbol_shared %in% TRUE ~ .data$gene,
+        !is.na(.data$gene_name) & nzchar(.data$gene_name) ~ .data$gene_name,
+        TRUE ~ .data$gene
+      )
+    )
+}
+
+fmt_num <- function(x) {
+  ifelse(
+    is.na(x), "—",
+    ifelse(
+      abs(x) != 0 & (abs(x) < 1e-3 | abs(x) >= 1e4),
+      formatC(signif(x, 3), format = "e", digits = 2),
+      formatC(signif(x, 3), format = "fg")
+    )
+  )
+}
+
+if (focus_ok) {
+  mast_raw <- annotate_raw(readRDS(focus_path)) %>%
+    mutate(
+      hover = paste0(
+        .data$plot_label, " (", .data$gene, ")<br>",
+        "coef ", fmt_num(.data$coef), " [", fmt_num(.data$ci_lo), ", ", fmt_num(.data$ci_hi), "]<br>",
+        "hurdle p ", fmt_num(.data$hurdle_p), "<br>",
+        "BH p_adjust ", fmt_num(.data$p_adjust)
+      ),
+      tissue = focus_tissue,
+      cell_type_level = level_short,
+      label = focus_label,
+      cell_type_name = focus_name
+    )
+} else {
+  mast_raw <- tibble()
+}
+
+n_raw <- nrow(catalog)
+n_bh_units <- sum(catalog$n_padj_lt_0.1 > 0)
+n_genes <- if (focus_ok) nrow(mast_raw) else NA_integer_
+n_sig <- if (focus_ok) sum(mast_raw$p_adjust < padj_cut, na.rm = TRUE) else NA_integer_
+n_up <- if (focus_ok) sum(mast_raw$p_adjust < padj_cut & mast_raw$coef > 0, na.rm = TRUE) else NA_integer_
+n_down <- if (focus_ok) sum(mast_raw$p_adjust < padj_cut & mast_raw$coef < 0, na.rm = TRUE) else NA_integer_
+n_nonfinite <- if (focus_ok) sum(!is.finite(mast_raw$coef)) else NA_integer_
+med_abs <- if (focus_ok && n_sig > 0) {
+  median(abs(mast_raw$coef[mast_raw$p_adjust < padj_cut]), na.rm = TRUE)
+} else {
+  NA_real_
+}
+
+coef_df <- if (!focus_ok) {
+  tibble()
+} else if (n_sig > 0) {
+  mast_raw %>%
+    filter(.data$p_adjust < padj_cut, is.finite(.data$coef)) %>%
+    slice_min(.data$p_adjust, n = 25, with_ties = FALSE)
+} else {
+  mast_raw %>%
+    filter(is.finite(.data$coef), is.finite(.data$hurdle_p)) %>%
+    slice_min(.data$hurdle_p, n = 15, with_ties = FALSE)
+}
+
+coef_note <- if (!focus_ok) {
+  "the open unit"
+} else if (n_sig == 0) {
+  "the 15 smallest hurdle p-values, because no gene passes the BH cutoff"
+} else if (n_sig > nrow(coef_df)) {
+  glue("the {nrow(coef_df)} smallest BH p_adjust values (of {fmt_n(n_sig)} genes below {padj_cut})")
+} else {
+  glue("all {fmt_n(n_sig)} genes with BH p_adjust < {padj_cut}")
+}
+
+if (focus_ok && n_sig > 0) {
+  top_hit <- mast_raw %>% slice_min(.data$p_adjust, n = 1, with_ties = FALSE)
+  top_name <- if (!is.na(top_hit$gene_name[[1]]) && nzchar(top_hit$gene_name[[1]])) top_hit$gene_name[[1]] else top_hit$gene[[1]]
+  top_id <- if (identical(top_name, top_hit$gene[[1]])) top_name else glue("{top_name} ({top_hit$gene[[1]]})")
+  takeaway_breadth <- glue(
+    "{fmt_n(n_genes)} genes were tested in this unit, and {fmt_n(n_sig)} pass a within-unit BH cutoff of {padj_cut} ({fmt_n(n_up)} higher in WildR, {fmt_n(n_down)} higher in SPF)."
+  )
+  takeaway_size <- glue(
+    "Among those BH hits the median absolute coefficient is {fmt_p(med_abs)} on the log2(CPM+1) scale."
+  )
+  takeaway_top <- glue(
+    "The strongest within-unit hit is {top_id}, coefficient {fmt_p(top_hit$coef[[1]])}, BH p_adjust {fmt_p(top_hit$p_adjust[[1]])}."
+  )
+} else if (focus_ok) {
+  takeaway_breadth <- glue("{fmt_n(n_genes)} genes were tested in this unit, and none pass a within-unit BH cutoff of {padj_cut}.")
+  takeaway_size <- "The coefficient panel shows the smallest hurdle p-values so the unit can still be inspected."
+  takeaway_top <- "No gene in this unit is a BH hit at the cutoff above."
+} else {
+  takeaway_breadth <- "The focus raw table was not found on disk."
+  takeaway_size <- "Check focus_level, focus_label, and focus_tissue against the catalog."
+  takeaway_top <- glue("Expected file: {focus_rel}.")
+}
+
+stat_files <- fmt_n(n_raw)
+stat_bh_units <- fmt_n(n_bh_units)
+stat_genes <- if (focus_ok) fmt_n(n_genes) else "—"
+stat_sig <- if (focus_ok) fmt_n(n_sig) else "—"
+
+catalog_view <- catalog %>%
+  transmute(
+    focus,
+    level,
+    tissue,
+    label,
+    cell_type_name,
+    n_hurdle_p_lt_0.05,
+    n_padj_lt_0.1,
+    raw_table = rel_path
+  )
+
+raw_view_cols <- c(
+  "tissue", "cell_type_level", "label", "cell_type_name",
+  "gene", "gene_name", "gene_id", "coef", "ci_lo", "ci_hi",
+  "hurdle_p", "p_adjust", "direction", "symbol_shared", "primerid"
+)
+
+mast_view <- if (focus_ok) {
+  mast_raw %>%
+    mutate(direction = as.character(.data$direction)) %>%
+    select(any_of(raw_view_cols)) %>%
+    arrange(.data$p_adjust)
+} else {
+  tibble()
+}
+
+dt_raw <- function(df, caption, page = 25) {
+  datatable(
+    df,
+    rownames = FALSE,
+    filter = "top",
+    escape = TRUE,
+    caption = caption,
+    class = "compact stripe hover",
+    extensions = "Buttons",
+    options = list(
+      pageLength = page,
+      lengthMenu = unique(c(page, 50, 100, nrow(df))),
+      scrollX = TRUE,
+      dom = "Bfrtip",
+      buttons = c("csv", "colvis"),
+      order = list(list(which(names(df) == "p_adjust") - 1L, "asc"))
+    )
+  ) %>%
+    formatSignif(
+      columns = intersect(c("coef", "ci_lo", "ci_hi", "hurdle_p", "p_adjust"), names(df)),
+      digits = 3
+    )
+}
+```
+
+## Overview
+
+This notebook opens the single-nucleus MAST output as it was saved on `r raw_date`: one raw table per tissue and Allen cell type, containing every gene that entered the hurdle model. The catalog lists all of those tables. The figures and the filterable grids below are the table currently selected in `setup-display` (`r focus_heading`), so a different unit is a three-line edit and a re-render. The same object, `mast_raw`, is what later ggplot code should use when drafting a figure.
+
+::: {.stat-row}
+::: {.stat}
+[`r stat_files`]{.stat-value}
+[Raw MAST tables]{.stat-label}
+:::
+::: {.stat}
+[`r stat_bh_units`]{.stat-value}
+[Units with a BH hit < `r padj_cut`]{.stat-label}
+:::
+::: {.stat}
+[`r stat_genes`]{.stat-value}
+[Genes tested in the open unit]{.stat-label}
+:::
+::: {.stat}
+[`r stat_sig`]{.stat-value}
+[BH hits in the open unit]{.stat-label}
+:::
+:::
+
+## Background
+
+Volcano plots, coefficient intervals, and gene shortlists need the genes that failed the filter as well as the genes that passed. The tables other notebooks usually load (`*_mast_signif_hits_*`, and `mast_signif_hits_2026-08-17_p_adjust_0.1.csv`) keep only genes with a hurdle p-value below 0.05, or only BH hits below 0.1. Each file under `class_label/`, `subclass_label/`, and `supertype_label/` is the complete MAST data table for that tissue and cell type.
+
+The model is `zlm(~ microbiome + log_std_nFeature_RNA)` on log2(CPM+1), fit separately in each tissue × Allen class, subclass, and supertype. Genes are protein-coding and detected in at least 10% of nuclei in the unit, with at most 2,000 nuclei per microbiome group. The coefficient is the `microbiomeWildR` logFC component (positive means higher in WildR than SPF). BH adjustment is inside the unit. The fit is on nuclei, with no animal term, so these p-values describe the nuclei in the model.
+
+## Results
+
+### Figure options: MeA, BST, and the scope of testing
+
+These three panels are drawn from the raw `r raw_date` supertype tables, including genes that do not pass the BH cutoff. They are options for a paper figure, not a finished plate. The script is [notebooks/R_scripts/plot_mast_mea_bst_figures.R]{.path}. PNGs and PDFs are under [figures/MAST_Raw_SN/]{.path}; the underlying counts are [tables/MAST_Raw_SN/MAST_AMY_supertype_scope_2026-11-06.csv]{.path} and [tables/MAST_Raw_SN/MAST_MEA_Slc17a7_shared_genes_2026-11-06.csv]{.path}. Use the `_r2` figures. An earlier pass of the same three panels, without the `_r2` suffix, has overlapping labels.
+
+::: {.figure-card .fig-wide}
+![](../figures/MAST_Raw_SN/MAST_AMY_supertype_scope_2026-11-06_r2.png)
+
+::: {.fig-caption}
+[**Figure 1.**]{.fig-num} Every amygdala supertype in the raw MAST output. Each point is one supertype. The vertical axis counts genes with Benjamini–Hochberg `p_adjust` < 0.1 inside that supertype, so supertypes with no such gene sit on zero. Orange points are the three MEA Slc17a7 glutamatergic supertypes. Slate points are MEA–BST and CEA–BST. Gray points are the remaining amygdala supertypes, including COAp Grxcr2 Glut_2 at the top of the ranking.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Testing covered 164 amygdala supertypes and 1,349,410 gene tests. 108 supertypes have no gene at BH < 0.1, and the median count is zero.
+- MEA Slc17a7 Glut_3, Glut_1, and Glut_2 sit in the upper tail, with 200, 165, and 112 genes. This is the vomeronasal-recipient excitatory medial amygdala.
+- The MEA–BST and CEA–BST GABAergic supertypes stay near the floor. The largest is CEA–BST Six3 Cyp26b1 Gaba_2 (28 genes). MEA–BST Sox6 Gaba_2, the large D-SPIN response, has one.
+:::
+
+[Source: cell `cell-fig-mea-bst`](#cell-fig-mea-bst){.provenance}
+:::
+
+::: {.figure-card .fig-wide}
+![](../figures/MAST_Raw_SN/MAST_MEA_BST_volcano_pair_2026-11-06_r2.png)
+
+::: {.fig-caption}
+[**Figure 2.**]{.fig-num} Full raw volcanoes on shared axes. Left: every gene tested in MEA Slc17a7 Glut_3. Dark points are the 14 genes that also have BH `p_adjust` < 0.1 in Glut_1 and Glut_2. Right: every gene tested in MEA–BST Sox6 Gaba_2. The dashed line is BH 0.1 within that supertype. Positive coefficients are higher in WildR.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Glut_3 has a two-sided cloud of BH hits. The 14-gene set repeated in the other two Slc17a7 supertypes is labeled on that cloud.
+- Esr1, Oxtr, Avp, and Ar are not among the BH hits in these MeA or MEA–BST supertypes. The expression shift is not a neuropeptide-receptor rewrite.
+- Sox6 Gaba_2 is nearly flat on the same scale. Its one BH hit is Hnrnpu, which is also in the shared glutamatergic set. The MAST result and the D-SPIN program result are different limbs.
+:::
+
+[Source: cell `cell-fig-mea-bst`](#cell-fig-mea-bst){.provenance}
+:::
+
+::: {.figure-card}
+![](../figures/MAST_Raw_SN/MAST_MEA_Slc17a7_shared_signature_2026-11-06_r2.png)
+
+::: {.fig-caption}
+[**Figure 3.**]{.fig-num} Coefficients and model confidence intervals for the 14 genes with BH `p_adjust` < 0.1 in all three MEA Slc17a7 supertypes. Each gene has the same sign in Glut_1, Glut_2, and Glut_3. `Sf1` is splicing factor 1. `ENSMUSG00000095041` has no annotated symbol in the gene metadata.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Nine of the 14 genes are higher in WildR, led by Mid1, Sf1, and Eps8l1. Five are higher in SPF, including Itpkb and Tiparp.
+- The WildR-up arm includes RNA-processing genes (Sfpq, Srrm2, Hnrnpu, Pabpn1, Sf1) and the synaptic genes Slitrk3 and Eps8l1.
+- Mid1 and ENSMUSG00000095041 are also BH hits in many amygdala supertypes outside MeA (25 and 39). Itpkb and Tiparp are narrower (5 and 7). The repeated MeA signal mixes a local set with the pan-amygdala genes.
+:::
+
+[Source: cell `cell-fig-mea-bst`](#cell-fig-mea-bst){.provenance}
+:::
+
+### Where the raw tables live
+
+[INPUTS]{.eyebrow}
+
+The fitter in [notebooks/R_scripts/mast_functions.R]{.path} still writes to `/resnick/groups/MazmanianLab/jboktor/WILDRxSPF_brains`. The files this notebook reads are the `r raw_date` copies under the current project tree. Older aggregates in `old_aggregates/` are left unused. The run itself is recorded in [notebooks/0X_MAST_SN.qmd]{.path}.
+
+| What | Path |
+|---|---|
+| Full per-unit tables | [data/interim/mast/snRNASeq/class_label/]{.path}, [subclass_label/]{.path}, [supertype_label/]{.path} |
+| Open unit | [`r focus_rel`]{.path} |
+| Nominal-p extracts (hurdle p < 0.05) | [data/interim/mast/snRNASeq/class_mast_signif_hits_2026-01-04.rds]{.path} and the subclass and supertype siblings |
+| BH hits used by later notebooks (p_adjust < 0.1) | [data/interim/mast/snRNASeq/mast_signif_hits_2026-08-17_p_adjust_0.1.csv]{.path} |
+| Gene symbols and Ensembl ids | [data/interim/seurat/snRNASeq/seurat_gene_metadata_2026-10-05.csv]{.path} |
+
+::: {.callout-note}
+## Choosing a cell type
+
+Edit `focus_level`, `focus_label`, and `focus_tissue` at the top of the `setup-display` chunk, then render again. Copy the three fields from the catalog. `focus_level` is `class_label`, `subclass_label`, or `supertype_label`. Set `query_gene` to an export symbol to add that gene's row from every raw table.
+:::
+
+::: {.callout-warning}
+## What a small p-value here does and does not mean
+
+The hurdle model has no animal term. A BH hit is a nuclei-level expression difference inside this cell type. Animal-level confirmation lives in the pseudobulk analysis ([notebooks/0X_PseudoBulk_SN.qmd]{.path}). BH values are also not comparable across units as a single false-discovery rate, because each file was adjusted on its own.
+:::
+
+| Browser column | Source | Meaning |
+|---|---|---|
+| `gene` | `primerid` with `-GRCm39` removed | Export symbol used across the single-nucleus analyses |
+| `gene_name`, `gene_id` | Seurat gene metadata | Symbol and Ensembl id. `symbol_shared` marks symbols used by more than one id |
+| `coef` | `coef` | `microbiomeWildR` coefficient on the log2(CPM+1) scale. Positive is higher in WildR |
+| `ci_lo`, `ci_hi` | `ci.lo`, `ci.hi` | Model confidence interval on that coefficient |
+| `hurdle_p` | `Pr(>Chisq)` | Likelihood-ratio p-value for the microbiome term |
+| `p_adjust` | `p_adjust` | Benjamini–Hochberg adjustment within this tissue × cell type |
+
+: Columns in the browser, and the MAST columns they come from. {#tbl-columns}
+
+[Source: cell `cell-mast-record`](#cell-mast-record){.provenance}
+
+### Catalog of every raw table
+
+One row per saved RDS. `n_hurdle_p_lt_0.05` and `n_padj_lt_0.1` are counts of genes, joined from the nominal-p extracts. A unit that is absent from those extracts is stored as zero. Filter `cell_type_name` or `label` to find the next unit, then paste `level`, `label`, and `tissue` into `setup-display`.
+
+```{r}
+#| label: cell-tbl-catalog
+#| echo: false
+if (!nrow(catalog_view)) {
+  cat("No raw MAST tables found under data/interim/mast/snRNASeq.\n")
+} else {
+  datatable(
+    catalog_view,
+    rownames = FALSE,
+    filter = "top",
+    caption = glue("All {fmt_n(n_raw)} raw MAST tables from {raw_date}. The open unit has focus = TRUE."),
+    class = "compact stripe hover",
+    extensions = "Buttons",
+    options = list(
+      pageLength = 12,
+      scrollX = TRUE,
+      dom = "Bfrtip",
+      buttons = c("csv", "colvis")
+    )
+  )
+}
+```
+
+[Source: cell `cell-tbl-catalog`](#cell-tbl-catalog){.provenance}
+
+### Open unit
+
+`r focus_heading`. Raw table: [`r focus_rel`]{.path}.
+
+```{r}
+#| label: cell-focus-missing
+#| echo: false
+#| results: asis
+#| eval: !expr isFALSE(focus_ok)
+cat(glue(
+  "::: {{.callout-warning}}\n",
+  "**Raw table not found** for `{focus_level}` / `{focus_label}` / `{focus_tissue}`.\n\n",
+  "Expected [`{focus_rel}`]{{.path}}.\n",
+  ":::\n"
+))
+```
+
+::: {.figure-card .fig-wide}
+
+```{r}
+#| label: cell-fig-focus
+#| echo: false
+#| fig-width: 13
+#| fig-height: 7.4
+#| fig-dpi: 140
+#| out-width: 100%
+
+if (!focus_ok) {
+  p_focus <- ggplot() +
+    theme_void() +
+    labs(title = "Raw table not found", subtitle = focus_rel)
+} else {
+  plot_df <- mast_raw %>% filter(is.finite(.data$coef), is.finite(.data$neglog10_padj))
+  label_df <- plot_df %>% slice_min(.data$p_adjust, n = 8, with_ties = FALSE)
+  if (anyDuplicated(coef_df$plot_label)) {
+    coef_df$plot_label <- make.unique(coef_df$plot_label)
+  }
+
+  p_volcano <- ggplot(plot_df, aes(coef, neglog10_padj, color = direction)) +
+    geom_hline(yintercept = -log10(padj_cut), linetype = "dashed", linewidth = 0.4, color = bh_gray) +
+    geom_vline(xintercept = 0, linewidth = 0.3, color = bh_gray) +
+    geom_point(aes(size = direction), alpha = 0.8) +
+    geom_text_repel(
+      data = label_df,
+      aes(label = plot_label),
+      size = 3,
+      color = "#0A0A0A",
+      seed = 1,
+      max.overlaps = Inf,
+      min.segment.length = 0,
+      box.padding = 0.35,
+      segment.color = bh_gray,
+      show.legend = FALSE
+    ) +
+    scale_color_manual(values = col_dir, drop = TRUE) +
+    scale_size_manual(values = c("Higher in WildR" = 2.2, "Higher in SPF" = 2.2, "Not significant" = 1.15), guide = "none") +
+    labs(
+      title = "All tested genes",
+      x = "WildR coefficient (log2 CPM+1)",
+      y = expression(-log[10]~BH~p[adjust])
+    ) +
+    theme_mast()
+
+  coef_title <- if (n_sig == 0) {
+    "Smallest hurdle p-values"
+  } else if (n_sig > nrow(coef_df)) {
+    glue("Top {nrow(coef_df)} by BH p-value")
+  } else {
+    glue("All {n_sig} BH hits")
+  }
+
+  p_coef <- ggplot(coef_df, aes(coef, reorder(plot_label, coef), color = direction)) +
+    geom_vline(xintercept = 0, linewidth = 0.3, color = bh_gray) +
+    geom_errorbar(
+      aes(xmin = ci_lo, xmax = ci_hi),
+      orientation = "y",
+      width = 0.22,
+      linewidth = 0.4,
+      color = "#A5A5A5"
+    ) +
+    geom_point(size = 2.3) +
+    scale_color_manual(values = col_dir, drop = TRUE) +
+    labs(
+      title = coef_title,
+      x = "WildR coefficient (log2 CPM+1)",
+      y = NULL
+    ) +
+    theme_mast() +
+    theme(
+      axis.text.y = element_text(size = 8),
+      legend.position = "none"
+    )
+
+  p_focus <- p_volcano + p_coef +
+    plot_layout(widths = c(1.05, 1)) +
+    plot_annotation(tag_levels = "A")
+}
+p_focus
+```
+
+::: {.fig-caption}
+[**Figure 1.**]{.fig-num} MAST hurdle results for `r focus_heading`. The model is `zlm(~ microbiome + log_std_nFeature_RNA)` on log2(CPM+1), with a likelihood-ratio test on `microbiomeWildR`. BH adjustment is within this tissue × cell type. (A) Every gene that entered the test. Color is the BH `r padj_cut` call; the dashed line is that cutoff. (B) Coefficient and model confidence interval for `r coef_note`.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- `r takeaway_breadth`
+- `r takeaway_size`
+- `r takeaway_top`
+:::
+
+[Source: cell `cell-fig-focus`](#cell-fig-focus){.provenance}
+:::
+
+```{r}
+#| label: cell-fig-hover
+#| echo: false
+#| eval: !expr focus_ok
+plot_df <- mast_raw %>% filter(is.finite(.data$coef), is.finite(.data$neglog10_padj))
+plotly::plot_ly(
+  data = plot_df,
+  x = ~coef,
+  y = ~neglog10_padj,
+  color = ~direction,
+  colors = col_dir,
+  type = "scatter",
+  mode = "markers",
+  text = ~hover,
+  hoverinfo = "text",
+  marker = list(size = 7, opacity = 0.75)
+) %>%
+  plotly::layout(
+    title = list(text = glue("Hover: {focus_heading}")),
+    xaxis = list(title = "WildR coefficient (log2 CPM+1)", zeroline = TRUE),
+    yaxis = list(title = "-log10 BH p_adjust"),
+    legend = list(orientation = "h", y = -0.2),
+    shapes = list(list(
+      type = "line", xref = "paper", x0 = 0, x1 = 1,
+      y0 = -log10(padj_cut), y1 = -log10(padj_cut),
+      line = list(dash = "dash", color = bh_gray, width = 1)
+    ))
+  ) %>%
+  plotly::config(displaylogo = FALSE)
+```
+
+[Source: cell `cell-fig-hover`](#cell-fig-hover){.provenance}
+
+The hover plot is the same volcano with one point per tested gene. Use it to read a symbol, the coefficient, the interval, and both p-values before deciding what to put on a static figure.
+
+### Full raw table
+
+Every gene in the open unit, including genes that do not pass the BH cutoff. The CSV button downloads this grid. `mast_raw` in the R session is the same table, with `plot_label` and `neglog10_padj` kept for plotting.
+
+```{r}
+#| label: cell-tbl-focus
+#| echo: false
+#| eval: !expr focus_ok
+dt_raw(
+  mast_view,
+  glue("Full MAST table for {focus_heading}: {fmt_n(n_genes)} tested genes.")
+)
+```
+
+```{r}
+#| label: cell-nonfinite
+#| echo: false
+#| results: asis
+#| eval: !expr focus_ok && n_nonfinite > 0
+cat(glue("\n\n{fmt_n(n_nonfinite)} genes have a non-finite coefficient and are omitted from the plots. They remain in the table.\n\n"))
+```
+
+[Source: cell `cell-tbl-focus`](#cell-tbl-focus){.provenance} · File on disk: [`r focus_rel`]{.path}
+
+### Genes below the BH cutoff
+
+The shortlist is the open raw table restricted to `p_adjust <` `r padj_cut`. It is the practical starting set for a labeled figure. Panel B shows at most 25 of these genes; this grid holds all of them.
+
+```{r}
+#| label: cell-tbl-shortlist
+#| echo: false
+#| eval: !expr focus_ok
+shortlist <- mast_view %>% filter(.data$p_adjust < padj_cut)
+if (!nrow(shortlist)) {
+  cat(glue("No gene in {focus_heading} has BH p_adjust < {padj_cut}.\n"))
+} else {
+  dt_raw(
+    shortlist,
+    glue("{fmt_n(nrow(shortlist))} genes with BH p_adjust < {padj_cut} in {focus_heading}.")
+  )
+}
+```
+
+[Source: cell `cell-tbl-shortlist`](#cell-tbl-shortlist){.provenance}
+
+### One gene across every unit
+
+Set `query_gene` in `setup-display` to an export symbol (`gene` in the table above) and re-render. The scan reads each raw RDS and keeps that gene's row, including units where it is not a hit. With `query_gene` left blank, render stays on the open unit only.
+
+```{r}
+#| label: cell-query-off
+#| echo: false
+#| results: asis
+#| eval: !expr query_gene == ""
+cat("::: {.callout-note}\n`query_gene` is blank, so the cross-unit extract is off.\n:::\n")
+```
+
+```{r}
+#| label: cell-tbl-gene
+#| echo: false
+#| eval: !expr nzchar(query_gene)
+
+extract_gene <- function(gene) {
+  rows <- vector("list", nrow(catalog))
+  for (i in seq_len(nrow(catalog))) {
+    dt <- as.data.table(readRDS(catalog$path[[i]]))
+    keep <- dt[sub("-GRCm39$", "", primerid) == gene]
+    if (nrow(keep)) {
+      rows[[i]] <- as_tibble(keep) %>%
+        mutate(
+          level = catalog$level[[i]],
+          tissue = catalog$tissue[[i]],
+          label = catalog$label[[i]],
+          cell_type_name = catalog$cell_type_name[[i]]
+        )
+    }
+  }
+  bind_rows(rows)
+}
+
+gene_hits <- extract_gene(query_gene)
+if (!nrow(gene_hits) || !"primerid" %in% names(gene_hits)) {
+  cat(glue("No raw row has export symbol {query_gene}.\n"))
+  gene_hits <- tibble()
+} else {
+  gene_hits <- annotate_raw(gene_hits) %>%
+    mutate(
+      direction = as.character(.data$direction),
+      cell_type_level = str_remove(.data$level, "_label$")
+    )
+  gene_view <- gene_hits %>%
+    select(any_of(c(
+      "tissue", "cell_type_level", "label", "cell_type_name",
+      "gene", "gene_name", "coef", "ci_lo", "ci_hi", "hurdle_p", "p_adjust", "direction"
+    ))) %>%
+    arrange(.data$p_adjust)
+  dt_raw(
+    gene_view,
+    glue("{query_gene} in {fmt_n(nrow(gene_view))} raw tables."),
+    page = 15
+  )
+}
+```
+
+```{r}
+#| label: cell-fig-gene
+#| echo: false
+#| eval: !expr nzchar(query_gene) && exists("gene_hits") && nrow(gene_hits) > 0
+#| fig-width: 11
+#| fig-height: 6
+#| fig-dpi: 140
+
+gene_plot <- gene_hits %>%
+  filter(is.finite(.data$coef), .data$p_adjust < padj_cut) %>%
+  slice_min(.data$p_adjust, n = 40, with_ties = FALSE)
+
+if (!nrow(gene_plot)) {
+  cat(glue("{query_gene} was tested, and no unit has BH p_adjust < {padj_cut}. The table above still has every unit.\n"))
+} else {
+  gene_plot %>%
+    mutate(unit = glue("{cell_type_name} · {tissue}")) %>%
+    ggplot(aes(coef, reorder(unit, coef), color = direction)) +
+    geom_vline(xintercept = 0, linewidth = 0.3, color = bh_gray) +
+    geom_errorbar(aes(xmin = ci_lo, xmax = ci_hi), orientation = "y", width = 0.2, linewidth = 0.35, color = "#A5A5A5") +
+    geom_point(size = 2.2) +
+    scale_color_manual(values = col_dir) +
+    labs(
+      title = glue("{query_gene} where BH p_adjust < {padj_cut}"),
+      x = "WildR coefficient (log2 CPM+1)",
+      y = NULL
+    ) +
+    theme_mast() +
+    theme(axis.text.y = element_text(size = 7))
+}
+```
+
+[Source: cells `cell-tbl-gene`, `cell-fig-gene`](#cell-tbl-gene){.provenance}
+
+## Next Steps
+
+- **Done:** pointed a browser at the `r raw_date` raw MAST tables (`r stat_files` files) and opened `r focus_heading` on the full gene list.
+- Change `focus_level`, `focus_label`, and `focus_tissue`, then re-render, to draft the next cell type. Set `query_gene` when a figure needs one symbol across units.
+- Set `run_analysis <- TRUE` and run the appendix export when a static PNG and CSV of the open unit should be written under [figures/MAST_Raw_SN/]{.path} and [tables/MAST_Raw_SN/]{.path}. Re-running the same day leaves an existing file in place.
+- Take genes chosen here into the animal-level pseudobulk tests before using them as a WildR versus SPF result. The nuclei-level BH call is a screen.
+- Leave the 2026-01-04 MAST fit as it is. A new fit would be a new dated RDS, from [notebooks/0X_MAST_SN.qmd]{.path}, not a re-render of this notebook.
+
+# Code & Provenance {.code-appendix}
+
+The raw tables were fit on `r raw_date` and saved per tissue × cell type. Rendering this notebook only reads them. The labelled chunks in Results build the catalog, the open-unit figure, and the grids. The chunks below record the original model and, when `run_analysis` is TRUE, write a CSV/PNG for the open unit or a gene-count catalog of every file.
+
+```{r}
+#| label: cell-mast-record
+#| eval: false
+
+# Record only. Do not refit, and do not submit this from the browser notebook.
+# Implementation: notebooks/R_scripts/mast_functions.R
+# Submission record: notebooks/0X_MAST_SN.qmd
+# Registry: .cluster_runs/2026-01-04_*_MAST_SingleNuclei
+#
+# zlm(~ microbiome + log_std_nFeature_RNA, sca)
+# LRT contrast: microbiomeWildR
+# logFC component: coef, ci.hi, ci.lo
+# hurdle p: Pr(>Chisq)
+# p_adjust: p.adjust(Pr(>Chisq), "BH") within the unit
+#
+# Saved as data/interim/mast/snRNASeq/{class,subclass,supertype}_label/
+#   {AllenLabel}_{AMY|HYP}_2026-01-04.rds
+#
+# mast_functions.R still hardcodes the MazmanianLab project path. The RDS files
+# read here live under /resnick/groups/mthomson/jboktor/WILDRxSPF_brains.
+```
+
+```{r}
+#| label: cell-fig-mea-bst
+#| eval: !expr run_analysis
+
+# Paper-figure drafts. Refuses to overwrite an existing PNG, PDF, or CSV.
+# Current files use fig_stamp 2026-11-06_r2 inside the script.
+source(file.path(wkdir, "notebooks/R_scripts/plot_mast_mea_bst_figures.R"))
+```
+
+```{r}
+#| label: cell-export-focus
+#| eval: !expr run_analysis
+
+# Writes a dated CSV and PNG for the open unit. Skips any path that already exists.
+if (!focus_ok) stop("Open unit raw table is missing; nothing to export.")
+
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(tbl_dir, recursive = TRUE, showWarnings = FALSE)
+stamp <- as.character(Sys.Date())
+stem <- glue("{focus_label}_{focus_tissue}_{stamp}")
+csv_path <- file.path(tbl_dir, glue("MAST_raw_{stem}.csv"))
+png_path <- file.path(fig_dir, glue("MAST_raw_focus_{stem}.png"))
+
+if (file.exists(csv_path)) {
+  message("Already exists, left untouched: ", csv_path)
+} else {
+  readr::write_csv(mast_view, csv_path)
+  message("Wrote ", csv_path)
+}
+
+if (file.exists(png_path)) {
+  message("Already exists, left untouched: ", png_path)
+} else if (!exists("p_focus")) {
+  message("p_focus is missing. Run cell-fig-focus before this export.")
+} else {
+  ggsave(png_path, p_focus, width = 13, height = 7.4, dpi = 200, bg = "white")
+  message("Wrote ", png_path)
+}
+```
+
+```{r}
+#| label: cell-catalog-sweep
+#| eval: !expr run_analysis
+
+# One row per raw RDS: how many genes were tested, and how many pass each cutoff.
+# This is the count the nominal-p extracts cannot provide (they drop hurdle p >= 0.05).
+dir.create(tbl_dir, recursive = TRUE, showWarnings = FALSE)
+sweep_path <- file.path(tbl_dir, glue("MAST_raw_unit_catalog_{Sys.Date()}.csv"))
+
+if (file.exists(sweep_path)) {
+  message("Already exists, left untouched: ", sweep_path)
+} else if (!nrow(catalog)) {
+  message("No raw tables to sweep.")
+} else {
+  sweep <- purrr::map_dfr(seq_len(nrow(catalog)), function(i) {
+    x <- as.data.table(readRDS(catalog$path[[i]]))
+    tibble(
+      level = catalog$level[[i]],
+      tissue = catalog$tissue[[i]],
+      label = catalog$label[[i]],
+      cell_type_name = catalog$cell_type_name[[i]],
+      rel_path = catalog$rel_path[[i]],
+      n_genes = nrow(x),
+      n_hurdle_p_lt_0.05 = sum(x[["Pr(>Chisq)"]] < 0.05, na.rm = TRUE),
+      n_padj_lt_0.05 = sum(x$p_adjust < 0.05, na.rm = TRUE),
+      n_padj_lt_0.1 = sum(x$p_adjust < 0.1, na.rm = TRUE),
+      n_coef_nonfinite = sum(!is.finite(x$coef))
+    )
+  })
+  readr::write_csv(sweep, sweep_path)
+  message("Wrote ", sweep_path)
+}
+```
+
+```{r}
+#| label: cell-fig-scratch
+#| eval: false
+
+# Drafting a new panel from the open unit. Run setup-display and cell-tbl-focus
+# first so mast_raw exists, then run this chunk by hand. Write a new dated file
+# and skip the write if that path already exists.
+#
+# p <- ggplot(mast_raw, aes(coef, neglog10_padj, color = direction)) +
+#   geom_point() +
+#   theme_mast()
+# out <- file.path(fig_dir, glue("MAST_raw_custom_{focus_label}_{focus_tissue}_{Sys.Date()}.png"))
+# if (!file.exists(out)) ggsave(out, p, width = 7, height = 5, dpi = 200, bg = "white")
+```

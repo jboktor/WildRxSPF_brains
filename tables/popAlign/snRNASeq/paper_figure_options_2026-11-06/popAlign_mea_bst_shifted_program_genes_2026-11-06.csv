@@ -1,0 +1,61 @@
+feature,rank,gene,weight,unit_id,display,gene_name,theme
+F3,1,Brinp3,0.23468553824248875,supertype__AMY__CS20230722_SUPT_0355,"AMY · Lhx6 Nr2e1 GABA
+supertype 0355",Brinp3,Adhesion / axon organization
+F3,2,Gria1,0.19676538604686447,supertype__AMY__CS20230722_SUPT_0355,"AMY · Lhx6 Nr2e1 GABA
+supertype 0355",Gria1,Synaptic receptor / signalling
+F3,3,Cacna1e,0.18741291083526143,supertype__AMY__CS20230722_SUPT_0355,"AMY · Lhx6 Nr2e1 GABA
+supertype 0355",Cacna1e,Synaptic receptor / signalling
+F3,4,Luzp2,0.16319560965161337,supertype__AMY__CS20230722_SUPT_0355,"AMY · Lhx6 Nr2e1 GABA
+supertype 0355",Luzp2,Other top-ranked gene
+F3,5,Prickle2,0.16085134388988456,supertype__AMY__CS20230722_SUPT_0355,"AMY · Lhx6 Nr2e1 GABA
+supertype 0355",Prickle2,Adhesion / axon organization
+F3,6,Grm1,0.15784191616806195,supertype__AMY__CS20230722_SUPT_0355,"AMY · Lhx6 Nr2e1 GABA
+supertype 0355",Grm1,Synaptic receptor / signalling
+F3,7,Pclo,0.15700464917087678,supertype__AMY__CS20230722_SUPT_0355,"AMY · Lhx6 Nr2e1 GABA
+supertype 0355",Pclo,Other top-ranked gene
+F3,8,Ptprn2,0.1557574172183038,supertype__AMY__CS20230722_SUPT_0355,"AMY · Lhx6 Nr2e1 GABA
+supertype 0355",Ptprn2,Other top-ranked gene
+F3,9,Camk1d,0.14560203665101815,supertype__AMY__CS20230722_SUPT_0355,"AMY · Lhx6 Nr2e1 GABA
+supertype 0355",Camk1d,Other top-ranked gene
+F3,10,Grik2,0.14477952810278716,supertype__AMY__CS20230722_SUPT_0355,"AMY · Lhx6 Nr2e1 GABA
+supertype 0355",Grik2,Synaptic receptor / signalling
+F8,1,Grid2,0.16953131540316851,subclass__AMY__CS20230722_SUBC_075,"AMY · Lhx6 Nr2e1 GABA
+subclass 075",Grid2,Synaptic receptor / signalling
+F8,2,Phactr1,0.1659025713657097,subclass__AMY__CS20230722_SUBC_075,"AMY · Lhx6 Nr2e1 GABA
+subclass 075",Phactr1,Other top-ranked gene
+F8,3,Ptprd,0.16263202668512544,subclass__AMY__CS20230722_SUBC_075,"AMY · Lhx6 Nr2e1 GABA
+subclass 075",Ptprd,Adhesion / axon organization
+F8,4,Lsamp,0.1577608365826658,subclass__AMY__CS20230722_SUBC_075,"AMY · Lhx6 Nr2e1 GABA
+subclass 075",Lsamp,Adhesion / axon organization
+F8,5,Slc8a1,0.15338614182257926,subclass__AMY__CS20230722_SUBC_075,"AMY · Lhx6 Nr2e1 GABA
+subclass 075",Slc8a1,Synaptic receptor / signalling
+F8,6,Pde4b,0.14850042393434315,subclass__AMY__CS20230722_SUBC_075,"AMY · Lhx6 Nr2e1 GABA
+subclass 075",Pde4b,Other top-ranked gene
+F8,7,Kcnh7,0.14563584889509007,subclass__AMY__CS20230722_SUBC_075,"AMY · Lhx6 Nr2e1 GABA
+subclass 075",Kcnh7,Other top-ranked gene
+F8,8,Cdh4,0.1390338637295168,subclass__AMY__CS20230722_SUBC_075,"AMY · Lhx6 Nr2e1 GABA
+subclass 075",Cdh4,Other top-ranked gene
+F8,9,Pcdh9,0.137529913132239,subclass__AMY__CS20230722_SUBC_075,"AMY · Lhx6 Nr2e1 GABA
+subclass 075",Pcdh9,Other top-ranked gene
+F8,10,Il1rapl1,0.12851032383076189,subclass__AMY__CS20230722_SUBC_075,"AMY · Lhx6 Nr2e1 GABA
+subclass 075",Il1rapl1,Adhesion / axon organization
+F6,1,Grik1,0.22168452830436383,subclass__HYP__CS20230722_SUBC_074,"HYP · Lhx6 Sp9 GABA
+subclass 074",Grik1,Synaptic receptor / signalling
+F6,2,Ralyl,0.211269071808136,subclass__HYP__CS20230722_SUBC_074,"HYP · Lhx6 Sp9 GABA
+subclass 074",Ralyl,Other top-ranked gene
+F6,3,Ptprt,0.19453379259158116,subclass__HYP__CS20230722_SUBC_074,"HYP · Lhx6 Sp9 GABA
+subclass 074",Ptprt,Adhesion / axon organization
+F6,4,Cadps2,0.16357155463261888,subclass__HYP__CS20230722_SUBC_074,"HYP · Lhx6 Sp9 GABA
+subclass 074",Cadps2,Synaptic receptor / signalling
+F6,5,Tenm1,0.1589134188828861,subclass__HYP__CS20230722_SUBC_074,"HYP · Lhx6 Sp9 GABA
+subclass 074",Tenm1,Adhesion / axon organization
+F6,6,Ctnna2,0.1506625743581023,subclass__HYP__CS20230722_SUBC_074,"HYP · Lhx6 Sp9 GABA
+subclass 074",Ctnna2,Adhesion / axon organization
+F6,7,Lrp1b,0.15042764624762503,subclass__HYP__CS20230722_SUBC_074,"HYP · Lhx6 Sp9 GABA
+subclass 074",Lrp1b,Other top-ranked gene
+F6,8,Hcn1,0.14589813517230932,subclass__HYP__CS20230722_SUBC_074,"HYP · Lhx6 Sp9 GABA
+subclass 074",Hcn1,Other top-ranked gene
+F6,9,Enox1,0.14150940036419557,subclass__HYP__CS20230722_SUBC_074,"HYP · Lhx6 Sp9 GABA
+subclass 074",Enox1,Other top-ranked gene
+F6,10,Prr16,0.13927412765262434,subclass__HYP__CS20230722_SUBC_074,"HYP · Lhx6 Sp9 GABA
+subclass 074",Prr16,Other top-ranked gene

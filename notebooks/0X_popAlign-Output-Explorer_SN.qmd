@@ -1,0 +1,693 @@
+---
+title: "Explore Raw PopAlign Outputs for Single-Nucleus Data"
+subtitle: "Full synthesis and per-unit tables for inspection, filtering and figure development"
+date: today
+author: "Joe Boktor"
+categories: [snRNA-seq, popAlign, Output Explorer]
+params:
+  run_tag: "2026-10-04"
+  synth_tag: "2026-10-05"
+  summary_table: "popAlign_subpopulation_catalog.csv"
+  unit_id: "supertype__AMY__CS20230722_SUPT_0355"
+  unit_table: "cells.csv.gz"
+  embedding_max_cells: 15000
+format:
+  html:
+    theme:
+      - cosmo
+      - ../quarto-aesthetic-kit/theme/aesthetic.scss
+    include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    page-layout: article
+    code-fold: true
+    code-tools: true
+    code-copy: true
+    embed-resources: true
+    fig-cap-location: bottom
+    lightbox: true
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: false
+---
+
+```{r}
+#| label: setup-display
+#| include: false
+
+# Display-only render: read existing PopAlign CSV/CSV.GZ outputs, never rerun PopAlign.
+run_analysis <- FALSE
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(glue)
+  library(knitr)
+  library(DT)
+  library(jsonlite)
+  library(patchwork)
+})
+
+wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
+run_tag <- params$run_tag
+synth_tag <- params$synth_tag
+
+pa_base <- file.path(wkdir, "data/interim/popalign/snRNASeq")
+manifest_f <- file.path(pa_base, glue("manifest_{run_tag}.csv"))
+results_dir <- file.path(pa_base, glue("results_{run_tag}"))
+tbl_dir <- file.path(
+  wkdir, "tables/popAlign/snRNASeq",
+  glue("run_{run_tag}_synth-{synth_tag}")
+)
+paper_date <- "2026-11-06"
+paper_fig_dir <- file.path(
+  wkdir, "figures/popAlign/snRNASeq",
+  glue("paper_figure_options_{paper_date}")
+)
+paper_tbl_dir <- file.path(
+  wkdir, "tables/popAlign/snRNASeq",
+  glue("paper_figure_options_{paper_date}")
+)
+
+read_csv_safe <- function(path) {
+  if (!file.exists(path)) return(NULL)
+  tryCatch(
+    readr::read_csv(path, show_col_types = FALSE, progress = FALSE),
+    error = function(e) structure(NULL, read_error = conditionMessage(e))
+  )
+}
+
+file_inventory <- function(paths) {
+  if (!length(paths)) {
+    return(tibble(file = character(), size_mb = double(), modified = as.POSIXct(character())))
+  }
+  info <- file.info(paths)
+  tibble(
+    file = basename(paths),
+    size_mb = round(info$size / 1024^2, 2),
+    modified = info$mtime
+  ) %>%
+    arrange(file)
+}
+
+dt_full <- function(x, caption, page_length = 25) {
+  DT::datatable(
+    x,
+    rownames = FALSE,
+    filter = "top",
+    class = "compact stripe hover",
+    extensions = "Buttons",
+    caption = caption,
+    options = list(
+      pageLength = page_length,
+      lengthMenu = list(
+        c(10, 25, 50, 100, -1),
+        c("10", "25", "50", "100", "All")
+      ),
+      deferRender = TRUE,
+      scrollX = TRUE,
+      autoWidth = FALSE,
+      dom = "Bfrtip",
+      buttons = list("colvis", "copy", "csv")
+    )
+  )
+}
+
+not_computed <- function(path, what = basename(path)) {
+  cat(glue(
+    "::: {{.callout-warning}}\n",
+    "**{what} is unavailable.** Expected `{path}`. ",
+    "Choose an available file from the inventory below or verify the run parameters.\n",
+    ":::\n"
+  ))
+}
+
+show_paper_fig <- function(stem) {
+  path <- file.path(paper_fig_dir, glue("{stem}_{paper_date}.png"))
+  if (file.exists(path)) {
+    knitr::include_graphics(path)
+  } else {
+    not_computed(path, stem)
+  }
+}
+
+manifest <- read_csv_safe(manifest_f)
+summary_files <- if (dir.exists(tbl_dir)) {
+  sort(list.files(tbl_dir, pattern = "\\.csv(\\.gz)?$", full.names = TRUE))
+} else {
+  character()
+}
+summary_inventory <- file_inventory(summary_files)
+
+summary_name <- basename(params$summary_table)
+summary_f <- file.path(tbl_dir, summary_name)
+summary_data <- read_csv_safe(summary_f)
+
+selected_unit <- as.character(params$unit_id)
+unit_row <- if (!is.null(manifest) && "unit_id" %in% names(manifest)) {
+  manifest %>% filter(unit_id == selected_unit) %>% slice_head(n = 1)
+} else {
+  tibble()
+}
+
+if (nrow(unit_row) && "output_dir" %in% names(unit_row)) {
+  unit_dir <- unit_row$output_dir[[1]]
+} else {
+  unit_parts <- str_split_fixed(selected_unit, "__", 3)
+  unit_dir <- file.path(
+    results_dir,
+    unit_parts[1, 1],
+    glue("{unit_parts[1, 2]}__{unit_parts[1, 3]}")
+  )
+}
+
+unit_files <- if (dir.exists(unit_dir)) {
+  sort(list.files(unit_dir, pattern = "\\.csv(\\.gz)?$", full.names = TRUE))
+} else {
+  character()
+}
+unit_inventory <- file_inventory(unit_files)
+
+unit_table_name <- basename(params$unit_table)
+unit_table_f <- file.path(unit_dir, unit_table_name)
+unit_data <- read_csv_safe(unit_table_f)
+
+fractions_f <- file.path(unit_dir, "animal_component_fractions.csv")
+cells_f <- file.path(unit_dir, "cells.csv.gz")
+fractions <- read_csv_safe(fractions_f)
+cells <- read_csv_safe(cells_f)
+
+catalog_f <- file.path(tbl_dir, "popAlign_subpopulation_catalog.csv")
+catalog <- read_csv_safe(catalog_f)
+circuit_enrichment <- read_csv_safe(
+  file.path(tbl_dir, "popAlign_circuit_enrichment.csv")
+)
+unit_catalog <- if (!is.null(catalog) && "unit_id" %in% names(catalog)) {
+  catalog %>% filter(unit_id == selected_unit)
+} else {
+  tibble()
+}
+
+status_f <- file.path(unit_dir, "status.json")
+status <- if (file.exists(status_f)) {
+  tryCatch(jsonlite::fromJSON(status_f, simplifyVector = TRUE), error = function(e) NULL)
+} else {
+  NULL
+}
+status_table <- if (!is.null(status)) {
+  enframe(unlist(status, recursive = TRUE, use.names = TRUE), name = "field", value = "value")
+} else {
+  tibble()
+}
+
+n_summary_files <- nrow(summary_inventory)
+n_unit_files <- nrow(unit_inventory)
+n_summary_rows <- if (is.null(summary_data)) NA_integer_ else nrow(summary_data)
+n_unit_rows <- if (is.null(unit_data)) NA_integer_ else nrow(unit_data)
+fmt_n <- function(x) if (is.na(x)) "—" else format(x, big.mark = ",")
+```
+
+## Overview
+
+This display-only notebook opens the saved PopAlign single-nucleus outputs without rerunning the analysis. It inventories the current synthesis and per-unit files, shows every row and column of one selected synthesis table and one selected raw unit table in searchable, downloadable viewers, and provides a quick visual check of the selected unit for developing publication figures.
+
+::: {.stat-row}
+::: {.stat}
+[`r n_summary_files`]{.stat-value}
+[Synthesis tables available]{.stat-label}
+:::
+::: {.stat}
+[`r fmt_n(n_summary_rows)`]{.stat-value}
+[Rows in selected synthesis table]{.stat-label}
+:::
+::: {.stat}
+[`r n_unit_files`]{.stat-value}
+[Raw tables for selected unit]{.stat-label}
+:::
+::: {.stat}
+[`r fmt_n(n_unit_rows)`]{.stat-value}
+[Rows in selected raw table]{.stat-label}
+:::
+:::
+
+## Background
+
+The main PopAlign notebook records the analysis, statistical decisions and interpreted findings. This companion notebook is intentionally closer to the data: values are displayed directly from the saved CSV and compressed CSV outputs with no filtering, ranking or rounding. The default unit is a follow-up lead, `r selected_unit`; change the parameters in the YAML header or use the render commands in [Code & Provenance](#code-provenance) to inspect any other unit or table.
+
+## Results
+
+### Paper figure options
+
+These alternatives answer different manuscript questions. **Option 1** is the strongest primary PopAlign figure because it shows the full testing scope and the circuit-level result without hiding null tests. **Option 2** supplies the animal-level MeA–BST cellular story. **Option 3** provides an exploratory molecular frame for follow-up and discussion. **Options 4–5** separate those GO annotations by whether the underlying program is higher or lower in WildR.
+
+#### Option 1 — scope, all tests and circuit localization
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-paper-option1
+#| echo: false
+
+show_paper_fig("popAlign_option1_scope_all_tests")
+```
+
+::: {.fig-caption}
+[**Figure option 1.**]{.fig-num} PopAlign scope and circuit localization. (A) Numbers of units and subpopulation components tested in AMY and HYP at class, subclass and supertype resolution. (B) Every component-level state and abundance test; orange points belong to the hypothesis-defined MeA/BST/medial-hypothalamus circuit. (C) Unit-level rates of nominal state shifts in circuit versus non-circuit units, with exact binomial confidence intervals and Fisher tests.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- The analysis is broad: `r if (is.null(catalog)) "—" else n_distinct(catalog$unit_id)` units and `r if (is.null(catalog)) "—" else nrow(catalog)` discovered components across two tissues and three Allen resolutions.
+- The strongest defensible result is collective: circuit units carry nominal state shifts at about three times the rate of other units (unadjusted OR 3.2, p = 0.002; covariate-adjusted OR 3.9, p = 0.005).
+- No individual component survives BH correction. Showing every test makes that limitation visible while preserving the circuit-level pattern.
+:::
+
+[Source: cell `cell-paper-figures`](#cell-paper-figures){.provenance} ·
+[PNG]{.path}: [`r sub(paste0(wkdir, "/"), "", file.path(paper_fig_dir, glue("popAlign_option1_scope_all_tests_{paper_date}.png")), fixed = TRUE)`]{.path} ·
+[PDF]{.path}: [`r sub(paste0(wkdir, "/"), "", file.path(paper_fig_dir, glue("popAlign_option1_scope_all_tests_{paper_date}.pdf")), fixed = TRUE)`]{.path}
+:::
+
+#### Option 2 — MeA–BST cell types and animal-level effects
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-paper-option2
+#| echo: false
+
+show_paper_fig("popAlign_option2_mea_bst_story")
+```
+
+::: {.fig-caption}
+[**Figure option 2.**]{.fig-num} Animal-level PopAlign readouts for MeA–BST leads. (A) The top shifted oNMF feature in related inhibitory populations, including independent subclass and supertype fits of AMY MEA–BST Lhx6 Nr2e1 GABA. The annotated permutation p-value is for the full multivariate component-state shift, not a univariate test of the displayed feature. (B) Per-animal abundance of the AMY MEA–BST Otp Zic2 glutamatergic component. (C) Highest-weight genes in each shifted inhibitory program.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- The Lhx6 Nr2e1 inhibitory state shift recurs in separately fitted subclass and supertype models (nominal p = 0.0065 and 0.0043), providing cross-resolution convergence.
+- The Otp Zic2 glutamatergic component increases from roughly 32% to 43% in WildR and passes the depth-adjusted secondary model, but its permutation result is not FDR-supported.
+- Shifted inhibitory programs prioritize glutamate-receptor/signalling genes (*Gria1, Grm1, Grid2, Grik1*) and adhesion/organization genes (*Ptprd, Lsamp, Tenm1, Ctnna2*), offering a testable synaptic-retuning hypothesis.
+:::
+
+[Source: cell `cell-paper-figures`](#cell-paper-figures){.provenance} ·
+[PNG]{.path}: [`r sub(paste0(wkdir, "/"), "", file.path(paper_fig_dir, glue("popAlign_option2_mea_bst_story_{paper_date}.png")), fixed = TRUE)`]{.path} ·
+[PDF]{.path}: [`r sub(paste0(wkdir, "/"), "", file.path(paper_fig_dir, glue("popAlign_option2_mea_bst_story_{paper_date}.pdf")), fixed = TRUE)`]{.path}
+:::
+
+#### Option 3 — molecular themes across the circuit leads
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-paper-option3
+#| echo: false
+
+show_paper_fig("popAlign_option3_circuit_molecular_themes")
+```
+
+::: {.fig-caption}
+[**Figure option 3.**]{.fig-num} Molecular annotation of the strongest robust, contamination-clean state-shift leads in the MeA/BST/medial-hypothalamus circuit. (A) Exact-permutation evidence and component share. (B) GO biological-process enrichment of the top 50 genes in each shifted oNMF program, using that unit's filtered genes as background. (C) Recurrent genes and pre-specified synaptic-receptor or adhesion genes among each program's top 20.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Synapse assembly, postsynaptic membrane potential, neurotransmitter handling and cell-adhesion terms recur across independently fitted circuit programs.
+- *ERBB4* signalling is recurrent, while glutamate-receptor and adhesion genes provide concrete signatures for spatial validation in the MeA–BST relay.
+- These are exploratory program annotations, not evidence that social behavior itself changed; the data nominate a mechanism and cell types for targeted behavioral and spatial tests.
+:::
+
+[Source: cell `cell-paper-figures`](#cell-paper-figures){.provenance} ·
+[PNG]{.path}: [`r sub(paste0(wkdir, "/"), "", file.path(paper_fig_dir, glue("popAlign_option3_circuit_molecular_themes_{paper_date}.png")), fixed = TRUE)`]{.path} ·
+[PDF]{.path}: [`r sub(paste0(wkdir, "/"), "", file.path(paper_fig_dir, glue("popAlign_option3_circuit_molecular_themes_{paper_date}.pdf")), fixed = TRUE)`]{.path}
+:::
+
+#### Option 4 — directed GO pathways by cell-state program
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-paper-option4
+#| echo: false
+
+show_paper_fig("popAlign_option4_directed_GO_by_lead")
+```
+
+::: {.fig-caption}
+[**Figure option 4.**]{.fig-num} Direction-separated GO annotations for strong circuit state-shift leads. Each column is an independently fitted cell-state program. “WildR enriched” means its top shifted oNMF feature has a positive WildR-minus-SPF centroid shift; “WildR depleted” means the shift is negative. Points show representative GO biological-process terms enriched among that feature's top 50 loading genes.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Seven strong circuit programs are higher in WildR and four are lower; the response is cell-type-specific rather than a globally upregulated pathway.
+- Both AMY Lhx6 Nr2e1 fits fall in the WildR-depleted group, giving the MeA–BST inhibitory lead a consistent direction across subclass and supertype models.
+- GO direction is inherited from the whole oNMF program. It is not directional GSEA and does not imply that every member gene changes in the same direction.
+:::
+
+[Source: cell `cell-paper-figures`](#cell-paper-figures){.provenance} ·
+[PNG]{.path}: [`r sub(paste0(wkdir, "/"), "", file.path(paper_fig_dir, glue("popAlign_option4_directed_GO_by_lead_{paper_date}.png")), fixed = TRUE)`]{.path} ·
+[PDF]{.path}: [`r sub(paste0(wkdir, "/"), "", file.path(paper_fig_dir, glue("popAlign_option4_directed_GO_by_lead_{paper_date}.pdf")), fixed = TRUE)`]{.path}
+:::
+
+#### Option 5 — directional pathway summary
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: show-paper-option5
+#| echo: false
+
+show_paper_fig("popAlign_option5_directed_GO_summary")
+```
+
+::: {.fig-caption}
+[**Figure option 5.**]{.fig-num} Number of independently fitted shifted programs carrying each representative GO term at within-program BH FDR < 0.10. Orange bars count WildR-high programs; blue bars count WildR-low programs. Related subclass and supertype fits are shown separately and are not statistically independent.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Synaptic organization, postsynaptic potential, neurotransmitter secretion and cell-adhesion annotations occur in both directions across cell types.
+- The biological story is therefore **retuning**, not uniform activation: related molecular machinery is elevated in some populations and reduced in others.
+- Use Option 4 when cell-type specificity matters; use Option 5 as the compact manuscript or graphical-summary panel.
+:::
+
+[Source: cell `cell-paper-figures`](#cell-paper-figures){.provenance} ·
+[PNG]{.path}: [`r sub(paste0(wkdir, "/"), "", file.path(paper_fig_dir, glue("popAlign_option5_directed_GO_summary_{paper_date}.png")), fixed = TRUE)`]{.path} ·
+[PDF]{.path}: [`r sub(paste0(wkdir, "/"), "", file.path(paper_fig_dir, glue("popAlign_option5_directed_GO_summary_{paper_date}.pdf")), fixed = TRUE)`]{.path} ·
+[directed GO table]{.path}: [`r sub(paste0(wkdir, "/"), "", file.path(paper_tbl_dir, glue("popAlign_circuit_shifted_program_GO_directed_{paper_date}.csv")), fixed = TRUE)`]{.path}
+:::
+
+### Output inventory
+
+The current synthesis folder is
+[`r sub(paste0(wkdir, "/"), "", tbl_dir, fixed = TRUE)`]{.path}.
+The selected unit folder is
+[`r sub(paste0(wkdir, "/"), "", unit_dir, fixed = TRUE)`]{.path}.
+
+#### Synthesis tables
+
+```{r}
+#| label: cell-tbl-synthesis-inventory
+#| echo: false
+
+if (nrow(summary_inventory)) {
+  dt_full(
+    summary_inventory,
+    glue("Saved PopAlign synthesis tables for run {run_tag}, synthesis {synth_tag}."),
+    page_length = 25
+  )
+} else {
+  not_computed(tbl_dir, "Synthesis folder")
+}
+```
+
+[Source: cell `cell-tbl-synthesis-inventory`](#cell-tbl-synthesis-inventory){.provenance}
+
+#### Per-unit raw tables
+
+```{r}
+#| label: cell-tbl-unit-inventory
+#| echo: false
+
+if (nrow(unit_inventory)) {
+  dt_full(
+    unit_inventory,
+    glue("Raw PopAlign tables available for {selected_unit}."),
+    page_length = 25
+  )
+} else {
+  not_computed(unit_dir, "Selected unit folder")
+}
+```
+
+[Source: cell `cell-tbl-unit-inventory`](#cell-tbl-unit-inventory){.provenance}
+
+### Full selected synthesis table
+
+Currently showing
+[`r sub(paste0(wkdir, "/"), "", summary_f, fixed = TRUE)`]{.path}.
+The viewer retains the complete table. Use the filters above each column, **Column visibility** to focus the display, and **CSV** to export the current table.
+
+```{r}
+#| label: cell-tbl-selected-synthesis
+#| echo: false
+
+if (!is.null(summary_data)) {
+  dt_full(
+    summary_data,
+    glue("{summary_name}: {format(nrow(summary_data), big.mark = ',')} rows × {ncol(summary_data)} columns."),
+    page_length = 25
+  )
+} else {
+  not_computed(summary_f, summary_name)
+}
+```
+
+[Source: cell `cell-tbl-selected-synthesis`](#cell-tbl-selected-synthesis){.provenance}
+
+### Selected-unit visual check
+
+::: {.figure-card .fig-wide}
+```{r}
+#| label: cell-fig-selected-unit
+#| echo: false
+#| fig-width: 13
+#| fig-height: 5.5
+
+if (!is.null(fractions) && !is.null(cells) &&
+    all(c("comp", "soft_frac", "microbiome", "sample_id") %in% names(fractions)) &&
+    all(c("F1", "F2", "comp", "microbiome") %in% names(cells))) {
+  p_fraction <- fractions %>%
+    mutate(comp = factor(comp)) %>%
+    ggplot(aes(comp, soft_frac, colour = microbiome)) +
+    geom_point(position = position_jitter(width = 0.12, height = 0), alpha = 0.75, size = 2) +
+    stat_summary(
+      aes(group = microbiome),
+      fun = mean,
+      geom = "crossbar",
+      position = position_dodge(width = 0.45),
+      width = 0.35,
+      linewidth = 0.45
+    ) +
+    labs(
+      title = "Per-animal component fractions",
+      subtitle = "Points are animals; crossbars are group means",
+      x = "Atlas component",
+      y = "Soft fraction",
+      colour = NULL
+    ) +
+    theme_bw(base_size = 11) +
+    theme(panel.grid.minor = element_blank(), legend.position = "top")
+
+  max_cells <- max(1L, as.integer(params$embedding_max_cells))
+  cells_plot <- if (nrow(cells) > max_cells) {
+    cells[unique(round(seq(1, nrow(cells), length.out = max_cells))), , drop = FALSE]
+  } else {
+    cells
+  }
+  p_embedding <- cells_plot %>%
+    mutate(comp = factor(comp)) %>%
+    ggplot(aes(F1, F2, colour = comp)) +
+    geom_point(alpha = 0.28, size = 0.45) +
+    facet_wrap(~ microbiome) +
+    labs(
+      title = "First two oNMF coefficients",
+      subtitle = glue("{format(nrow(cells_plot), big.mark = ',')} nuclei shown"),
+      x = "F1",
+      y = "F2",
+      colour = "Component"
+    ) +
+    theme_bw(base_size = 11) +
+    theme(panel.grid.minor = element_blank(), legend.position = "right")
+
+  p_fraction + p_embedding + plot_layout(widths = c(1, 1.35))
+} else {
+  plot.new()
+  text(0.5, 0.5, "Required fractions or cell-coefficient table is unavailable.")
+}
+```
+
+::: {.fig-caption}
+[**Figure 1.**]{.fig-num} Raw visual check for `r selected_unit`. Left: each animal's soft membership fraction for every atlas component. Right: nuclei in the first two oNMF coefficient dimensions, coloured by atlas component and split by microbiome group. The display samples evenly across rows only when the cell table exceeds `r format(params$embedding_max_cells, big.mark = ",")` nuclei; the raw table below remains complete.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- This panel is a diagnostic starting point, not a statistical result; animal-level tests remain in the synthesis tables.
+- Component fractions reveal whether an apparent group shift is consistent across animals or driven by one sample.
+- The coefficient view checks component separation and suggests useful axes, facets and labels for a final figure.
+:::
+
+[Source: cell `cell-fig-selected-unit`](#cell-fig-selected-unit){.provenance}
+:::
+
+### Full selected per-unit raw table
+
+Currently showing
+[`r sub(paste0(wkdir, "/"), "", unit_table_f, fixed = TRUE)`]{.path}.
+No rows or columns are removed from this viewer.
+
+```{r}
+#| label: cell-tbl-selected-unit
+#| echo: false
+
+if (!is.null(unit_data)) {
+  dt_full(
+    unit_data,
+    glue("{selected_unit} / {unit_table_name}: {format(nrow(unit_data), big.mark = ',')} rows × {ncol(unit_data)} columns."),
+    page_length = 25
+  )
+} else {
+  not_computed(unit_table_f, unit_table_name)
+}
+```
+
+[Source: cell `cell-tbl-selected-unit`](#cell-tbl-selected-unit){.provenance}
+
+### Selected-unit model status
+
+```{r}
+#| label: cell-tbl-unit-status
+#| echo: false
+
+if (nrow(status_table)) {
+  dt_full(status_table, glue("Flattened status.json for {selected_unit}."), page_length = 25)
+} else {
+  not_computed(status_f, "status.json")
+}
+```
+
+[Source: cell `cell-tbl-unit-status`](#cell-tbl-unit-status){.provenance} · Raw metadata:
+[`r sub(paste0(wkdir, "/"), "", status_f, fixed = TRUE)`]{.path}
+
+## Next Steps
+
+- **Available now:** inspect, filter and export the complete selected synthesis and per-unit tables without recomputing PopAlign.
+- Change `summary_table`, `unit_id` and `unit_table` to move between the files listed in the inventories.
+- Use the selected-unit figure recipes below as a starting point, then save finalized figures under [figures/popAlign/snRNASeq/]{.path}.
+- Keep animal-level fractions or centroids as the inferential inputs; do not treat nuclei as independent replicates.
+
+# Code & Provenance {.code-appendix}
+
+### Build the paper figure options
+
+```{r}
+#| label: cell-paper-figures
+#| eval: !expr run_analysis
+
+# Light figure-generation step from saved CSV/CSV.GZ outputs; no PopAlign refit.
+rscript <- "/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript"
+script <- file.path(
+  wkdir, "notebooks/R_scripts",
+  "plot_popalign_paper_options_sn.R"
+)
+system2(
+  rscript,
+  c(
+    script,
+    "--run-tag", run_tag,
+    "--synth-tag", synth_tag,
+    "--output-date", paper_date
+  )
+)
+```
+
+Plotted data are written to
+[`r sub(paste0(wkdir, "/"), "", paper_tbl_dir, fixed = TRUE)`]{.path}.
+
+### Switch tables or units
+
+Edit the `params` block in the YAML header, or render a different view from `notebooks/` with the spatialomics Quarto binary:
+
+```{bash}
+#| label: cell-render-example
+#| eval: false
+
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/quarto render \
+  0X_popAlign-Output-Explorer_SN.qmd \
+  -P summary_table:popAlign_state_shift_tests.csv \
+  -P unit_id:supertype__HYP__CS20230722_SUPT_0474 \
+  -P unit_table:animal_component_centroids.csv
+```
+
+To inspect the complete cell-level table for that unit, change only
+`-P unit_table:cells.csv.gz`. The render remains display-only: it reads saved files and does not submit jobs or refit PopAlign.
+
+### Load the selected outputs in R
+
+```{r}
+#| label: cell-load-example
+#| eval: false
+
+summary_data <- readr::read_csv(
+  file.path(tbl_dir, params$summary_table),
+  show_col_types = FALSE
+)
+
+unit_data <- readr::read_csv(
+  file.path(unit_dir, params$unit_table),
+  show_col_types = FALSE
+)
+```
+
+### Figure recipe: animal-level component fractions
+
+```{r}
+#| label: cell-fig-fraction-recipe
+#| eval: false
+
+fractions <- readr::read_csv(
+  file.path(unit_dir, "animal_component_fractions.csv"),
+  show_col_types = FALSE
+)
+
+ggplot(fractions, aes(factor(comp), soft_frac, colour = microbiome)) +
+  geom_point(position = position_jitter(width = 0.12), alpha = 0.75) +
+  stat_summary(
+    aes(group = microbiome),
+    fun = mean,
+    geom = "crossbar",
+    position = position_dodge(width = 0.45),
+    width = 0.35
+  ) +
+  labs(x = "Atlas component", y = "Soft fraction", colour = NULL) +
+  theme_bw()
+```
+
+### Figure recipe: component markers
+
+```{r}
+#| label: cell-fig-marker-recipe
+#| eval: false
+
+markers <- readr::read_csv(
+  file.path(unit_dir, "atlas_markers.csv"),
+  show_col_types = FALSE
+)
+
+markers %>%
+  group_by(comp) %>%
+  slice_max(auc, n = 10, with_ties = FALSE) %>%
+  ungroup() %>%
+  ggplot(aes(auc, reorder(gene, auc), colour = factor(comp))) +
+  geom_point() +
+  facet_wrap(~ comp, scales = "free_y") +
+  labs(x = "Marker AUC", y = NULL, colour = "Component") +
+  theme_bw()
+```
+
+### Output provenance
+
+- Analysis record: [notebooks/0X_popAlign_SN.qmd]{.path}
+- Per-unit runner: [notebooks/python_scripts/popalign_run_unit_sn.py]{.path}
+- Synthesis script: [notebooks/R_scripts/run_popalign_synthesis_sn.R]{.path}
+- Paper-figure script: [notebooks/R_scripts/plot_popalign_paper_options_sn.R]{.path}
+- Run manifest: [`r sub(paste0(wkdir, "/"), "", manifest_f, fixed = TRUE)`]{.path}
+- Synthesis tables: [`r sub(paste0(wkdir, "/"), "", tbl_dir, fixed = TRUE)`]{.path}
+- Per-unit results: [`r sub(paste0(wkdir, "/"), "", results_dir, fixed = TRUE)`]{.path}

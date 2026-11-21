@@ -1,15 +1,31 @@
 #!/usr/bin/env Rscript
-# Run pySCENIC grn → ctx → aucell for one loom (class or tissue split).
+# Run pySCENIC grn → ctx → aucell for one loom (tissue, class or subclass split),
+# then test WildR vs SPF regulon activity at the ANIMAL level (unit of
+# replication; see scenic_animal_level_helpers.R). Steps whose outputs exist
+# are skipped, so re-running on a finished split only redoes the test.
+#
+# Split level is inferred from the loom stem:
+#   snRNASeq_{AMY|HYP}                  -> tissue   (data/interim/scenic/by_tissue)
+#   snRNASeq_{tissue}_<class_label>     -> class    (data/interim/scenic/by_class)
+#   snRNASeq_{tissue}_SUBC_<id>         -> subclass (data/interim/scenic/by_subclass)
+#   snRNASeq_{tissue}_SUPT_<id>         -> supertype (data/interim/scenic/by_supertype)
+# Metadata is read from <stem>_meta.csv next to the loom.
+#
+# Outputs per split (out_dir): adjacencies.tsv, regulons.csv, auc_mtx.csv,
+#   regulon_auc_per_animal.csv, diff_regulons_WildR_vs_SPF_animal.csv,
+#   run_summary.json. (Older runs also hold the superseded nucleus-level
+#   diff_regulons_WildR_vs_SPF.csv; it is left untouched, and an older
+#   run_summary.json is copied to run_summary_celllevel.json before update.)
 #
 # Usage:
 #   Rscript run_scenic_one_split.R --loom snRNASeq_AMY_CS20230722_CLAS_01.loom
-#   Rscript run_scenic_one_split.R --loom snRNASeq_AMY.loom
-#   Rscript run_scenic_one_split.R --loom /full/path/to/file.loom
+#   Rscript run_scenic_one_split.R --loom /full/path/to/snRNASeq_AMY_SUBC_064.loom
 
 suppressPackageStartupMessages({
   library(tidyverse)
   library(glue)
   library(tictoc)
+  library(data.table)
 })
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -34,14 +50,17 @@ loom_path <- if (grepl("^/", loom_arg)) loom_arg else file.path(input_dir, loom_
 stopifnot(file.exists(loom_path))
 stem <- sub("\\.loom$", "", basename(loom_path))
 
-# snRNASeq_AMY.loom / snRNASeq_HYP.loom → tissue; else class
-is_tissue <- grepl("^snRNASeq_(AMY|HYP)$", stem)
-split_level <- if (is_tissue) "tissue" else "class"
-out_root <- file.path(wkdir, "data/interim/scenic", if (is_tissue) "by_tissue" else "by_class")
-fig_root <- file.path(
-  wkdir, "figures/SCENIC",
-  if (is_tissue) "snRNASeq_by_tissue" else "snRNASeq_by_class"
+source(file.path(wkdir, "notebooks/R_scripts/scenic_animal_level_helpers.R"))
+
+split_level <- dplyr::case_when(
+  grepl("^snRNASeq_(AMY|HYP)$", stem) ~ "tissue",
+  grepl("_SUBC_", stem) ~ "subclass",
+  grepl("_SUPT_", stem) ~ "supertype",
+  TRUE ~ "class"
 )
+is_tissue <- split_level == "tissue"
+out_root <- file.path(wkdir, "data/interim/scenic", paste0("by_", split_level))
+fig_root <- file.path(wkdir, "figures/SCENIC", paste0("snRNASeq_by_", split_level))
 
 out_dir <- file.path(out_root, stem)
 fig_dir <- file.path(fig_root, stem)
@@ -51,7 +70,8 @@ dir.create(fig_dir, showWarnings = FALSE, recursive = TRUE)
 adj_tsv <- file.path(out_dir, "adjacencies.tsv")
 regulons_csv <- file.path(out_dir, "regulons.csv")
 auc_csv <- file.path(out_dir, "auc_mtx.csv")
-diff_csv <- file.path(out_dir, "diff_regulons_WildR_vs_SPF.csv")
+diff_csv <- file.path(out_dir, "diff_regulons_WildR_vs_SPF_animal.csv")
+per_animal_csv <- file.path(out_dir, "regulon_auc_per_animal.csv")
 summary_json <- file.path(out_dir, "run_summary.json")
 
 tf_list <- file.path(db_dir, "allTFs_mm.txt")
@@ -111,132 +131,86 @@ if (!file.exists(auc_csv) || file.info(auc_csv)$size < 1000) {
   log_msg("Skip aucell")
 }
 
-# ---- Downstream: WildR vs SPF ----
-suppressPackageStartupMessages({
-  library(ggrepel)
-})
-
-meta_path <- file.path(input_dir, paste0(stem, "_meta.csv"))
+# ---- Downstream: WildR vs SPF at the animal level ----
+meta_path <- file.path(dirname(loom_path), paste0(stem, "_meta.csv"))
+stopifnot(file.exists(meta_path))
 meta <- read_csv(meta_path, show_col_types = FALSE)
-auc <- read.csv(auc_csv, row.names = 1, check.names = FALSE)
-auc <- as.matrix(auc)
-if (mean(rownames(auc) %in% meta$cell_id) > 0.5) {
-  cell_ids <- rownames(auc)
-  auc_mat <- t(auc)
+first1 <- function(col) if (col %in% names(meta)) unique(as.character(meta[[col]]))[1] else NA_character_
+split_info <- list(
+  tissue = first1("tissue"),
+  class_label = if (!is_tissue) first1("class_label") else NA_character_,
+  class_name = if (!is_tissue) first1("class_name") else NA_character_,
+  subclass_name = if (split_level %in% c("subclass", "supertype")) first1("subclass_name") else NA_character_,
+  supertype_name = if (split_level == "supertype") first1("supertype_name") else NA_character_
+)
+
+auc <- fread(auc_csv)
+am <- animal_means(auc, meta)
+log_msg("AUCell: ", nrow(auc), " nuclei (", am$n_cells_matched, " matched to meta), ",
+        length(am$regulons), " regulons, ", nrow(am$wide), " animals")
+fwrite(am$per_animal[, `:=`(stem = stem, split_level = split_level)], per_animal_csv)
+
+tst <- animal_level_test(am)
+if (is.null(tst$res)) {
+  log_msg("UNDERPOWERED for animal-level test (", tst$reason, "); writing empty diff table")
+  diff_reg <- tibble(regulon = character(), p_animal = numeric(), fdr_split = numeric())
 } else {
-  cell_ids <- colnames(auc)
-  auc_mat <- auc
+  diff_reg <- tst$res %>%
+    mutate(stem = stem, split_level = split_level, !!!split_info,
+           n_cells = am$n_cells_matched) %>%
+    arrange(p_animal)
 }
-rownames(auc_mat) <- make.unique(gsub("\\(\\+\\)", ".pos", gsub("\\(-\\)", ".neg", rownames(auc_mat))))
-rownames(auc_mat) <- make.unique(gsub("[^A-Za-z0-9.-]", ".", rownames(auc_mat)))
-
-meta <- meta %>% filter(cell_id %in% cell_ids)
-common <- intersect(cell_ids, meta$cell_id)
-auc_mat <- auc_mat[, common, drop = FALSE]
-meta <- meta %>% filter(cell_id %in% common) %>% arrange(match(cell_id, common))
-
-# Primary test: overall WildR vs SPF within this split
-diff_reg <- as.data.frame(t(auc_mat)) %>%
-  mutate(
-    cell_id = common,
-    microbiome = meta$microbiome[match(cell_id, meta$cell_id)]
-  ) %>%
-  pivot_longer(cols = all_of(rownames(auc_mat)), names_to = "regulon", values_to = "auc") %>%
-  group_by(regulon) %>%
-  summarise(
-    n_SPF = sum(microbiome == "SPF"),
-    n_WildR = sum(microbiome == "WildR"),
-    mean_SPF = mean(auc[microbiome == "SPF"]),
-    mean_WildR = mean(auc[microbiome == "WildR"]),
-    delta = mean_WildR - mean_SPF,
-    p = tryCatch(wilcox.test(auc ~ microbiome)$p.value, error = function(e) NA_real_),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    padj = p.adjust(p, method = "BH"),
-    tissue = unique(meta$tissue)[1],
-    split_level = split_level,
-    class_label = if ("class_label" %in% names(meta) && !is_tissue) {
-      unique(meta$class_label)[1]
-    } else {
-      NA_character_
-    },
-    class_name = if ("class_name" %in% names(meta) && !is_tissue) {
-      unique(as.character(meta$class_name))[1]
-    } else {
-      NA_character_
-    }
-  ) %>%
-  arrange(padj, p)
-
 write_csv(diff_reg, diff_csv)
 
-# Tissue runs: also test within class_label (exploratory; same tissue-wide regulons)
-if (is_tissue && "class_label" %in% names(meta)) {
-  diff_by_class <- as.data.frame(t(auc_mat)) %>%
-    mutate(
-      cell_id = common,
-      microbiome = meta$microbiome[match(cell_id, meta$cell_id)],
-      class_label = meta$class_label[match(cell_id, meta$cell_id)],
-      class_name = meta$class_name[match(cell_id, meta$cell_id)]
-    ) %>%
-    pivot_longer(cols = all_of(rownames(auc_mat)), names_to = "regulon", values_to = "auc") %>%
-    group_by(class_label, class_name, regulon) %>%
-    summarise(
-      n_SPF = sum(microbiome == "SPF"),
-      n_WildR = sum(microbiome == "WildR"),
-      mean_SPF = mean(auc[microbiome == "SPF"]),
-      mean_WildR = mean(auc[microbiome == "WildR"]),
-      delta = mean_WildR - mean_SPF,
-      p = tryCatch(
-        if (sum(microbiome == "SPF") >= 10 && sum(microbiome == "WildR") >= 10) {
-          wilcox.test(auc ~ microbiome)$p.value
-        } else {
-          NA_real_
-        },
-        error = function(e) NA_real_
-      ),
-      .groups = "drop"
-    ) %>%
-    mutate(
-      padj = p.adjust(p, method = "BH"),
-      tissue = unique(meta$tissue)[1],
-      split_level = "tissue_within_class"
-    ) %>%
-    arrange(padj, p)
-  write_csv(diff_by_class, file.path(out_dir, "diff_regulons_WildR_vs_SPF_by_class.csv"))
+if (nrow(diff_reg)) {
+  group_cols <- c(WildR = "#E8590C", SPF = "#2E6FA8")
+  vd <- diff_reg %>%
+    mutate(flag = case_when(fdr_split < 0.10 ~ "FDR < 0.10", p_animal < 0.05 ~ "p < 0.05", TRUE ~ "n.s."),
+           lab = if_else(rank(p_animal, ties.method = "first") <= 8, regulon, NA_character_))
+  p_volc <- ggplot(vd, aes(hedges_g, -log10(p_animal))) +
+    geom_hline(yintercept = -log10(0.05), linetype = "dashed", colour = "#A5A5A5") +
+    geom_point(aes(colour = flag), alpha = 0.8, size = 1.8) +
+    ggrepel::geom_text_repel(aes(label = lab), size = 3.4, fontface = "italic", seed = 1,
+                             min.segment.length = 0, max.overlaps = Inf) +
+    scale_colour_manual(values = c("FDR < 0.10" = "#E8590C", "p < 0.05" = "#27455C", "n.s." = "#D4D4D4"),
+                        name = NULL) +
+    labs(title = glue("{stem} ({split_level})"),
+         subtitle = glue("Animal-level WildR − SPF ({tst$n_WildR} vs {tst$n_SPF} animals, {comma_n} nuclei)",
+                         comma_n = format(am$n_cells_matched, big.mark = ",")),
+         x = "Hedges g on animal means (WildR − SPF)", y = "−log10 animal-level p") +
+    theme_minimal(base_size = 13) +
+    theme(panel.grid.minor = element_blank(), legend.position = "top",
+          plot.title = element_text(face = "bold"), plot.title.position = "plot",
+          plot.background = element_rect(fill = "white", colour = NA))
+  ggsave(file.path(fig_dir, "diff_regulon_volcano_animal.png"), p_volc,
+         width = 9, height = 6.5, dpi = 200, bg = "white")
 }
 
-p_volc <- diff_reg %>%
-  mutate(
-    hit = !is.na(padj) & padj < 0.05,
-    label = if_else(hit & abs(delta) >= quantile(abs(delta), 0.8, na.rm = TRUE), regulon, NA_character_)
-  ) %>%
-  ggplot(aes(x = delta, y = -log10(p))) +
-  geom_point(aes(color = hit), alpha = 0.7, size = 1.2) +
-  geom_text_repel(aes(label = label), size = 3, max.overlaps = 20) +
-  scale_color_manual(values = c("FALSE" = "grey70", "TRUE" = "#D62728")) +
-  labs(
-    title = glue("WildR − SPF regulon AUC — {stem} ({split_level})"),
-    x = "Δ mean AUC (WildR − SPF)", y = "−log10(p)"
-  ) +
-  theme_bw()
-ggsave(file.path(fig_dir, "diff_regulon_volcano.png"), p_volc, width = 8, height = 6, dpi = 150)
+# Keep the earlier (nucleus-level) summary before replacing it
+if (file.exists(summary_json)) {
+  old <- jsonlite::fromJSON(summary_json)
+  if (is.null(old$test)) file.copy(summary_json, file.path(out_dir, "run_summary_celllevel.json"), overwrite = FALSE)
+}
 
-summary <- list(
-  stem = stem,
-  split_level = split_level,
-  tissue = unique(meta$tissue)[1],
-  class_label = if (!is_tissue && "class_label" %in% names(meta)) unique(meta$class_label)[1] else NA,
-  class_name = if (!is_tissue && "class_name" %in% names(meta)) unique(as.character(meta$class_name))[1] else NA,
-  n_cells = length(common),
-  n_regulons = nrow(auc_mat),
-  n_sig_padj05 = sum(diff_reg$padj < 0.05, na.rm = TRUE),
-  auc_csv = auc_csv,
-  regulons_csv = regulons_csv,
-  diff_csv = diff_csv,
-  input_matrix = "raw_counts_UMI"
+summary <- c(
+  list(stem = stem, split_level = split_level),
+  split_info,
+  list(
+    n_cells = am$n_cells_matched,
+    n_regulons = length(am$regulons),
+    test = "animal_level_pooled_t",
+    min_cells_per_animal = SCENIC_MIN_CELLS,
+    n_animals_WildR = tst$n_WildR, n_animals_SPF = tst$n_SPF,
+    tested = !is.null(tst$res),
+    n_nominal_p05 = sum(diff_reg$p_animal < 0.05, na.rm = TRUE),
+    n_fdr10 = sum(diff_reg$fdr_split < 0.10, na.rm = TRUE),
+    auc_csv = auc_csv, regulons_csv = regulons_csv, diff_csv = diff_csv,
+    per_animal_csv = per_animal_csv,
+    input_matrix = "raw_counts_UMI",
+    date = as.character(Sys.Date())
+  )
 )
-jsonlite::write_json(summary, summary_json, auto_unbox = TRUE, pretty = TRUE)
-log_msg("DONE split ", stem, " regulons=", nrow(auc_mat),
-        " sig_padj05=", summary$n_sig_padj05)
+jsonlite::write_json(summary, summary_json, auto_unbox = TRUE, pretty = TRUE, na = "null")
+log_msg("DONE split ", stem, " regulons=", length(am$regulons),
+        " animals=", tst$n_WildR, "v", tst$n_SPF,
+        " p<0.05=", summary$n_nominal_p05, " FDR<0.10=", summary$n_fdr10)

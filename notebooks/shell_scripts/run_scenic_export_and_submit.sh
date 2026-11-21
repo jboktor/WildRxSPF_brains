@@ -11,8 +11,10 @@
 #SBATCH --mail-user=jboktor@caltech.edu
 #SBATCH --mail-type=FAIL,END
 
-# 1) Export raw-count looms for class + tissue splits
-# 2) sbatch one pySCENIC job per loom (class: default resources; tissue: larger)
+# 1) Export raw-count looms for class splits (tissue-wide track discontinued —
+#    whole-tissue GRN runs did not finish within 7-day walltime; see CLAS_01
+#    subsampling approach instead for large splits)
+# 2) sbatch one pySCENIC job per class loom
 
 set -euo pipefail
 
@@ -28,8 +30,8 @@ log() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*"; }
 mkdir -p "${WKDIR}/.cluster_runs/scenic"
 cd "${WKDIR}"
 
-log "=== Export looms (mode=both; RNA counts = raw UMIs) ==="
-"${RSCRIPT}" "${EXPORT}" --mode both
+log "=== Export looms (mode=class; RNA counts = raw UMIs) ==="
+"${RSCRIPT}" "${EXPORT}" --mode class
 
 log "=== Submit class-level pySCENIC jobs ==="
 : > "${SUBMIT_LIST}"
@@ -58,22 +60,6 @@ for loom in "${class_looms[@]}"; do
     --mem="${mem}" --time="${time_lim}" --cpus-per-task="${cpus}" \
     "${DYNAMIC}" -i "${INPUT_DIR}" -t "${base}")
   echo "CLASS ${jid} ${base} n=${n_cells} mem=${mem}" | tee -a "${SUBMIT_LIST}"
-done
-
-log "=== Submit tissue-level pySCENIC jobs (larger resources) ==="
-for ts in AMY HYP; do
-  base="snRNASeq_${ts}.loom"
-  loom="${INPUT_DIR}/${base}"
-  if [[ ! -f "${loom}" ]]; then
-    log "WARN: missing tissue loom ${loom}"
-    continue
-  fi
-  # ~190–200k cells: more RAM/time/workers than class splits
-  jid=$(sbatch --parsable \
-    --job-name="scenic_${ts}" \
-    --mem=600G --time=7-00:00:00 --cpus-per-task=32 \
-    "${DYNAMIC}" -i "${INPUT_DIR}" -t "${base}")
-  echo "TISSUE ${jid} ${base}" | tee -a "${SUBMIT_LIST}"
 done
 
 log "=== Submitted job list written to ${SUBMIT_LIST} ==="

@@ -1,0 +1,481 @@
+---
+title: "Explore Raw D-SPIN Outputs for Single-Nucleus Data"
+subtitle: "Complete saved model tables across 140 Allen supertype × tissue fits, with figure-ready views"
+date: today
+author: "Joe Boktor"
+categories: [snRNA-seq, D-SPIN, Raw outputs, Data explorer]
+params:
+  unit_id: "AMY__CS20230722_SUPT_0001"
+format:
+  html:
+    theme:
+      - cosmo
+      - ../quarto-aesthetic-kit/theme/aesthetic.scss
+    include-in-header: ../quarto-aesthetic-kit/theme/fonts.html
+    grid:
+      body-width: 1280px
+      sidebar-width: 180px
+      margin-width: 240px
+    toc: true
+    toc-location: right
+    toc-title: "On this page"
+    page-layout: article
+    code-fold: true
+    code-tools: true
+    code-copy: true
+    embed-resources: true
+    fig-cap-location: bottom
+    lightbox: true
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: false
+---
+
+```{r}
+#| label: setup-display
+#| include: false
+
+# Display-only render: read the completed D-SPIN CSV outputs without refitting,
+# rewriting artifacts, or submitting jobs.
+run_analysis <- FALSE
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(glue)
+  library(knitr)
+  library(DT)
+})
+
+wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
+dspin_dir <- file.path(wkdir, "data/interim/dspin")
+manifest_f <- file.path(dspin_dir, "full_manifest.csv")
+fit_summary_f <- file.path(dspin_dir, "fit_summary.csv")
+weights_name <- file.path(
+  "dspin_run",
+  "gene_programs_total_20_onmf_20_prior_0_weights.csv"
+)
+
+read_if <- function(f) {
+  if (file.exists(f)) {
+    read_csv(f, show_col_types = FALSE)
+  } else {
+    NULL
+  }
+}
+
+not_ready <- function(path) {
+  cat(glue("Not yet computed — expected `{path}`. Run the upstream D-SPIN fit pipeline first.\n"))
+}
+
+manifest <- read_if(manifest_f)
+fit_summary <- read_if(fit_summary_f)
+has_index <- !is.null(manifest) && !is.null(fit_summary)
+
+if (has_index) {
+  unit_inventory <- manifest %>%
+    select(
+      unit_id, tissue, supertype_label, supertype_name,
+      n_SPF, n_WildR, min_cells_per_sample_id, n_cells,
+      n_genes, n_mast_genes, augur_auc, rank, run_tier
+    ) %>%
+    left_join(
+      fit_summary %>% select(unit_id, status, method, elapsed_s),
+      by = "unit_id"
+    ) %>%
+    arrange(tissue, supertype_name)
+
+  ok_units <- unit_inventory %>%
+    filter(status == "ok") %>%
+    select(unit_id, tissue, supertype_label, supertype_name)
+} else {
+  unit_inventory <- tibble()
+  ok_units <- tibble()
+}
+
+requested_unit <- params$unit_id
+selected_unit <- if (
+  nrow(ok_units) &&
+  !is.null(requested_unit) &&
+  requested_unit %in% ok_units$unit_id
+) {
+  requested_unit
+} else if (nrow(ok_units)) {
+  ok_units$unit_id[[1]]
+} else {
+  NA_character_
+}
+
+read_unit_csv <- function(relative_path) {
+  if (!nrow(ok_units)) return(tibble())
+
+  map_dfr(seq_len(nrow(ok_units)), function(i) {
+    f <- file.path(dspin_dir, ok_units$unit_id[[i]], relative_path)
+    if (!file.exists(f)) return(NULL)
+
+    read_csv(f, show_col_types = FALSE) %>%
+      mutate(
+        unit_id = ok_units$unit_id[[i]],
+        tissue = ok_units$tissue[[i]],
+        supertype_label = ok_units$supertype_label[[i]],
+        supertype_name = ok_units$supertype_name[[i]],
+        .before = 1
+      )
+  })
+}
+
+# Complete compact outputs across all successful units.
+sample_meta_raw <- read_unit_csv("sample_meta.csv")
+responses_raw <- read_unit_csv("responses.csv")
+relative_responses_raw <- read_unit_csv("relative_responses.csv")
+program_genes_raw <- read_unit_csv("programs_genes.csv")
+network_raw <- read_unit_csv("network.csv")
+program_annotations_raw <- read_unit_csv("program_annotations_david.csv")
+
+unit_keys <- c("unit_id", "tissue", "supertype_label", "supertype_name")
+
+animal_responses <- full_join(
+  responses_raw,
+  relative_responses_raw,
+  by = c(unit_keys, "program_id", "sample_id")
+) %>%
+  left_join(
+    sample_meta_raw %>%
+      select(all_of(unit_keys), sample_id, microbiome, batch, if_control, n_cells),
+    by = c(unit_keys, "sample_id")
+  ) %>%
+  arrange(tissue, supertype_name, program_id, microbiome, sample_id)
+
+if (ncol(network_raw) >= 5) {
+  names(network_raw)[5] <- "row_program"
+}
+
+# Complete oNMF gene/weight tables. These remain in the original wide layout:
+# one row per within-program rank and paired <program>/Weights_<program> columns.
+program_weights_raw <- read_unit_csv(weights_name)
+if (nrow(program_weights_raw)) {
+  program_weights_raw <- program_weights_raw %>%
+    group_by(unit_id) %>%
+    mutate(weight_rank = row_number(), .after = supertype_name) %>%
+    ungroup()
+}
+
+# Cell-level metadata are shown for one parameter-selected unit to keep the
+# self-contained HTML from duplicating every nucleus across all unit tables.
+selected_cells_f <- if (!is.na(selected_unit)) {
+  file.path(dspin_dir, selected_unit, "cells_meta.csv")
+} else {
+  NA_character_
+}
+selected_cells <- if (!is.na(selected_cells_f) && file.exists(selected_cells_f)) {
+  read_csv(selected_cells_f, show_col_types = FALSE) %>%
+    mutate(unit_id = selected_unit, .before = 1)
+} else {
+  tibble()
+}
+
+raw_dt <- function(x, caption, page_length = 10) {
+  if (!nrow(x)) {
+    cat("*Table is not available.*\n")
+    return(invisible(NULL))
+  }
+
+  datatable(
+    x,
+    rownames = FALSE,
+    filter = "top",
+    class = "compact stripe hover",
+    extensions = "Buttons",
+    caption = caption,
+    options = list(
+      pageLength = page_length,
+      lengthMenu = c(10, 25, 50, 100, 500),
+      scrollX = TRUE,
+      deferRender = TRUE,
+      dom = "Bfrtip",
+      buttons = c("copy", "csv", "colvis")
+    )
+  )
+}
+
+fmt_n <- function(x) format(x, big.mark = ",", scientific = FALSE)
+```
+
+# Explore Raw D-SPIN Outputs for Single-Nucleus Data
+
+## Overview
+
+This notebook loads the complete saved tabular outputs from every successful single-nucleus D-SPIN fit and exposes them as searchable, sortable, downloadable tables. It keeps raw animal responses, SPF-centred responses, sample metadata, program genes and weights, program-interaction matrices, and DAVID program annotations available for exploratory visualization and figure construction without rerunning D-SPIN.
+
+::: {.stat-row}
+::: {.stat}
+[`r fmt_n(nrow(ok_units))`]{.stat-value}
+[Successful unit fits]{.stat-label}
+:::
+::: {.stat}
+[`r fmt_n(nrow(animal_responses))`]{.stat-value}
+[Animal × program rows]{.stat-label}
+:::
+::: {.stat}
+[`r fmt_n(nrow(program_weights_raw))`]{.stat-value}
+[Raw oNMF weight rows]{.stat-label}
+:::
+::: {.stat}
+[`r fmt_n(nrow(network_raw))`]{.stat-value}
+[Network matrix rows]{.stat-label}
+:::
+:::
+
+## Background
+
+The main D-SPIN analysis notebook reports calibrated animal-level tests and a focused set of figures. That is the right format for interpretation, but it intentionally hides most raw rows. Figure development often needs the opposite view: every animal-level response, every program's ranked genes and weights, and every coupling in each fitted network.
+
+This explorer is read-only. It gathers the completed CSV outputs under [data/interim/dspin/]{.path}, preserves their raw values, and adds unit identifiers only where needed to combine the 140 per-unit files. The animal remains the unit of replication for WildR-versus-SPF comparisons.
+
+## Results
+
+::: {.callout-note}
+## Choose a unit for cell-level metadata
+
+All compact model outputs below include every successful unit and can be filtered by `unit_id`, tissue, cell type, program, animal, or gene. The large `cells_meta.csv` table is loaded for one unit at a time. The current unit is **`r selected_unit`**. To change it, render with:
+
+`quarto render 0X_DSPIN-Output-Explorer_SN.qmd -P unit_id:<unit_id>`
+:::
+
+### Unit inventory and fit status
+
+```{r}
+#| label: cell-tbl-unit-inventory
+#| echo: false
+
+raw_dt(
+  unit_inventory,
+  "All D-SPIN units from full_manifest.csv, joined to fit_summary.csv.",
+  page_length = 25
+)
+```
+
+[Source: cell `cell-tbl-unit-inventory`](#cell-tbl-unit-inventory){.provenance} · [data/interim/dspin/full_manifest.csv]{.path} · [data/interim/dspin/fit_summary.csv]{.path}
+
+### Animal responses: raw h and SPF-centred relative h
+
+Each row is one animal × program observation. `h` is the fitted response; `relative_h` is the same response relative to the SPF control for that tissue. Sample metadata are joined without summarizing either response.
+
+```{r}
+#| label: cell-tbl-animal-responses
+#| echo: false
+
+raw_dt(
+  animal_responses,
+  "Complete D-SPIN responses.csv and relative_responses.csv across all successful units.",
+  page_length = 25
+)
+```
+
+[Source: cell `cell-tbl-animal-responses`](#cell-tbl-animal-responses){.provenance} · Per-unit [responses.csv]{.path}, [relative_responses.csv]{.path}, and [sample_meta.csv]{.path} under [data/interim/dspin/&lt;unit_id&gt;/]{.path}
+
+### Sample metadata and nuclei per animal
+
+```{r}
+#| label: cell-tbl-sample-metadata
+#| echo: false
+
+raw_dt(
+  sample_meta_raw,
+  "Complete per-unit sample metadata used by D-SPIN.",
+  page_length = 25
+)
+```
+
+[Source: cell `cell-tbl-sample-metadata`](#cell-tbl-sample-metadata){.provenance} · [data/interim/dspin/&lt;unit_id&gt;/sample_meta.csv]{.path}
+
+### Program gene labels
+
+This is D-SPIN's compact `programs_genes.csv` output: the genes retained in each program's generated name. Use the full oNMF table in the next section when gene weights or lower-ranked genes are needed.
+
+```{r}
+#| label: cell-tbl-program-genes
+#| echo: false
+
+raw_dt(
+  program_genes_raw,
+  "Complete compact program-to-gene table across all successful units.",
+  page_length = 25
+)
+```
+
+[Source: cell `cell-tbl-program-genes`](#cell-tbl-program-genes){.provenance} · [data/interim/dspin/&lt;unit_id&gt;/programs_genes.csv]{.path}
+
+### Full oNMF genes and weights
+
+The original paired-column layout is retained. For program `0`, column `0` contains ranked genes and `Weights_0` contains their weights; the same pattern continues through program `19`. `weight_rank` is the original row order within a unit.
+
+```{r}
+#| label: cell-tbl-program-weights
+#| echo: false
+
+raw_dt(
+  program_weights_raw,
+  "Complete raw oNMF gene and weight tables for all 20 programs in every successful unit.",
+  page_length = 25
+)
+```
+
+[Source: cell `cell-tbl-program-weights`](#cell-tbl-program-weights){.provenance} · [data/interim/dspin/&lt;unit_id&gt;/dspin_run/gene_programs_total_20_onmf_20_prior_0_weights.csv]{.path}
+
+### Program-interaction matrices
+
+Each row is one row of the raw 20 × 20 **J** matrix. `row_program` identifies the source program; columns `P0`–`P19` contain its couplings to the target programs. Diagonal values are retained.
+
+```{r}
+#| label: cell-tbl-networks
+#| echo: false
+
+raw_dt(
+  network_raw,
+  "Complete raw D-SPIN network matrices across all successful units.",
+  page_length = 25
+)
+```
+
+[Source: cell `cell-tbl-networks`](#cell-tbl-networks){.provenance} · [data/interim/dspin/&lt;unit_id&gt;/network.csv]{.path}
+
+### Program annotations
+
+```{r}
+#| label: cell-tbl-program-annotations
+#| echo: false
+
+raw_dt(
+  program_annotations_raw,
+  "Complete per-program DAVID annotation summaries saved beside the D-SPIN fits.",
+  page_length = 25
+)
+```
+
+[Source: cell `cell-tbl-program-annotations`](#cell-tbl-program-annotations){.provenance} · [data/interim/dspin/&lt;unit_id&gt;/program_annotations_david.csv]{.path}
+
+### Cell metadata for the selected unit
+
+The full `cells_meta.csv` for **`r selected_unit`** is shown below. This preserves the cell identifiers and sample, microbiome, tissue, and Allen annotations used to construct that fit.
+
+```{r}
+#| label: cell-tbl-selected-cells
+#| echo: false
+
+raw_dt(
+  selected_cells,
+  glue("Complete cell metadata for {selected_unit}."),
+  page_length = 25
+)
+```
+
+[Source: cell `cell-tbl-selected-cells`](#cell-tbl-selected-cells){.provenance} · [`r selected_cells_f`]{.path}
+
+## Next Steps
+
+- **Done:** loaded the complete compact D-SPIN model outputs across all successful single-nucleus fits and made each table filterable and downloadable.
+- Filter `animal_responses` to a unit or program before plotting; keep animal-level points visible rather than treating nuclei as independent replicates.
+- Convert the selected unit's wide oNMF weights or **J** matrix to long form using the recipes below, then save finalized figures under [figures/DSPIN/snRNASeq/]{.path}.
+- Use a new date-stamped filename for any derived table written to [tables/DSPIN/]{.path}; do not overwrite the fit outputs under [data/interim/dspin/]{.path}.
+
+# Code & Provenance {.code-appendix}
+
+The display tables above only read completed CSV artifacts. They do not fit models, write tables, or submit jobs. The setup cell combines per-unit outputs by adding `unit_id`, tissue, and Allen supertype columns; response values, weights, and couplings are unchanged.
+
+```{r}
+#| label: cell-fig-response-recipe
+#| eval: false
+
+# Figure recipe: animal × program heatmap for the selected unit.
+response_plot_data <- animal_responses %>%
+  filter(unit_id == selected_unit) %>%
+  mutate(
+    microbiome = factor(microbiome, c("SPF", "WildR")),
+    sample_id = fct_reorder(sample_id, as.integer(microbiome))
+  )
+
+ggplot(response_plot_data, aes(sample_id, program_id, fill = relative_h)) +
+  geom_tile() +
+  facet_grid(. ~ microbiome, scales = "free_x", space = "free_x") +
+  scico::scale_fill_scico(palette = "vik", midpoint = 0) +
+  labs(
+    title = selected_unit,
+    x = "Animal",
+    y = "D-SPIN program",
+    fill = "Relative h"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+#| label: cell-fig-network-recipe
+#| eval: false
+
+# Figure recipe: long-form J matrix for the selected unit.
+network_plot_data <- network_raw %>%
+  filter(unit_id == selected_unit) %>%
+  select(row_program, starts_with("P")) %>%
+  pivot_longer(
+    starts_with("P"),
+    names_to = "column_program",
+    values_to = "J"
+  )
+
+ggplot(network_plot_data, aes(column_program, row_program, fill = J)) +
+  geom_tile() +
+  coord_equal() +
+  scico::scale_fill_scico(palette = "vik", midpoint = 0) +
+  labs(
+    title = selected_unit,
+    x = "Target program",
+    y = "Source program",
+    fill = "J"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+#| label: cell-fig-weights-recipe
+#| eval: false
+
+# Figure recipe: unpack the original wide weight table and plot one program.
+unit_weights <- program_weights_raw %>%
+  filter(unit_id == selected_unit)
+
+weights_long <- map_dfr(0:19, function(k) {
+  tibble(
+    program_id = paste0("P", k),
+    gene = unit_weights[[as.character(k)]],
+    weight = as.numeric(unit_weights[[paste0("Weights_", k)]])
+  )
+}) %>%
+  filter(!is.na(gene), nzchar(gene), !is.na(weight))
+
+weights_long %>%
+  filter(program_id == "P0") %>%
+  slice_max(weight, n = 20) %>%
+  mutate(gene = fct_reorder(gene, weight)) %>%
+  ggplot(aes(weight, gene)) +
+  geom_col() +
+  labs(
+    title = glue("{selected_unit}: P0"),
+    x = "oNMF weight",
+    y = NULL
+  ) +
+  theme_minimal()
+```
+
+```{bash}
+#| label: cell-render
+#| eval: false
+
+# Render from notebooks/ with the spatialomics environment.
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/quarto \
+  render 0X_DSPIN-Output-Explorer_SN.qmd
+
+# Choose a different unit for the cell-level metadata table.
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/quarto \
+  render 0X_DSPIN-Output-Explorer_SN.qmd -P unit_id:AMY__CS20230722_SUPT_0001
+```

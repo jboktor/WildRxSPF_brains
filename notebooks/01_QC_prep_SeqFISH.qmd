@@ -1029,7 +1029,8 @@ Reading in the results of the Allen CCF Registration
 ```{r}
 abca_color_pal <- readRDS(glue("{wkdir}/data/interim/abca_color_pal.rds"))
 
-reg_res <- readr::read_csv(glue("{wkdir}/data/interim/registration/ccf3d.csv"))
+reg_res <- readr::read_csv(
+  "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains/data/interim/registration/Allen_CCF_rebuild/ccf3d.csv")
 # reg_res <- readr::read_csv(glue("{wkdir}/data/interim/registration/ccf2d.csv"))
 reg_res %>% glimpse()
 
@@ -1038,18 +1039,22 @@ reg_res_plot <- reg_res %>%
   filter(!is.na(ccfx), !is.na(ccfy), !is.na(ccfz)) %>%
   filter(!is.na(ccfx_2), !is.na(ccfy_2), !is.na(ccfz_2)) %>%
   group_by(sample_id) %>%
-  slice_sample(n = 5000, replace = FALSE) %>%
   ungroup() %>%
   mutate(
     annotation = as.character(annotation),
     ccfz_2_noisy = ccfz_2 + rnorm(n(), 0, 100)
   ) %>% 
   arrange(sample_id, subclass_name, supertype_name) %>% 
+  filter(grepl("*MEA-BST*", supertype_name)) %>%
+  # slice_sample(n = 5000, replace = FALSE) %>%
   glimpse()
 
+
+reg_res_plot$supertype_name %>% unique()
 # plot(reg_res_plot$ccfz_2, reg_res_plot$ccfz_2_noisy)
 
 reg_res_plot %>%
+  filter(grepl("MEA", supertype_name)) %>%
   plot_ly(
     x = ~ccfx_2, y = ~ccfy_2, z = ~ccfz_2_noisy,
     type = "scatter3d",
@@ -1065,6 +1070,8 @@ reg_res_plot %>%
     title = "Allen CCF registration: subsampled cells (3D)"
   )
 
+
+reg_res_plot %>% glimpse()
 
 # reg_res_plot %>%
 #   plot_ly(

@@ -1,9 +1,9 @@
 ---
-title: "DSPIN Regulatory Responses — WildR vs SPF"
-subtitle: "Program-level Ising models at Allen supertype × tissue (snRNA-seq)"
-date: "2026-08-09"
+title: "D-SPIN Program Responses to the WildR Microbiome"
+subtitle: "Program-level regulatory network models per Allen supertype × tissue, tested animal by animal (snRNA-seq; AMY, HYP; 6 SPF vs 6 WildR)"
+date: today
 author: "Joe Boktor"
-categories: [snRNA-seq, DSPIN, Microbiome]
+categories: [snRNA-seq, D-SPIN, Microbiome, Gene programs]
 format:
   html:
     theme:
@@ -23,6 +23,7 @@ format:
     code-copy: true
     embed-resources: true
     fig-cap-location: bottom
+    lightbox: true
 execute:
   echo: true
   warning: false
@@ -34,649 +35,421 @@ execute:
 #| label: setup-display
 #| include: false
 
-# Display-only render: reads precomputed DSPIN CSVs/PNGs. No Seurat, no sbatch.
+# Display-only render: reads saved CSV/PNG artifacts. Nothing is fit, written or submitted
+# unless run_analysis is set to TRUE (see Code & Provenance).
 run_analysis <- FALSE
 
 suppressPackageStartupMessages({
   library(tidyverse)
   library(glue)
-  library(jsonlite)
-  library(scico)
-  library(patchwork)
   library(knitr)
+  library(DT)
 })
 
-theme_set(
-  theme_bw(base_size = 12) +
-    theme(
-      panel.grid.minor = element_blank(),
-      strip.background = element_rect(fill = "#FFF3EB", color = NA),
-      plot.title = element_text(face = "bold", size = 12),
-      legend.position = "top"
-    )
-)
-
 wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
-data_path <- file.path(wkdir, "data/interim")
-dspin_dir <- file.path(data_path, "dspin")
-fig_dir <- file.path(wkdir, "figures/DSPIN/snRNASeq")
-tbl_dir <- file.path(wkdir, "tables/DSPIN")
-dir.create(fig_dir, showWarnings = FALSE, recursive = TRUE)
-dir.create(tbl_dir, showWarnings = FALSE, recursive = TRUE)
+tag <- "2026-10-06"                                   # current animal-level summary
+dspin_dir <- file.path(wkdir, "data/interim/dspin")
+sum_dir <- file.path(dspin_dir, glue("summary_{tag}"))
+tbl_dir <- file.path(wkdir, "tables/DSPIN", glue("summary_{tag}"))
+fig_rel <- glue("../figures/DSPIN/snRNASeq/summary_{tag}")   # relative to notebooks/ for embedding
+popalign_leads_f <- file.path(wkdir, "tables/popAlign/snRNASeq/run_2026-10-04_synth-2026-10-05/popAlign_followup_leads.csv")
 
-n_heatmap_units <- 6L
-n_network_png <- 4L
+read_tbl <- function(name) {
+  f <- file.path(tbl_dir, name)
+  if (file.exists(f)) read_csv(f, show_col_types = FALSE) else NULL
+}
+prog <- read_tbl("DSPIN_program_tests.csv")
+unit_t <- read_tbl("DSPIN_unit_tests.csv")
+leads <- read_tbl("DSPIN_program_leads.csv")
+cal <- read_tbl("DSPIN_calibration.csv")
+g <- read_tbl("DSPIN_global_summary.csv")
+mast_conc <- read_tbl("DSPIN_mast_concordance.csv")
+has_results <- !is.null(prog) && !is.null(g)
+rscript <- "/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript"
+not_ready <- function() cat("Not yet computed — set `run_analysis <- TRUE` (or run the scripts in Code & Provenance).\n")
+
+fmt_p <- function(p) ifelse(p < 0.001, formatC(p, format = "e", digits = 1), formatC(p, format = "f", digits = 3))
+short_unit <- function(x, n = 34) str_trunc(str_remove(x, "^\\d+ "), n)
+cal_row <- function(lvl, k) cal %>% filter(level == lvl) %>% slice(k)
 ```
 
-# DSPIN Regulatory Responses — WildR vs SPF
+# D-SPIN Program Responses to the WildR Microbiome
 
 ## Overview
 
-We fit program-level D-SPIN models on snRNA-seq nuclei for every hard-pass Allen **supertype × tissue** unit (AMY and HYP), treating microbiome status as a physiological perturbation (SPF = control; WildR = perturbed). Each animal is one DSPIN condition (`sample_id`). This notebook is display-only: it reads fit artifacts from [data/interim/dspin/]{.path}.
-
-```{r}
-#| label: load-artifacts
-#| include: false
-
-manifest <- read_csv(file.path(dspin_dir, "full_manifest.csv"), show_col_types = FALSE) %>%
-  arrange(rank)
-fit_summary <- read_csv(file.path(dspin_dir, "fit_summary.csv"), show_col_types = FALSE)
-
-`%||%` <- function(a, b) if (!is.null(a)) a else b
-
-unit_path_from_row <- function(row) {
-  if ("unit_path" %in% names(row) && !is.na(row$unit_path[[1]])) return(row$unit_path[[1]])
-  glue("{dspin_dir}/{row$tissue[[1]]}__{row$supertype_label[[1]]}")
-}
-
-read_unit_responses <- function(unit_path) {
-  rel <- file.path(unit_path, "relative_responses.csv")
-  meta <- file.path(unit_path, "sample_meta.csv")
-  if (!file.exists(rel)) return(NULL)
-  df <- read_csv(rel, show_col_types = FALSE)
-  if (file.exists(meta)) {
-    sm <- read_csv(meta, show_col_types = FALSE)
-    df <- df %>% left_join(sm, by = "sample_id")
-  }
-  df
-}
-
-resp_list <- lapply(seq_len(nrow(manifest)), function(i) {
-  sp <- unit_path_from_row(manifest[i, , drop = FALSE])
-  df <- read_unit_responses(sp)
-  if (is.null(df)) return(NULL)
-  df$tissue <- manifest$tissue[[i]]
-  df$supertype_label <- manifest$supertype_label[[i]]
-  df$supertype_name <- manifest$supertype_name[[i]]
-  df$rank <- manifest$rank[[i]]
-  df$unit_path <- sp
-  df
-})
-resp_long <- bind_rows(resp_list)
-
-# Per-unit WildR response strength (for overview ranking)
-unit_strength <- resp_long %>%
-  filter(microbiome == "WildR" | (is.na(microbiome) & !isTRUE(if_control))) %>%
-  group_by(tissue, supertype_label, supertype_name, rank) %>%
-  summarise(
-    n_wildr = n_distinct(sample_id),
-    mean_abs_h = mean(abs(relative_h), na.rm = TRUE),
-    max_abs_h = max(abs(relative_h), na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  arrange(desc(mean_abs_h))
-
-stars <- resp_long %>%
-  filter(microbiome == "WildR" | is.na(microbiome)) %>%
-  group_by(tissue, supertype_name, supertype_label, program_id) %>%
-  summarise(
-    n_wildr_samples = n_distinct(sample_id),
-    mean_h = mean(relative_h, na.rm = TRUE),
-    sd_h = sd(relative_h, na.rm = TRUE),
-    same_sign = n_distinct(sign(relative_h[relative_h != 0 & is.finite(relative_h)])) <= 1,
-    .groups = "drop"
-  ) %>%
-  filter(n_wildr_samples >= 2, same_sign, is.finite(mean_h)) %>%
-  arrange(desc(abs(mean_h)))
-
-write_csv(unit_strength, file.path(tbl_dir, "unit_response_strength.csv"))
-write_csv(stars, file.path(tbl_dir, "star_programs.csv"))
-
-# DAVID program annotations (optional until array completes)
-david_files <- list.files(
-  dspin_dir, pattern = "^program_annotations_david\\.csv$",
-  recursive = TRUE, full.names = TRUE
-)
-if (length(david_files)) {
-  david_ann <- bind_rows(lapply(david_files, read_csv, show_col_types = FALSE)) %>%
-    mutate(
-      program_id = as.character(program_id),
-      program_label = ifelse(
-        !is.na(top_term) & nzchar(top_term),
-        paste0(program_id, " · ", str_trunc(top_term, 40)),
-        program_id
-      )
-    )
-  write_csv(david_ann, file.path(tbl_dir, "program_annotations_david_all.csv"))
-} else {
-  david_ann <- tibble()
-}
-
-stars_ann <- if (nrow(david_ann)) {
-  stars %>%
-    left_join(
-      david_ann %>% select(tissue, supertype_label, program_id, top_term, top_category, top_pvalue, n_terms_p05),
-      by = c("tissue", "supertype_label", "program_id")
-    )
-} else {
-  stars %>% mutate(top_term = NA_character_, top_category = NA_character_,
-                   top_pvalue = NA_real_, n_terms_p05 = NA_integer_)
-}
-write_csv(stars_ann, file.path(tbl_dir, "star_programs_david.csv"))
-```
+We fit D-SPIN program-level network models to the nuclei of each of the **`r if (has_results) g$n_units else "—"`** Allen supertype × tissue units in the amygdala and hypothalamus with six SPF and six WildR animals (one unit has five SPF). Each model learns 20 gene programs and how they interact (**J**), plus one response vector **h** per animal. We then asked, animal by animal, whether WildR animals shift any program's activity beyond the spread already present among SPF animals. **They do not, at any level we can test.** Across `r if (has_results) scales::comma(g$n_programs) else "—"` program tests the p-value distribution matches the permutation null. No program or unit survives FDR. The 13 pre-specified nominal leads are fewer than the ~18 expected by chance. The previous version of this report ranked units by "response strength" (mean |h| in WildR animals), and that ranking turns out to track how few nuclei each animal contributes. D-SPIN **h** is not empty, though: where MAST finds DE genes, the program containing them shifts in the same direction. The models capture real expression differences, but at 6 vs 6 animals and ~30–150 nuclei per animal per supertype, those differences sit inside animal-to-animal noise.
 
 ::: {.stat-row}
 ::: {.stat}
-[`r nrow(manifest)`]{.stat-value}
-[Hard-pass units fit]{.stat-label}
+[`r if (has_results) g$n_units else "—"`]{.stat-value}
+[Units fit (AMY 65 · HYP 75)]{.stat-label}
 :::
 ::: {.stat}
-[`r sum(fit_summary$status == "ok", na.rm = TRUE)`]{.stat-value}
-[Fits ok]{.stat-label}
+[`r if (has_results) g$n_q_prog_lt_0.1 else "—"`]{.stat-value}
+[Programs at FDR < 0.1 (of 2,800)]{.stat-label}
 :::
 ::: {.stat}
-[`r sum(manifest$tissue == "AMY")` / `r sum(manifest$tissue == "HYP")`]{.stat-value}
-[AMY / HYP]{.stat-label}
+[`r if (has_results) glue("{g$n_leads} vs {round(cal_row('program', 2)$expected)}") else "—"`]{.stat-value}
+[Nominal leads vs expected by chance]{.stat-label}
 :::
 ::: {.stat}
-[`r nrow(stars)`]{.stat-value}
-[Sign-consistent programs]{.stat-label}
+[`r if (has_results) glue("ρ = {round(mast_conc$spearman_rho, 2)}") else "—"`]{.stat-value}
+[D-SPIN Δh vs MAST direction]{.stat-label}
 :::
 :::
 
 ## Background
 
-Differential expression (MAST) and Augur score *which genes / types* shift with microbiome, but can look muted when the effect is a redistribution of coordinated programs rather than a few huge gene hits. D-SPIN ([Jiang et al., *Cell* 2026](https://www.cell.com/cell/fulltext/S0092-8674(26)00463-0)) estimates a shared program interaction network **J** and condition response vectors **h**, so we can ask whether WildR systematically pushes program activity relative to SPF *within* each Allen type.
+Gene-level differential expression (MAST, pseudobulk) and Augur find microbiome effects that are scattered and modest. One explanation is that the WildR microbiome moves *coordinated programs* of genes, each by a small amount, rather than a few genes by a lot. D-SPIN ([Jiang et al., *Cell* 2026](https://www.cell.com/cell/fulltext/S0092-8674(26)00463-0)) is built for this case. It compresses expression into a handful of programs, learns a shared program-interaction network, and summarises each condition by how strongly it pushes each program (**h**). We treated each animal as a D-SPIN condition, with SPF animals as the control reference. The question was whether WildR animals push programs reproducibly away from the SPF baseline within a cell type.
 
-**Wiring (locked):** snRNA-seq only; paths use filesystem-safe `supertype_label` (`tissue__CS20230722_SUPT_####`); `sample_id = sample`; SPF = control; `batch = tissue`. No extra per-cell QC beyond project `keep_cell`.
+The first version of this notebook (August 2026) ranked units by WildR |h| and called programs "stars" when the WildR animals agreed in sign. Neither rule compares WildR animals with SPF animals, so neither can tell a microbiome effect from animal-to-animal noise. This version replaces both with animal-level tests against the SPF spread (method in the callout below and in [notebooks/R_scripts/summarize_dspin_responses_sn.R]{.path}).
+
+::: {.callout-note collapse="true"}
+## How WildR vs SPF is tested (click to expand)
+- **Unit of replication = animal.** `relative_h` is each animal's response minus the mean SPF response in that unit (`DSPIN.response_relative_to_control`, control = SPF, batch = tissue).
+- **Program test:** difference in mean `relative_h` (WildR − SPF), two-sided **exact permutation** over all choose(12, 6) = 924 relabelings of the animals. The smallest attainable p is 2/924 = 0.0022. Effect size = Hedges' g. *Separation* = number of WildR animals beyond the SPF range in the direction of the shift.
+- **Unit omnibus:** Σ over the unit's 20 programs of the squared Welch t, permuted with the same relabelings. This keeps the correlation between programs.
+- One unit has 5 SPF animals (462 relabelings, smallest p = 1/462 = 0.0022).
+- **Multiplicity:** BH across all 2,800 programs and, separately, across 140 units.
+- **Pre-specified lead rule** (same as popAlign): p ≤ 6/924 (0.0065) **and** ≥ 4 of 6 WildR animals beyond the SPF range.
+- **Program labels:** top genes by oNMF weight. DAVID terms are restricted to GO BP/MF/CC + KEGG with Benjamini < 0.05 (UniProt sequence features such as "N-linked glycosylation", which used to dominate the labels, are dropped).
+:::
 
 ## Results
 
-```{r}
-#| label: cell-fig-cohort
-#| fig-show: hide
-#| include: false
-
-p_cohort <- manifest %>%
-  mutate(
-    short = str_trunc(supertype_name, 28),
-    lab = fct_reorder(paste(tissue, short, sep = " · "), n_cells)
-  ) %>%
-  slice_head(n = 24) %>%
-  select(lab, tissue, n_SPF, n_WildR) %>%
-  pivot_longer(c(n_SPF, n_WildR), names_to = "microbiome", values_to = "n") %>%
-  mutate(microbiome = str_remove(microbiome, "n_")) %>%
-  ggplot(aes(n, lab, fill = microbiome)) +
-  geom_col(position = "dodge", width = 0.75) +
-  scale_fill_manual(values = c(SPF = "#27455C", WildR = "#FF6C0C")) +
-  labs(x = "Nuclei", y = NULL, fill = NULL, title = "Largest / top-ranked units (n = 24 of 140)") +
-  theme(axis.text.y = element_text(size = 8))
-
-ggsave(file.path(fig_dir, "cohort_top24.png"), p_cohort, width = 11, height = 8, dpi = 180, bg = "white")
-```
+### The cohort: 140 units, 12 animals each
 
 ::: {.figure-card .fig-wide}
-![](../figures/DSPIN/snRNASeq/cohort_top24.png)
+![](`r fig_rel`/DSPIN_cohort_overview.png)
 
 ::: {.fig-caption}
-[**Figure 1.**]{.fig-num} Nuclei counts for the top-ranked hard-pass units (by MAST/Augur score used for pilot prioritization). Full cohort is 140 units (AMY 65, HYP 75); each unit retains all `keep_cell` nuclei of that Allen label in that tissue.
+[**Figure 1.**]{.fig-num} The D-SPIN cohort. (A) Each point is one supertype × tissue unit: total nuclei versus median nuclei per animal. (B) Nuclei contributed by each animal across all fitted units. Units are the `hard_pass` set from the pilot ranking (≥ 6 animals per arm with nuclei), each fit on its `keep_cell` nuclei with 2,000 HVGs and 20 oNMF programs.
 :::
 
 ::: {.takeaways}
 **Key takeaways**
 
-- Every plotted unit has balanced SPF and WildR representation by construction (`hard_pass`).
-- Cell counts span ~450–28k nuclei; larger units (e.g. MOL, L2/3 IT) dominate total N but are not automatically the strongest DSPIN responders.
+- Most units are small. The median unit has `r if (has_results) round(median(unit_t$median_cells_per_animal)) else "—"` nuclei per animal, and `r if (has_results) sum(unit_t$median_cells_per_animal < 100) else "—"` of `r if (has_results) g$n_units else "—"` units have fewer than 100. Each animal's **h** is therefore estimated from a few dozen nuclei.
+- Both arms contribute similar numbers of nuclei in both tissues. Per-animal depth still varies about twofold (e.g. HYP WildR_11 ≈ 14.5k nuclei vs WildR_7 ≈ 7.4k), and that matters for the noise argument below.
 :::
 
-[Source: cell `cell-fig-cohort`](#cell-fig-cohort){.provenance}
+[Source: cell `cell-figures`](#cell-figures){.provenance} · Per-unit table: [tables/DSPIN/summary_2026-10-06/DSPIN_unit_tests.csv]{.path}
 :::
 
-```{r}
-#| label: cell-fig-strength
-#| fig-show: hide
-#| include: false
-
-p_str <- unit_strength %>%
-  mutate(
-    short = str_trunc(supertype_name, 32),
-    lab = fct_reorder(paste(tissue, short, sep = " · "), mean_abs_h)
-  ) %>%
-  slice_head(n = 30) %>%
-  ggplot(aes(mean_abs_h, lab, fill = tissue)) +
-  geom_col(width = 0.75) +
-  scale_fill_manual(values = c(AMY = "#27455C", HYP = "#FF6C0C")) +
-  labs(
-    x = "Mean |relative h| across WildR samples × programs",
-    y = NULL, fill = NULL,
-    title = "Strongest microbiome program shifts (top 30 of 140)"
-  ) +
-  theme(axis.text.y = element_text(size = 8))
-
-ggsave(file.path(fig_dir, "response_strength_top30.png"), p_str, width = 11, height = 8.5, dpi = 180, bg = "white")
-
-p_scatter <- unit_strength %>%
-  left_join(manifest %>% select(supertype_label, tissue, n_cells, n_mast_genes, augur_auc),
-            by = c("tissue", "supertype_label")) %>%
-  ggplot(aes(n_cells, mean_abs_h, color = tissue)) +
-  geom_point(aes(size = n_mast_genes), alpha = 0.75) +
-  scale_x_log10() +
-  scale_color_manual(values = c(AMY = "#27455C", HYP = "#FF6C0C")) +
-  scale_size_area(max_size = 8, name = "# MAST genes") +
-  labs(
-    x = "Nuclei in unit (log10)",
-    y = "Mean |relative h| (WildR)",
-    color = NULL,
-    title = "Response strength vs unit size (all 140 fits)"
-  )
-
-ggsave(file.path(fig_dir, "strength_vs_ncells.png"), p_scatter, width = 9, height = 5.5, dpi = 180, bg = "white")
-```
+### No program or unit shifts beyond chance
 
 ::: {.figure-card .fig-wide}
-::: {.panel-grid}
-[A]{.panel-label}
-![](../figures/DSPIN/snRNASeq/response_strength_top30.png)
-
-[B]{.panel-label}
-![](../figures/DSPIN/snRNASeq/strength_vs_ncells.png)
-:::
+![](`r fig_rel`/DSPIN_calibration.png)
 
 ::: {.fig-caption}
-[**Figure 2.**]{.fig-num} Global view of DSPIN relative responses. (A) Top 30 units by mean absolute WildR relative **h** across programs. (B) All 140 units: response strength vs nuclei; point size = number of MAST DE genes (padj < 0.1). Full table: [tables/DSPIN/unit_response_strength.csv]{.path}.
+[**Figure 2.**]{.fig-num} Calibration of the WildR vs SPF tests against the permutation null. (A) Exact permutation p-values for all 2,800 unit × program tests; the dashed line is the count per bin expected if WildR had no effect. (B) QQ plot of the same p-values, with a 95% band for uniform order statistics; the dotted line marks the smallest attainable p. (C) QQ plot of the unit-level omnibus p-values (140 units).
 :::
 
 ::: {.takeaways}
 **Key takeaways**
 
-- Strong DSPIN shifts are not simply the largest types — some mid-sized hypothalamic and amygdalar types rank high.
-- Units with many MAST hits are not guaranteed high |h|; DSPIN can highlight coordinated program moves where single-gene lists are diffuse (and vice versa).
+- **There is no excess of small p-values.** `r if (has_results) cal_row("program", 4)$observed else "—"` programs have p < 0.05 against `r if (has_results) round(cal_row("program", 4)$expected) else "—"` expected, and `r if (has_results) cal_row("program", 2)$observed else "—"` have p ≤ 6/924 against `r if (has_results) round(cal_row("program", 2)$expected) else "—"` expected. The histogram is flat, or slightly depleted on the left.
+- **At the unit level the result is the same.** `r if (has_results) g$n_unit_p_lt_0.05 else "—"` of 140 units have omnibus p < 0.05 against 7 expected, and none reaches q < 0.1.
+- **The design cannot reach FDR at this resolution.** With 6 vs 6 animals the smallest attainable p is 0.0022. A program at that floor would need about 60 others at the same floor to pass BH at q < 0.1 among 2,800 tests. Program-level discovery here needs either fewer, pre-chosen hypotheses or more animals.
 :::
 
-[Source: cell `cell-fig-strength`](#cell-fig-strength){.provenance}
+[Source: cell `cell-summary`](#cell-summary){.provenance} · [tables/DSPIN/summary_2026-10-06/DSPIN_calibration.csv]{.path}
 :::
 
-```{r}
-#| label: cell-fig-heatmap
-#| fig-show: hide
-#| include: false
-
-show <- unit_strength %>% slice_head(n = n_heatmap_units)
-heat_df <- resp_long %>%
-  semi_join(show, by = c("tissue", "supertype_label")) %>%
-  filter(!is.na(relative_h), microbiome == "WildR" | is.na(microbiome)) %>%
-  mutate(
-    unit = paste(tissue, str_trunc(supertype_name, 28), sep = " · "),
-    unit = factor(unit, levels = paste(show$tissue, str_trunc(show$supertype_name, 28), sep = " · ")),
-    program_id = as.character(program_id)
-  )
-
-if (nrow(david_ann)) {
-  heat_df <- heat_df %>%
-    left_join(
-      david_ann %>% select(tissue, supertype_label, program_id, program_label),
-      by = c("tissue", "supertype_label", "program_id")
-    ) %>%
-    mutate(program_axis = coalesce(program_label, program_id))
-} else {
-  heat_df <- heat_df %>% mutate(program_axis = program_id)
-}
-
-# Shared color scale across panels
-lim <- max(abs(heat_df$relative_h), na.rm = TRUE)
-
-p_heat <- ggplot(heat_df, aes(sample_id, program_axis, fill = relative_h)) +
-  geom_tile(color = NA) +
-  facet_wrap(~unit, scales = "free_x", ncol = 2) +
-  scale_fill_scico(palette = "vik", midpoint = 0, limits = c(-lim, lim), name = "rel. h") +
-  labs(
-    x = NULL, y = NULL,
-    title = if (nrow(david_ann)) {
-      "WildR relative h (rows labeled by DAVID top term when available)"
-    } else {
-      "WildR relative program responses (top units by |h|)"
-    }
-  ) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
-    axis.text.y = element_text(size = 6),
-    strip.text = element_text(size = 8, face = "bold"),
-    legend.position = "right"
-  )
-
-ggsave(file.path(fig_dir, "heatmap_top_units.png"), p_heat, width = 12, height = 11, dpi = 180, bg = "white")
-```
+### The old "strongest response" ranking measured sampling noise
 
 ::: {.figure-card .fig-wide}
-![](../figures/DSPIN/snRNASeq/heatmap_top_units.png)
+![](`r fig_rel`/DSPIN_noise_floor.png)
 
 ::: {.fig-caption}
-[**Figure 3.**]{.fig-num} Relative program responses **h** for WildR animals in the six strongest units (by mean |h|). Rows = programs (20 / unit), labeled `P# · DAVID term` when annotations are available; columns = animals. Shared diverging scale centered at 0 (SPF baseline).
+[**Figure 3.**]{.fig-num} Where the size of **h** comes from. (A) Per unit, how far WildR animals sit from the SPF mean versus how far SPF animals sit from the other SPF animals. SPF |h| is rescaled to a leave-one-out reference so that both axes are comparable; with no microbiome effect the expected ratio is ≈ 0.99. (B) WildR mean |h| (the old ranking metric) against median nuclei per animal; labelled points are the six units the previous report highlighted. (C) Mean |h| per animal across all units, against that animal's median nuclei per unit.
 :::
 
 ::: {.takeaways}
 **Key takeaways**
 
-- Look for programs with the same sign across ≥2 WildR animals — those are the robust “star” candidates below.
-- Animal-to-animal discord within a program is a feature, not a bug: it flags single-sample driven fits.
+- **WildR animals are no further from the SPF baseline than SPF animals are from one another.** WildR exceeds SPF in only `r if (has_results) round(100 * g$frac_units_WildR_gt_SPF_loo) else "—"`% of units. The median ratio is `r if (has_results) round(g$median_abs_h_ratio_loo, 2) else "—"` against a null of 0.99. The small shortfall is not a microbiome effect. It most likely comes from how D-SPIN fits the control animals, and it should not be read as biology.
+- **|h| is set mainly by how many nuclei an animal contributes** (Spearman ρ = `r if (has_results) round(g$spearman_rho_absh_vs_cells, 2) else "—"` with median nuclei per animal). The six units the old report called the "strongest shifts" (both Vip Gaba types, DMH Nkx2-4, PVHd-SBPV Six3, AHN-SBPV-PVHd Pdrm12, CLA-EPd-CTX Car3) Five of them are among the ten smallest units by nuclei per animal (35–45 nuclei); the sixth is CLA-EPd-CTX Car3. None of them has omnibus p < 0.05.
+- At the animal level, SPF and WildR animals interleave, and animals with fewer nuclei deviate more in both groups. No single outlier animal drives the pattern.
 :::
 
-[Source: cell `cell-fig-heatmap`](#cell-fig-heatmap){.provenance}
+[Source: cell `cell-figures`](#cell-figures){.provenance}
 :::
 
-```{r}
-#| label: cell-fig-networks
-#| fig-show: hide
-#| include: false
-
-# Copy top-network PNGs into a tidy panel via magick if available; else stitch with knitr later
-net_files <- character()
-for (i in seq_len(nrow(unit_strength))) {
-  if (length(net_files) >= n_network_png) break
-  sp <- file.path(dspin_dir, paste0(unit_strength$tissue[[i]], "__", unit_strength$supertype_label[[i]]))
-  png <- file.path(sp, "network_preview.png")
-  if (file.exists(png)) {
-    dest <- file.path(fig_dir, glue("network_{unit_strength$tissue[[i]]}_{unit_strength$supertype_label[[i]]}.png"))
-    file.copy(png, dest, overwrite = TRUE)
-    net_files <- c(net_files, dest)
-  }
-}
-```
+### Unit and program volcanoes
 
 ::: {.figure-card .fig-wide}
-::: {.panel-grid}
-```{r}
-#| label: show-networks
-#| echo: false
-
-# Render first four network previews
-paths <- list.files(fig_dir, pattern = "^network_.*\\.png$", full.names = TRUE)
-paths <- paths[seq_len(min(4, length(paths)))]
-if (!length(paths)) {
-  cat("No network PNGs found.\n")
-} else {
-  knitr::include_graphics(paths)
-}
-```
-:::
+![](`r fig_rel`/DSPIN_volcanoes.png)
 
 ::: {.fig-caption}
-[**Figure 4.**]{.fig-num} Program–program coupling matrices **J** for the strongest-response units (exported by DSPIN). Warm = positive coupling; cool = negative. Labels are program short names from gene-program discovery.
+[**Figure 4.**]{.fig-num} Effect size versus evidence. (A) Units: root-mean-square Hedges' g across the unit's 20 programs versus omnibus permutation p (dashed: p = 0.05). (B) Programs: Hedges' g versus permutation p (vertically jittered, because the permutation p-values are discrete). Coloured points are the 13 pre-specified leads (dashed: p = 6/924).
 :::
 
 ::: {.takeaways}
 **Key takeaways**
 
-- **J** is shared across SPF/WildR within a unit; microbiome enters through **h**, not by refitting a separate network per condition.
-- Dense blocks suggest co-regulated programs; interpret gene membership via `programs_genes.csv` in each unit folder.
+- Unit-level evidence rises smoothly with effect size, as it should under the null. No unit separates from the cloud. The best units (VMH Nr5a1 Glut_4, VMH Fezf1 Glut_3, COAa-PAA-MEA Barhl2 Glut_3, DMH Hmx2 Gaba_1) only reach p ≈ 0.03–0.05.
+- Lead programs have large standardized effects (|g| ≈ 1.7–2.9). With six animals per arm, effects this large turn up by chance about as often as observed, so effect size alone does not make them findings.
 :::
 
-[Source: cell `cell-fig-networks`](#cell-fig-networks){.provenance}
+[Source: cell `cell-figures`](#cell-figures){.provenance} · Full program table: [tables/DSPIN/summary_2026-10-06/DSPIN_program_tests.csv]{.path}
 :::
 
-### Star programs (sign-consistent across WildR animals)
+### The 13 lead programs, animal by animal
 
-```{r}
-#| label: cell-tbl-stars
-#| echo: false
+::: {.figure-card .fig-wide}
+![](`r fig_rel`/DSPIN_lead_programs_animals.png)
 
-stars_show <- stars_ann %>%
-  transmute(
-    tissue,
-    supertype = str_trunc(supertype_name, 36),
-    program_id,
-    DAVID_term = str_trunc(coalesce(top_term, "—"), 42),
-    n_WildR = n_wildr_samples,
-    mean_h = round(mean_h, 3),
-    sd_h = round(sd_h, 3)
-  ) %>%
-  head(25)
+::: {.fig-caption}
+[**Figure 5.**]{.fig-num} Relative program response **h** for every animal in each lead program. Panel headers give the unit, the program's top three genes by oNMF weight, the exact permutation p and Hedges' g. The horizontal bar is the group mean; SPF is centred at 0 by construction.
+:::
 
-knitr::kable(
-  stars_show,
-  caption = "Top sign-consistent WildR program responses (+ DAVID top term when annotated)."
-)
-```
+::: {.takeaways}
+**Key takeaways**
 
-[Source: cell `cell-tbl-stars`](#cell-tbl-stars){.provenance} · Full CSV: [tables/DSPIN/star_programs_david.csv]{.path}
+- Five leads separate completely, with all six WildR animals beyond the SPF range: AMY COAa-PAA-MEA Barhl2 P19, AMY CLA-EPd-CTX Car3 P0, HYP AHN Onecut3 P9, and HYP LHA-AHN-PVH Otp Trh P3 and P15. In the other eight, one or two WildR animals sit inside the SPF range.
+- **None of the leads has independent support.** None contains a MAST DE gene, only one has a GO/KEGG term at Benjamini < 0.05, and none falls in a unit flagged by popAlign (table below). Treat them as a hypothesis list for targeted validation, not as results.
+- The most interpretable leads by gene content are Crh-containing program P7 in AMY Vip Gaba_2 (up in WildR) and a Prlr/Shc3 program P10 in HYP DMH Hmx2 Gaba_1 (up). These are worth a look in the spatial data, because DMH Hmx2 Gaba_2 is also a popAlign state-shift lead.
+:::
 
-### DAVID gene-program annotations
-
-```{r}
-#| label: cell-fig-david
-#| fig-show: hide
-#| include: false
-
-has_david <- nrow(david_ann) > 0 && any(!is.na(david_ann$top_term))
-
-if (has_david) {
-  # Star programs with strongest |h| and a DAVID term
-  star_david <- stars_ann %>%
-    filter(!is.na(top_term), is.finite(mean_h)) %>%
-    mutate(
-      lab = paste(tissue, str_trunc(supertype_name, 24), program_id, sep = " · "),
-      lab = fct_reorder(lab, abs(mean_h))
-    ) %>%
-    slice_head(n = 25)
-
-  p_star_david <- ggplot(star_david, aes(mean_h, lab, fill = tissue)) +
-    geom_col(width = 0.75) +
-    geom_text(
-      aes(label = str_trunc(top_term, 36), hjust = ifelse(mean_h >= 0, -0.05, 1.05)),
-      size = 2.6, color = "#333333"
-    ) +
-    scale_fill_manual(values = c(AMY = "#27455C", HYP = "#FF6C0C")) +
-    scale_x_continuous(expand = expansion(mult = c(0.35, 0.35))) +
-    labs(
-      x = "Mean relative h (WildR)",
-      y = NULL, fill = NULL,
-      title = "Star programs with DAVID putative functions"
-    ) +
-    theme(axis.text.y = element_text(size = 7))
-
-  ggsave(
-    file.path(fig_dir, "star_programs_david.png"), p_star_david,
-    width = 12, height = 8.5, dpi = 180, bg = "white"
-  )
-
-  # Recurrent DAVID terms among annotated programs (all units)
-  term_freq <- david_ann %>%
-    filter(!is.na(top_term), nzchar(top_term)) %>%
-    count(top_term, tissue, name = "n_programs") %>%
-    group_by(top_term) %>%
-    mutate(n_total = sum(n_programs)) %>%
-    ungroup() %>%
-    filter(n_total >= 3) %>%
-    mutate(top_term = fct_reorder(str_trunc(top_term, 50), n_total))
-
-  p_terms <- term_freq %>%
-    ggplot(aes(n_programs, top_term, fill = tissue)) +
-    geom_col(position = "stack", width = 0.75) +
-    scale_fill_manual(values = c(AMY = "#27455C", HYP = "#FF6C0C")) +
-    labs(
-      x = "# annotated programs",
-      y = NULL, fill = NULL,
-      title = "Recurrent DAVID top terms (≥3 programs)"
-    ) +
-    theme(axis.text.y = element_text(size = 8))
-
-  ggsave(
-    file.path(fig_dir, "david_term_frequency.png"), p_terms,
-    width = 10, height = 7, dpi = 180, bg = "white"
-  )
-}
-```
-
-```{r}
-#| label: david-status
-#| echo: false
-
-n_david_units <- if (nrow(david_ann)) n_distinct(paste(david_ann$tissue, david_ann$supertype_label)) else 0L
-n_david_terms <- if (nrow(david_ann)) sum(!is.na(david_ann$top_term)) else 0L
-cat(
-  "DAVID units loaded:", n_david_units, "/", nrow(manifest),
-  " | programs with top term:", n_david_terms, "\n"
-)
-
-if (!exists("has_david") || !isTRUE(has_david)) {
-  cat("DAVID annotations not ready yet (SSL-fixed array re-run in progress, or not submitted).\n")
-  cat("Artifacts expected: `*/program_annotations_david.csv` from `run_dspin_david_array.sh`.\n")
-}
-```
-
-```{r}
-#| label: show-david-figs
-#| echo: false
-#| eval: !expr exists("has_david") && isTRUE(has_david)
-#| fig-cap: "DAVID annotations: (A) star programs with top terms; (B) recurrent terms across units."
-#| fig-height: 9
-
-pA <- fig_dir %>% file.path("star_programs_david.png")
-pB <- fig_dir %>% file.path("david_term_frequency.png")
-if (file.exists(pA) && file.exists(pB)) {
-  knitr::include_graphics(c(pA, pB))
-}
-```
-
-::: {.callout-note}
-# When DAVID results are present
-Figure panels above show star-program |h| with DAVID labels and recurrent terms. Heatmap rows (Figure 3) also use `P# · term` labels. Tables: [tables/DSPIN/program_annotations_david_all.csv]{.path}, [tables/DSPIN/star_programs_david.csv]{.path}. Provenance: [`cell-fig-david`](#cell-fig-david).
+[Source: cell `cell-figures`](#cell-figures){.provenance}
 :::
 
 ```{r}
-#| label: david-top-table
+#| label: tbl-leads
 #| echo: false
-#| eval: !expr exists("has_david") && isTRUE(has_david)
 
-knitr::kable(
-  david_ann %>%
-    filter(!is.na(top_term)) %>%
-    arrange(top_pvalue) %>%
-    transmute(
-      tissue,
-      supertype = str_trunc(supertype_name, 32),
-      program_id,
-      top_term = str_trunc(top_term, 48),
-      top_category = str_trunc(coalesce(top_category, ""), 24),
-      top_pvalue = signif(top_pvalue, 3),
-      n_terms_p05
-    ) %>%
-    head(30),
-  caption = "Strongest DAVID program terms (30 lowest p-value)."
-)
+if (!is.null(leads)) {
+  datatable(
+    leads %>%
+      transmute(
+        Tissue = tissue, `Cell type` = short_unit(supertype_name, 40), Program = program_id,
+        `Top genes` = top_genes,
+        Direction = if_else(delta_h > 0, "↑ WildR", "↓ WildR"),
+        `Δh` = round(delta_h, 2), `Hedges g` = round(hedges_g, 1),
+        p = signif(p_perm, 2), q = signif(q_perm, 2),
+        `WildR beyond SPF` = glue("{separation}/6"),
+        `Best GO/KEGG term` = coalesce(go_term, "—"),
+        `GO adj. p` = signif(go_benjamini, 2),
+        `MAST hits` = n_mast_hits
+      ),
+    rownames = FALSE, class = "compact stripe hover",
+    caption = "Pre-specified D-SPIN leads (p ≤ 6/924 and ≥ 4/6 WildR animals beyond the SPF range). None passes FDR.",
+    options = list(dom = "t", pageLength = 20, scrollX = TRUE, ordering = TRUE,
+                   columnDefs = list(list(className = "dt-center", targets = c(0, 2, 4, 5, 6, 7, 8, 9, 11, 12)),
+                                     list(width = "230px", targets = c(3, 10))))
+  )
+} else not_ready()
 ```
 
-### Cross-method note
+[tables/DSPIN/summary_2026-10-06/DSPIN_program_leads.csv]{.path}
 
 ```{r}
-#| label: cell-cross-method
+#| label: tbl-popalign-crossref
 #| echo: false
 
-mast_path <- file.path(data_path, "mast/snRNASeq/supertype_mast_signif_hits_2026-01-04.rds")
-mast <- if (file.exists(mast_path)) readRDS(mast_path) %>% as_tibble() else tibble()
-
-bridge_rows <- list()
-top_for_bridge <- unit_strength %>% slice_head(n = 15)
-for (i in seq_len(nrow(top_for_bridge))) {
-  sp <- file.path(dspin_dir, paste0(top_for_bridge$tissue[[i]], "__", top_for_bridge$supertype_label[[i]]))
-  pg_path <- file.path(sp, "programs_genes.csv")
-  if (!file.exists(pg_path)) next
-  pg <- read_csv(pg_path, show_col_types = FALSE)
-  if (!nrow(pg)) next
-  sl <- resp_long %>%
-    filter(
-      tissue == top_for_bridge$tissue[[i]],
-      supertype_label == top_for_bridge$supertype_label[[i]],
-      microbiome == "WildR" | is.na(microbiome)
-    )
-  top_prog <- sl %>%
-    group_by(program_id) %>%
-    summarise(mean_abs_h = mean(abs(relative_h), na.rm = TRUE), .groups = "drop") %>%
-    arrange(desc(mean_abs_h)) %>%
-    slice_head(n = 3)
-  prog_genes <- pg %>% filter(program_id %in% top_prog$program_id)
-  mast_i <- mast %>%
-    filter(
-      tissue == top_for_bridge$tissue[[i]],
-      supertype_name == top_for_bridge$supertype_name[[i]],
-      p_adjust < 0.1
-    ) %>%
-    mutate(gene = str_remove(primerid, "-GRCm39$"))
-  ov <- prog_genes %>%
-    mutate(gene = str_remove(gene, "-GRCm39$")) %>%
-    inner_join(mast_i %>% select(gene, coef, p_adjust), by = "gene") %>%
-    mutate(
-      tissue = top_for_bridge$tissue[[i]],
-      supertype_name = top_for_bridge$supertype_name[[i]]
-    )
-  bridge_rows[[length(bridge_rows) + 1]] <- ov
-}
-bridge <- bind_rows(bridge_rows)
-write_csv(bridge, file.path(tbl_dir, "dspin_mast_overlap_top15.csv"))
-
-cat(
-  "DSPIN program genes ∩ MAST (padj<0.1) among top-15 |h| units: ",
-  nrow(bridge), " gene–program hits. ",
-  "SCENIC production regulons are tissue × class (not supertype) — treat as narrative bridge only.\n",
-  sep = ""
-)
-if (nrow(bridge)) {
-  knitr::kable(
-    bridge %>%
-      arrange(p_adjust) %>%
-      select(tissue, supertype_name, program_id, gene, coef, p_adjust) %>%
-      head(20),
-    caption = "Example DSPIN ↔ MAST gene overlaps (top 20 by padj)."
-  )
-}
+if (has_results && file.exists(popalign_leads_f)) {
+  pa <- read_csv(popalign_leads_f, show_col_types = FALSE) %>% filter(level == "supertype")
+  xr <- pa %>%
+    mutate(supertype_name = name) %>%
+    left_join(unit_t %>% select(tissue, supertype_name, p_unit, n_leads), by = c("tissue", "supertype_name")) %>%
+    transmute(Tissue = tissue, `Cell type` = short_unit(name, 40), `popAlign effect` = effect,
+              `popAlign p` = signif(p, 2),
+              `D-SPIN omnibus p` = if_else(is.na(p_unit), "not fit", as.character(signif(p_unit, 2))),
+              `D-SPIN leads` = coalesce(as.character(n_leads), "—"))
+  kable(xr, caption = "popAlign supertype-level leads (run 2026-10-04) and their D-SPIN evidence. The two methods do not converge on any unit.")
+} else cat("popAlign leads table not found:", popalign_leads_f, "\n")
 ```
 
-[tables/DSPIN/dspin_mast_overlap_top15.csv]{.path}
+### Program activity in the four best-scoring units
+
+::: {.figure-card .fig-wide}
+![](`r fig_rel`/DSPIN_heatmaps_top_units.png)
+
+::: {.fig-caption}
+[**Figure 6.**]{.fig-num} Relative response **h** for all 20 programs × 12 animals in the four units with the smallest omnibus p. Rows are labelled by each program's top three genes and ordered by WildR − SPF difference; ★ marks a lead program. The colour scale is clipped at the 98th percentile of |h| within each unit.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- Even in the best units, the WildR block differs from the SPF block mainly through a few extreme animals (e.g. WildR_7 and WildR_9 in VMH Nr5a1 Glut_4). There is no consistent shift across the whole program set.
+- Program content is biologically coherent (Plp1/Mbp/Pex5l oligodendrocyte-contamination programs, Slc1a2/Slc4a4 astrocyte programs, synaptic adhesion programs such as Nrxn3/Cdh18 and Rbfox1/Nlgn1). The programs are a reasonable basis for testing; the lack of signal does not come from meaningless programs.
+- Glia-marker programs (Plp1/Mbp, Slc1a2) inside neuronal supertypes reflect ambient or doublet RNA. Their h should not be read as neuronal biology.
+:::
+
+[Source: cell `cell-figures`](#cell-figures){.provenance}
+:::
+
+### Program interaction networks (J)
+
+::: {.figure-card .fig-wide}
+![](`r fig_rel`/DSPIN_networks_top_units.png)
+
+::: {.fig-caption}
+[**Figure 7.**]{.fig-num} Off-diagonal program–program couplings **J** for the same four units, ordered by hierarchical clustering. The diagonal (self-couplings) is masked. Rows are labelled with each program's top two genes. Positive J (warm) means two programs tend to be active together; negative J (cool) means they tend to be mutually exclusive.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **J** is shared by SPF and WildR animals within a unit. The microbiome can only enter through **h**, so J describes cell-type program architecture, not the microbiome effect.
+- Each network has a few strong modules (e.g. P8/P3/P18 and P9/P16/P17 in VMH Nr5a1 Glut_4) and a weakly positive background. If a future model lets J differ by condition, these modules are where a microbiome-dependent rewiring would show up first.
+:::
+
+[Source: cell `cell-figures`](#cell-figures){.provenance} · Raw matrices: [data/interim/dspin/&lt;unit&gt;/network.csv]{.path}
+:::
+
+### D-SPIN h agrees in direction with MAST
+
+::: {.figure-card .fig-wide}
+![](`r fig_rel`/DSPIN_mast_and_annotation.png)
+
+::: {.fig-caption}
+[**Figure 8.**]{.fig-num} Cross-checks. (A) For the 75 programs that contain ≥ 3 MAST DE genes for the same supertype and tissue (padj < 0.1, consolidated table [data/interim/mast/snRNASeq/mast_signif_hits_2026-08-17_p_adjust_0.1.csv]{.path}): D-SPIN Δh against the mean MAST coefficient of those genes. (B) The most frequent curated DAVID terms (GO BP/MF, KEGG; Benjamini < 0.05) across all 2,800 programs.
+:::
+
+::: {.takeaways}
+**Key takeaways**
+
+- **D-SPIN responses carry real expression signal.** Programs containing MAST up-genes tend to have positive Δh, and programs containing MAST down-genes negative Δh (ρ = `r if (!is.null(mast_conc)) round(mast_conc$spearman_rho, 2) else "—"`, p = `r if (!is.null(mast_conc)) fmt_p(mast_conc$p) else "—"`). The trend holds separately in AMY (ρ = `r if (!is.null(mast_conc)) round(mast_conc$rho_AMY, 2) else "—"`) and HYP (ρ = `r if (!is.null(mast_conc)) round(mast_conc$rho_HYP, 2) else "—"`). The models are not producing noise.
+- That agreement is about direction, not replication. MAST (`~ microbiome + log_std_nFeature_RNA`, no animal term) treats nuclei as replicates, so its hits do not have to replicate across animals, and the same shifts do not clear the animal-level bar in D-SPIN.
+- The programs are dominated by neuronal identity and connectivity (neuroactive ligand–receptor, axon guidance, synapse organisation), amino-acid transport and heparan-sulfate/ECM biosynthesis, with cilium/dynein programs in HYP (ependymal/tanycyte contamination).
+:::
+
+[Source: cell `cell-figures`](#cell-figures){.provenance} · [tables/DSPIN/summary_2026-10-06/DSPIN_mast_overlap_programs.csv]{.path} · [tables/DSPIN/summary_2026-10-06/DSPIN_david_curated_term_frequency.csv]{.path}
+:::
+
+### Browse all units and programs
+
+```{r}
+#| label: tbl-units
+#| echo: false
+
+if (!is.null(unit_t)) {
+  datatable(
+    unit_t %>%
+      transmute(
+        Tissue = tissue, `Cell type` = short_unit(supertype_name, 40),
+        `Nuclei` = n_cells, `Median nuclei / animal` = median_cells_per_animal,
+        `Omnibus p` = signif(p_unit, 2), q = signif(q_unit, 2),
+        `RMS g` = round(rms_hedges_g, 2), `Leads` = n_leads,
+        `|h| WildR / SPF (LOO)` = round(abs_h_ratio_loo, 2),
+        `MAST genes` = n_mast_genes, `Augur AUC` = round(augur_auc, 3)
+      ),
+    rownames = FALSE, filter = "top", class = "compact stripe hover",
+    extensions = "Buttons",
+    caption = "All 140 units, sorted by omnibus p. |h| ratio null ≈ 0.99.",
+    options = list(pageLength = 10, lengthMenu = c(10, 25, 140), scrollX = TRUE, dom = "Bfrtip",
+                   buttons = list("colvis", "csv"),
+                   columnDefs = list(list(className = "dt-center", targets = c(0, 2:10))))
+  )
+} else not_ready()
+```
+
+```{r}
+#| label: tbl-programs
+#| echo: false
+
+if (!is.null(prog)) {
+  datatable(
+    prog %>%
+      arrange(p_perm) %>%
+      transmute(
+        Tissue = tissue, `Cell type` = short_unit(supertype_name, 34), Program = program_id,
+        `Top genes` = top_genes, `Δh` = round(delta_h, 2), `Hedges g` = round(hedges_g, 2),
+        p = signif(p_perm, 2), q = signif(q_perm, 2), `WildR beyond SPF` = separation,
+        `Best GO/KEGG term` = coalesce(go_term, "—"), `GO adj. p` = signif(go_benjamini, 2),
+        `MAST hits` = n_mast_hits, `MAST genes` = coalesce(mast_genes, "")
+      ),
+    rownames = FALSE, filter = "top", class = "compact stripe hover",
+    extensions = "Buttons",
+    caption = "All 2,800 unit × program tests (sorted by p). Use the column filters to find a cell type or gene.",
+    options = list(pageLength = 10, lengthMenu = c(10, 50, 200), scrollX = TRUE, dom = "Bfrtip",
+                   buttons = list("colvis", "csv"),
+                   columnDefs = list(list(visible = FALSE, targets = c(12)),
+                                     list(className = "dt-center", targets = c(0, 2, 4:8, 10, 11)),
+                                     list(width = "220px", targets = c(3, 9))))
+  )
+} else not_ready()
+```
+
+## Synthesis & Discussion
+
+[SYNTHESIS]{.eyebrow}
+
+**What the data say.** At the resolution we fit (Allen supertype × tissue, 20 programs, one **h** per animal), D-SPIN finds **no microbiome-driven program response that stands out from animal-to-animal variability**. This is a calibrated negative. Every test has the expected null behaviour: flat p-value histograms, QQ plots on the diagonal, and fewer nominal leads than chance. The large |h| values the first report highlighted come from units where each animal contributes few nuclei.
+
+**Why this is not "D-SPIN failed".** The fitted programs are coherent gene sets, and their responses agree in direction with MAST wherever MAST has hits. The likeliest reading is that the WildR effect on these cell types is **small relative to the noise in a per-animal program estimate built from 30–150 nuclei**, and that six animals per arm cannot resolve it across 2,800 parallel tests. This matches popAlign, which also finds no FDR survivors at 6 vs 6 and whose nominal leads do not overlap with the D-SPIN leads. MAST gene hits come from a model with no animal term (`~ microbiome + log_std_nFeature_RNA`), which treats nuclei as replicates, so they are not evidence against this conclusion.
+
+**What we should stop claiming.** The old "star programs" (sign-consistent across WildR animals) and the "strongest responder" ranking should not be cited. Both ignored the SPF spread, and the ranking reflects sampling depth. The old DAVID labels were mostly UniProt sequence features (N-linked glycosylation, compositional bias) that describe protein properties of the genes, not program function.
+
+**What is still useful.** The 2,800 annotated programs and 140 interaction networks are a reusable description of program architecture per cell type. The lead list is a small, explicit set of hypotheses to check orthogonally (seqFISH, the VR relay analyses).
 
 ## Next Steps
 
-- Prioritize **star** programs (table above) for follow-up: gene membership, MAST overlap, and SCENIC class-level regulons in the parent Allen class.
-- For units where |h| is high but MAST is quiet (Figure 2B), treat DSPIN as a hypothesis generator for coordinated shifts DEG lists missed.
-- Optional v2: gene-level DSPIN or SCENIC-informed program priors (design Approach C).
-- Re-render after DAVID annotations land (`program_annotations_david.csv` per unit).
+- **Done:** fit D-SPIN for all 140 hard-pass units, then re-tested every program and unit against the SPF animal spread with exact permutation, checked calibration, quantified the nuclei-per-animal noise floor, annotated programs with top genes and curated GO/KEGG, and cross-checked against MAST and popAlign.
+- **Refit at subclass/class resolution** (5–20× more nuclei per animal). Figure 3B shows the noise in h falls steeply with nuclei per animal. Coarser units would test whether a shared microbiome program exists that supertype-level fits are too noisy to see. Use the popAlign class/subclass units so the two methods stay comparable.
+- **Cut the number of hypotheses before testing.** Fit fewer programs (8–10) or programs shared across a class, and test a short pre-registered list (the MeA/BST relay supertypes from the VR notebooks, the popAlign leads, the 13 D-SPIN leads). With 6 vs 6 animals FDR is only reachable when there are tens, not thousands, of tests.
+- **Validate the most interpretable leads orthogonally:** Crh-containing P7 in AMY Vip Gaba_2 and the Prlr/Shc3 P10 in HYP DMH Hmx2 Gaba_1, using seqFISH program scores per animal in the matching regions.
+- **Consider a condition-dependent network.** The current model fixes J across SPF/WildR. A D-SPIN variant with arm-specific J (or a J-perturbation term) would test rewiring rather than activation. Only attempt it at coarser resolution, where there are enough nuclei.
+- **Housekeeping:** fix the blank `supertype_label` for the 5 pilot units in [data/interim/dspin/fit_summary.csv]{.path} (worked around here by joining on `unit_id`).
 
-## Code & Provenance {.code-appendix}
+# Code & Provenance {.code-appendix}
 
-All executable logic for this HTML lives in the labelled chunks above (`cell-fig-*`, `cell-tbl-*`). Fit artifacts were produced outside this notebook by:
+Everything above is read from saved artifacts. The chunks below record exactly what produced them and are gated with `run_analysis` so that rendering never recomputes or submits anything.
 
-1. `notebooks/R_scripts/export_dspin_h5ads.R` + `rank_dspin_pilots.R` (paths keyed by `supertype_label`)
-2. `notebooks/python_scripts/dspin_prep_filtered.py` (HVG → `filtered.h5ad`)
-3. `notebooks/shell_scripts/run_dspin_fit_array.sh` → `dspin_fit_one.py`
-4. `notebooks/shell_scripts/run_dspin_david_array.sh` → `dspin_david_one.py` (DAVID; mouse)
+**Upstream fit pipeline (August 2026; not rerun):**
+
+1. [notebooks/R_scripts/export_dspin_h5ads.R]{.path} + [rank_dspin_pilots.R]{.path} write per-unit `raw_counts.h5ad`, plus `full_manifest.csv` (140 `hard_pass` units).
+2. [notebooks/python_scripts/dspin_prep_filtered.py]{.path} selects 2,000 HVGs and writes `filtered.h5ad`.
+3. [notebooks/shell_scripts/run_dspin_fit_array.sh]{.path} → [dspin_fit_one.py]{.path} runs oNMF with 20 programs (10 repeats), fits D-SPIN, computes `response_relative_to_control` (control = SPF, batch = tissue), and writes `relative_responses.csv`, `network.csv`, `programs_genes.csv`.
+4. [notebooks/shell_scripts/run_dspin_david_array.sh]{.path} → [dspin_david_one.py]{.path} runs DAVID (mouse, all categories) and writes `dspin_run/gene_programs_clean_for_david_david_results/list_<k>.csv`.
+
+Artifacts: [data/interim/dspin/&lt;tissue&gt;__&lt;supertype_label&gt;/]{.path}. Logs: [.cluster_runs/dspin/]{.path}.
 
 ```{r}
-#| label: gated-analysis
+#| label: cell-summary
 #| eval: !expr run_analysis
-#| echo: true
 
-# Submit DAVID annotation array for all full_manifest units.
-# Requires DAVID-registered email in env DAVID_TOKEN or file .secrets/david_token
-# (register at https://davidbioinformatics.nih.gov/).
-token_file <- file.path(wkdir, ".secrets/david_token")
-has_token <- nzchar(Sys.getenv("DAVID_TOKEN")) || file.exists(token_file)
-stopifnot(has_token)
-
-script <- file.path(wkdir, "notebooks/shell_scripts/run_dspin_david_array.sh")
-cmd <- if (nzchar(Sys.getenv("DAVID_TOKEN"))) {
-  paste("sbatch --export=ALL,DAVID_TOKEN", shQuote(script))
-} else {
-  paste("sbatch", shQuote(script))
-}
-message("Running: ", cmd)
-system(cmd)
+# Animal-level tests, calibration, noise floor, program annotation, MAST concordance.
+# Light (~2 min, login node). Refuses to overwrite: pass a new --tag for a new run.
+#   in : data/interim/dspin/*/{relative_responses,sample_meta,network}.csv, dspin_run/*weights.csv,
+#        DAVID list_<k>.csv; data/interim/mast/snRNASeq/mast_signif_hits_2026-08-17_p_adjust_0.1.csv
+#   out: data/interim/dspin/summary_2026-10-06/dspin_{program_tests,unit_tests,animal_relative_h,david_all_terms}_2026-10-06.csv
+#        tables/DSPIN/summary_2026-10-06/DSPIN_{program_tests,unit_tests,program_leads,calibration,global_summary}.csv
+system2(rscript, c(file.path(wkdir, "notebooks/R_scripts/summarize_dspin_responses_sn.R"), "--tag", tag))
 ```
+
+```{r}
+#| label: cell-figures
+#| eval: !expr run_analysis
+
+# All report figures (Figures 1–8) + MAST concordance / DAVID term tables. ~30 s.
+#   out: figures/DSPIN/snRNASeq/summary_2026-10-06/DSPIN_{cohort_overview,calibration,noise_floor,volcanoes,
+#        lead_programs_animals,heatmaps_top_units,networks_top_units,mast_and_annotation}.png
+#        tables/DSPIN/summary_2026-10-06/DSPIN_{mast_concordance,mast_overlap_programs,david_curated_term_frequency}.csv
+system2(rscript, c(file.path(wkdir, "notebooks/R_scripts/plot_dspin_figures_sn.R"), "--tag", tag))
+```
+
+```{r}
+#| label: cell-render
+#| eval: false
+
+# Render (display-only) from notebooks/ with the spatialomics env:
+#   bash notebooks/shell_scripts/render_dspin_analysis.sh
+```
+
+```{r}
+#| label: cell-david-submit
+#| eval: !expr run_analysis
+
+# Historical: DAVID annotation array for all full_manifest units (August 2026; completed, 140/140).
+# Requires a DAVID-registered email in env DAVID_TOKEN or .secrets/david_token.
+token_file <- file.path(wkdir, ".secrets/david_token")
+stopifnot(nzchar(Sys.getenv("DAVID_TOKEN")) || file.exists(token_file))
+script <- file.path(wkdir, "notebooks/shell_scripts/run_dspin_david_array.sh")
+system(if (nzchar(Sys.getenv("DAVID_TOKEN"))) paste("sbatch --export=ALL,DAVID_TOKEN", shQuote(script)) else paste("sbatch", shQuote(script)))
+```
+
+**Superseded outputs (kept, not used by this report):** the August 2026 figures in [figures/DSPIN/snRNASeq/]{.path} (`cohort_top24.png`, `response_strength_top30.png`, `strength_vs_ncells.png`, `heatmap_top_units.png`, `star_programs_david.png`, `david_term_frequency.png`, `network_*.png`) and tables in [tables/DSPIN/]{.path} (`star_programs*.csv`, `unit_response_strength.csv`, `program_annotations_david_all.csv`, and `dspin_mast_overlap_top15.csv`, which was empty because of a join bug). The previous render is archived at [figures/DSPIN/snRNASeq/legacy_render_2026-08-10/0X_DSPIN_Analysis.html]{.path}.

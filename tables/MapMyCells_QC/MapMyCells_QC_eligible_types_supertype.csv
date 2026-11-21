@@ -1,0 +1,524 @@
+modality,stratum,level,cell_type,n_rep_SPF,n_rep_WildR
+SN,SN AMY,supertype,0001 CLA-EPd-CTX Car3 Glut_1,6,6
+SN,SN AMY,supertype,0003 IT EP-CLA Glut_1,6,6
+SN,SN AMY,supertype,0004 IT EP-CLA Glut_2,6,6
+SN,SN AMY,supertype,0005 IT EP-CLA Glut_3,6,6
+SN,SN AMY,supertype,0035 L2/3 IT ENT Glut_3,6,6
+SN,SN AMY,supertype,0038 L2/3 IT ENT Glut_6,6,6
+SN,SN AMY,supertype,0039 L2/3 IT PIR-ENTl Glut_1,6,6
+SN,SN AMY,supertype,0040 L2/3 IT PIR-ENTl Glut_2,6,6
+SN,SN AMY,supertype,0041 L2/3 IT PIR-ENTl Glut_3,6,6
+SN,SN AMY,supertype,0042 L2/3 IT PIR-ENTl Glut_4,6,6
+SN,SN AMY,supertype,0044 L2/3 IT PIR-ENTl Glut_6,6,4
+SN,SN AMY,supertype,0045 L2/3 IT PIR-ENTl Glut_7,5,6
+SN,SN AMY,supertype,0046 IT AON-TT-DP Glut_1,5,6
+SN,SN AMY,supertype,0055 MEA Slc17a7 Glut_1,6,6
+SN,SN AMY,supertype,0056 MEA Slc17a7 Glut_2,6,6
+SN,SN AMY,supertype,0057 MEA Slc17a7 Glut_3,6,6
+SN,SN AMY,supertype,0058 COAp Grxcr2 Glut_1,6,6
+SN,SN AMY,supertype,0059 COAp Grxcr2 Glut_2,6,6
+SN,SN AMY,supertype,0060 LA-BLA-BMA-PA Glut_1,6,5
+SN,SN AMY,supertype,0061 LA-BLA-BMA-PA Glut_2,6,6
+SN,SN AMY,supertype,0062 LA-BLA-BMA-PA Glut_3,6,6
+SN,SN AMY,supertype,0063 LA-BLA-BMA-PA Glut_4,6,6
+SN,SN AMY,supertype,0064 LA-BLA-BMA-PA Glut_5,6,6
+SN,SN AMY,supertype,0065 LA-BLA-BMA-PA Glut_6,6,6
+SN,SN AMY,supertype,0076 CA3 Glut_2,6,4
+SN,SN AMY,supertype,0077 CA3 Glut_3,4,3
+SN,SN AMY,supertype,0079 CA3 Glut_5,4,3
+SN,SN AMY,supertype,0102 NLOT Rho Glut_1,3,3
+SN,SN AMY,supertype,0104 L6b EPd Glut_2,4,6
+SN,SN AMY,supertype,0105 L6b EPd Glut_3,6,6
+SN,SN AMY,supertype,0135 HPF CR Glut_1,3,4
+SN,SN AMY,supertype,0136 DG Glut_1,6,6
+SN,SN AMY,supertype,0142 DG-PIR Ex IMN_3,5,5
+SN,SN AMY,supertype,0173 Vip Gaba_1,6,6
+SN,SN AMY,supertype,0174 Vip Gaba_2,6,6
+SN,SN AMY,supertype,0175 Vip Gaba_3,6,6
+SN,SN AMY,supertype,0176 Vip Gaba_4,4,3
+SN,SN AMY,supertype,0177 Vip Gaba_5,5,5
+SN,SN AMY,supertype,0185 Sncg Gaba_1,6,6
+SN,SN AMY,supertype,0187 Sncg Gaba_3,4,6
+SN,SN AMY,supertype,0194 RHP-COA Ndnf Gaba_2,6,6
+SN,SN AMY,supertype,0195 RHP-COA Ndnf Gaba_3,4,4
+SN,SN AMY,supertype,0199 Lamp5 Gaba_1,6,6
+SN,SN AMY,supertype,0203 Lamp5 Lhx6 Gaba_1,6,6
+SN,SN AMY,supertype,0204 Pvalb chandelier Gaba_1,6,6
+SN,SN AMY,supertype,0206 Pvalb Gaba_2,6,6
+SN,SN AMY,supertype,0209 Pvalb Gaba_5,6,6
+SN,SN AMY,supertype,0215 Sst Gaba_2,6,6
+SN,SN AMY,supertype,0219 Sst Gaba_6,5,3
+SN,SN AMY,supertype,0230 Sst Gaba_17,6,6
+SN,SN AMY,supertype,0231 Sst Gaba_18,6,6
+SN,SN AMY,supertype,0233 STR Prox1 Lhx6 Gaba_1,6,6
+SN,SN AMY,supertype,0234 STR Prox1 Lhx6 Gaba_2,5,6
+SN,SN AMY,supertype,0249 NDB-SI-MA-STRv Lhx8 Gaba_6,6,6
+SN,SN AMY,supertype,0269 STR D1 Gaba_5,4,5
+SN,SN AMY,supertype,0274 STR D2 Gaba_1,6,6
+SN,SN AMY,supertype,0276 STR D2 Gaba_3,3,4
+SN,SN AMY,supertype,0284 STR D1 Sema5a Gaba_4,4,5
+SN,SN AMY,supertype,0285 STR-PAL Chst9 Gaba_1,6,6
+SN,SN AMY,supertype,0286 STR-PAL Chst9 Gaba_2,6,6
+SN,SN AMY,supertype,0287 STR-PAL Chst9 Gaba_3,6,6
+SN,SN AMY,supertype,0288 STR-PAL Chst9 Gaba_4,6,6
+SN,SN AMY,supertype,0289 STR-PAL Chst9 Gaba_5,6,6
+SN,SN AMY,supertype,0337 MEA-BST Sox6 Gaba_1,4,6
+SN,SN AMY,supertype,0338 MEA-BST Sox6 Gaba_2,6,6
+SN,SN AMY,supertype,0339 MEA-BST Sox6 Gaba_3,6,6
+SN,SN AMY,supertype,0340 MEA-BST Sox6 Gaba_4,6,6
+SN,SN AMY,supertype,0341 MEA-BST Sox6 Gaba_5,5,6
+SN,SN AMY,supertype,0342 MEA-BST Sox6 Gaba_6,6,6
+SN,SN AMY,supertype,0343 MEA-BST Sox6 Gaba_7,6,6
+SN,SN AMY,supertype,0344 MEA-BST Sox6 Gaba_8,5,3
+SN,SN AMY,supertype,0345 MEA-BST Sox6 Gaba_9,5,6
+SN,SN AMY,supertype,0347 MEA-BST Lhx6 Sp9 Gaba_1,6,6
+SN,SN AMY,supertype,0349 MEA-BST Lhx6 Sp9 Gaba_3,4,6
+SN,SN AMY,supertype,0350 MEA-BST Lhx6 Sp9 Gaba_4,6,6
+SN,SN AMY,supertype,0351 MEA-BST Lhx6 Sp9 Gaba_5,6,6
+SN,SN AMY,supertype,0352 MEA-BST Lhx6 Sp9 Gaba_6,6,6
+SN,SN AMY,supertype,0354 MEA-BST Lhx6 Nr2e1 Gaba_1,6,6
+SN,SN AMY,supertype,0355 MEA-BST Lhx6 Nr2e1 Gaba_2,6,6
+SN,SN AMY,supertype,0356 MEA-BST Lhx6 Nr2e1 Gaba_3,4,6
+SN,SN AMY,supertype,0357 MEA-BST Lhx6 Nfib Gaba_1,4,5
+SN,SN AMY,supertype,0358 MEA-BST Lhx6 Nfib Gaba_2,6,6
+SN,SN AMY,supertype,0359 MEA-BST Lhx6 Nfib Gaba_3,6,6
+SN,SN AMY,supertype,0362 MEA-BST Lhx6 Nfib Gaba_6,6,6
+SN,SN AMY,supertype,0368 CEA-BST Six3 Cyp26b1 Gaba_2,6,6
+SN,SN AMY,supertype,0369 CEA-BST Six3 Cyp26b1 Gaba_3,4,6
+SN,SN AMY,supertype,0370 CEA-BST Six3 Cyp26b1 Gaba_4,6,6
+SN,SN AMY,supertype,0371 CEA-BST Six3 Cyp26b1 Gaba_5,6,6
+SN,SN AMY,supertype,0372 CEA-BST Six3 Cyp26b1 Gaba_6,6,6
+SN,SN AMY,supertype,0373 CEA-AAA-BST Six3 Sp9 Gaba_1,6,6
+SN,SN AMY,supertype,0374 CEA-AAA-BST Six3 Sp9 Gaba_2,6,6
+SN,SN AMY,supertype,0376 CEA-AAA-BST Six3 Sp9 Gaba_4,4,6
+SN,SN AMY,supertype,0384 CEA-BST Ebf1 Pdyn Gaba_1,6,6
+SN,SN AMY,supertype,0385 CEA-BST Ebf1 Pdyn Gaba_2,3,6
+SN,SN AMY,supertype,0386 CEA-BST Ebf1 Pdyn Gaba_3,6,6
+SN,SN AMY,supertype,0389 CEA-BST Ebf1 Pdyn Gaba_6,4,6
+SN,SN AMY,supertype,0425 BST-MPN Six3 Nrgn Gaba_6,3,5
+SN,SN AMY,supertype,0505 MEA-COA-BMA Ccdc42 Glut_1,6,6
+SN,SN AMY,supertype,0506 MEA-COA-BMA Ccdc42 Glut_2,5,6
+SN,SN AMY,supertype,0507 MEA-COA-BMA Ccdc42 Glut_3,6,6
+SN,SN AMY,supertype,0508 MEA-COA-BMA Ccdc42 Glut_4,6,6
+SN,SN AMY,supertype,0509 COAa-PAA-MEA Barhl2 Glut_1,6,6
+SN,SN AMY,supertype,0510 COAa-PAA-MEA Barhl2 Glut_2,3,5
+SN,SN AMY,supertype,0511 COAa-PAA-MEA Barhl2 Glut_3,6,6
+SN,SN AMY,supertype,0512 COAa-PAA-MEA Barhl2 Glut_4,6,6
+SN,SN AMY,supertype,0513 COAa-PAA-MEA Barhl2 Glut_5,4,6
+SN,SN AMY,supertype,0514 COAa-PAA-MEA Barhl2 Glut_6,6,6
+SN,SN AMY,supertype,0515 COAa-PAA-MEA Barhl2 Glut_7,6,6
+SN,SN AMY,supertype,0517 COAa-PAA-MEA Barhl2 Glut_9,3,6
+SN,SN AMY,supertype,0538 MEA Otp Foxp2 Glut_1,6,6
+SN,SN AMY,supertype,0540 MEA-BST Otp Zic2 Glut_2,6,6
+SN,SN AMY,supertype,0542 LHA-MEA Otp Glut_1,6,6
+SN,SN AMY,supertype,0974 PGRN-PARN-MDRN Hoxb5 Glut_2,6,5
+SN,SN AMY,supertype,1160 Astro-NT NN_2,6,6
+SN,SN AMY,supertype,1163 Astro-TE NN_3,6,6
+SN,SN AMY,supertype,1179 OPC NN_1,6,6
+SN,SN AMY,supertype,1181 COP NN_1,6,6
+SN,SN AMY,supertype,1183 MFOL NN_3,4,5
+SN,SN AMY,supertype,1184 MOL NN_4,6,6
+SN,SN AMY,supertype,1194 Microglia NN_1,5,4
+SN,SN HYP,supertype,0343 MEA-BST Sox6 Gaba_7,6,6
+SN,SN HYP,supertype,0348 MEA-BST Lhx6 Sp9 Gaba_2,4,6
+SN,SN HYP,supertype,0353 MEA-BST Lhx6 Sp9 Gaba_7,6,6
+SN,SN HYP,supertype,0357 MEA-BST Lhx6 Nfib Gaba_1,5,5
+SN,SN HYP,supertype,0361 MEA-BST Lhx6 Nfib Gaba_5,5,6
+SN,SN HYP,supertype,0397 SI-MPO-LPO Lhx8 Gaba_2,5,6
+SN,SN HYP,supertype,0398 SI-MPO-LPO Lhx8 Gaba_3,4,5
+SN,SN HYP,supertype,0402 MPO-ADP Lhx8 Gaba_1,4,4
+SN,SN HYP,supertype,0404 MPO-ADP Lhx8 Gaba_3,5,6
+SN,SN HYP,supertype,0405 MPO-ADP Lhx8 Gaba_4,3,3
+SN,SN HYP,supertype,0407 MPN-MPO-LPO Lhx6 Zfhx3 Gaba_1,5,6
+SN,SN HYP,supertype,0408 MPN-MPO-LPO Lhx6 Zfhx3 Gaba_2,5,5
+SN,SN HYP,supertype,0409 BST Tac2 Gaba_1,6,6
+SN,SN HYP,supertype,0412 PVR Six3 Sox3 Gaba_2,6,6
+SN,SN HYP,supertype,0413 PVR Six3 Sox3 Gaba_3,4,6
+SN,SN HYP,supertype,0420 BST-MPN Six3 Nrgn Gaba_1,3,3
+SN,SN HYP,supertype,0422 BST-MPN Six3 Nrgn Gaba_3,6,6
+SN,SN HYP,supertype,0423 BST-MPN Six3 Nrgn Gaba_4,6,6
+SN,SN HYP,supertype,0425 BST-MPN Six3 Nrgn Gaba_6,6,4
+SN,SN HYP,supertype,0426 BST-MPN Six3 Nrgn Gaba_7,4,4
+SN,SN HYP,supertype,0429 TMv-PMv Tbx3 Hist-Gaba_1,5,6
+SN,SN HYP,supertype,0430 TMv-PMv Tbx3 Hist-Gaba_2,3,5
+SN,SN HYP,supertype,0431 RT-ZI Gnb3 Gaba_1,3,3
+SN,SN HYP,supertype,0434 RT-ZI Gnb3 Gaba_4,4,5
+SN,SN HYP,supertype,0436 SCH Six6 Cdc14a Gaba_1,6,6
+SN,SN HYP,supertype,0437 SCH Six6 Cdc14a Gaba_2,6,6
+SN,SN HYP,supertype,0438 SCH Six6 Cdc14a Gaba_3,6,6
+SN,SN HYP,supertype,0439 DMH Prdm13 Gaba_1,6,6
+SN,SN HYP,supertype,0440 DMH Prdm13 Gaba_2,5,6
+SN,SN HYP,supertype,0442 PVHd-SBPV Six3 Prox1 Gaba_1,6,6
+SN,SN HYP,supertype,0443 PVHd-SBPV Six3 Prox1 Gaba_2,6,6
+SN,SN HYP,supertype,0444 PVHd-SBPV Six3 Prox1 Gaba_3,6,6
+SN,SN HYP,supertype,0445 PVHd-SBPV Six3 Prox1 Gaba_4,6,6
+SN,SN HYP,supertype,0446 AHN-SBPV-PVHd Pdrm12 Gaba_1,6,6
+SN,SN HYP,supertype,0447 AHN-SBPV-PVHd Pdrm12 Gaba_2,6,6
+SN,SN HYP,supertype,0448 AHN-SBPV-PVHd Pdrm12 Gaba_3,6,6
+SN,SN HYP,supertype,0449 AHN-SBPV-PVHd Pdrm12 Gaba_4,6,6
+SN,SN HYP,supertype,0450 AHN-SBPV-PVHd Pdrm12 Gaba_5,4,5
+SN,SN HYP,supertype,0451 AHN-SBPV-PVHd Pdrm12 Gaba_6,6,6
+SN,SN HYP,supertype,0452 AHN-SBPV-PVHd Pdrm12 Gaba_7,6,6
+SN,SN HYP,supertype,0453 SBPV-PVa Six6 Satb2 Gaba_1,6,6
+SN,SN HYP,supertype,0454 SBPV-PVa Six6 Satb2 Gaba_2,6,6
+SN,SN HYP,supertype,0455 SBPV-PVa Six6 Satb2 Gaba_3,6,6
+SN,SN HYP,supertype,0456 AHN Onecut3 Gaba_1,6,6
+SN,SN HYP,supertype,0457 AHN Onecut3 Gaba_2,6,6
+SN,SN HYP,supertype,0458 AHN Onecut3 Gaba_3,6,6
+SN,SN HYP,supertype,0459 ZI Pax6 Gaba_1,6,6
+SN,SN HYP,supertype,0460 ZI Pax6 Gaba_2,5,6
+SN,SN HYP,supertype,0461 ZI Pax6 Gaba_3,5,6
+SN,SN HYP,supertype,0462 ZI Pax6 Gaba_4,4,6
+SN,SN HYP,supertype,0463 ZI Pax6 Gaba_5,3,5
+SN,SN HYP,supertype,0464 ZI Pax6 Gaba_6,5,6
+SN,SN HYP,supertype,0465 ZI Pax6 Gaba_7,5,4
+SN,SN HYP,supertype,0466 ZI Pax6 Gaba_8,6,6
+SN,SN HYP,supertype,0468 ZI Pax6 Gaba_10,5,6
+SN,SN HYP,supertype,0470 DMH-LHA Gsx1 Gaba_1,6,6
+SN,SN HYP,supertype,0471 DMH-LHA Gsx1 Gaba_2,6,6
+SN,SN HYP,supertype,0472 DMH-LHA Gsx1 Gaba_3,6,5
+SN,SN HYP,supertype,0473 DMH-LHA Gsx1 Gaba_4,6,6
+SN,SN HYP,supertype,0474 PVHd-DMH Lhx6 Gaba_1,6,6
+SN,SN HYP,supertype,0475 PVHd-DMH Lhx6 Gaba_2,6,6
+SN,SN HYP,supertype,0476 PVHd-DMH Lhx6 Gaba_3,6,6
+SN,SN HYP,supertype,0477 PVHd-DMH Lhx6 Gaba_4,4,6
+SN,SN HYP,supertype,0478 TU-ARH Otp Six6 Gaba_1,6,6
+SN,SN HYP,supertype,0479 TU-ARH Otp Six6 Gaba_2,6,6
+SN,SN HYP,supertype,0480 TU-ARH Otp Six6 Gaba_3,6,6
+SN,SN HYP,supertype,0481 TMd-DMH Foxd2 Gaba_1,6,6
+SN,SN HYP,supertype,0482 PVpo-VMPO-MPN Hmx2 Gaba_1,5,6
+SN,SN HYP,supertype,0483 PVpo-VMPO-MPN Hmx2 Gaba_2,5,6
+SN,SN HYP,supertype,0484 PVpo-VMPO-MPN Hmx2 Gaba_3,5,6
+SN,SN HYP,supertype,0486 PVpo-VMPO-MPN Hmx2 Gaba_5,3,5
+SN,SN HYP,supertype,0487 DMH Hmx2 Gaba_1,6,6
+SN,SN HYP,supertype,0488 DMH Hmx2 Gaba_2,6,6
+SN,SN HYP,supertype,0489 DMH Hmx2 Gaba_3,6,6
+SN,SN HYP,supertype,0490 DMH Hmx2 Gaba_4,6,6
+SN,SN HYP,supertype,0491 DMH Hmx2 Gaba_5,6,6
+SN,SN HYP,supertype,0492 DMH Hmx2 Gaba_6,5,4
+SN,SN HYP,supertype,0493 ARH-PVp Tbx3 Gaba_1,6,6
+SN,SN HYP,supertype,0494 ARH-PVp Tbx3 Gaba_2,6,5
+SN,SN HYP,supertype,0495 ARH-PVp Tbx3 Gaba_3,6,6
+SN,SN HYP,supertype,0504 GPi Tbr1 Cngb3 Gaba-Glut_1,5,5
+SN,SN HYP,supertype,0518 MS-SF Bsx Glut_1,3,4
+SN,SN HYP,supertype,0524 LHA Barhl2 Glut_1,6,6
+SN,SN HYP,supertype,0525 LHA Barhl2 Glut_2,6,6
+SN,SN HYP,supertype,0529 ADP-MPO Trp73 Glut_3,6,5
+SN,SN HYP,supertype,0530 SI-MA-LPO-LHA Skor1 Glut_1,6,6
+SN,SN HYP,supertype,0532 SI-MA-LPO-LHA Skor1 Glut_3,6,5
+SN,SN HYP,supertype,0534 SI-MA-LPO-LHA Skor1 Glut_5,4,3
+SN,SN HYP,supertype,0544 DMH Nkx2-4 Glut_1,6,6
+SN,SN HYP,supertype,0545 DMH Nkx2-4 Glut_2,6,6
+SN,SN HYP,supertype,0546 MPN-MPO-PVpo Hmx2 Glut_1,5,6
+SN,SN HYP,supertype,0547 MPN-MPO-PVpo Hmx2 Glut_2,4,6
+SN,SN HYP,supertype,0548 MPN-MPO-PVpo Hmx2 Glut_3,5,5
+SN,SN HYP,supertype,0549 MPN-MPO-PVpo Hmx2 Glut_4,5,6
+SN,SN HYP,supertype,0552 DMH Hmx2 Glut_1,6,6
+SN,SN HYP,supertype,0554 ARH-PVp Tbx3 Glut_1,6,6
+SN,SN HYP,supertype,0555 ARH-PVp Tbx3 Glut_2,6,6
+SN,SN HYP,supertype,0556 ARH-PVp Tbx3 Glut_3,6,6
+SN,SN HYP,supertype,0558 ARH-PVp Tbx3 Glut_5,4,3
+SN,SN HYP,supertype,0560 DMH-LHA Vgll2 Glut_2,6,5
+SN,SN HYP,supertype,0561 DMH-LHA Vgll2 Glut_3,3,5
+SN,SN HYP,supertype,0562 DMH-LHA Vgll2 Glut_4,3,5
+SN,SN HYP,supertype,0563 VMH Fezf1 Glut_1,4,3
+SN,SN HYP,supertype,0564 VMH Fezf1 Glut_2,6,6
+SN,SN HYP,supertype,0565 VMH Fezf1 Glut_3,6,6
+SN,SN HYP,supertype,0566 VMH Nr5a1 Glut_1,6,6
+SN,SN HYP,supertype,0567 VMH Nr5a1 Glut_2,6,6
+SN,SN HYP,supertype,0568 VMH Nr5a1 Glut_3,6,6
+SN,SN HYP,supertype,0569 VMH Nr5a1 Glut_4,6,6
+SN,SN HYP,supertype,0570 VMH Nr5a1 Glut_5,6,6
+SN,SN HYP,supertype,0572 LHA Pmch Glut_1,4,3
+SN,SN HYP,supertype,0573 LHA Pmch Glut_2,6,5
+SN,SN HYP,supertype,0574 LHA-AHN-PVH Otp Trh Glut_1,5,6
+SN,SN HYP,supertype,0575 LHA-AHN-PVH Otp Trh Glut_2,6,6
+SN,SN HYP,supertype,0576 LHA-AHN-PVH Otp Trh Glut_3,6,6
+SN,SN HYP,supertype,0577 LHA-AHN-PVH Otp Trh Glut_4,5,5
+SN,SN HYP,supertype,0579 AHN-RCH-LHA Otp Fezf1 Glut_1,6,6
+SN,SN HYP,supertype,0580 AHN-RCH-LHA Otp Fezf1 Glut_2,6,6
+SN,SN HYP,supertype,0581 AHN-RCH-LHA Otp Fezf1 Glut_3,6,6
+SN,SN HYP,supertype,0582 AHN-RCH-LHA Otp Fezf1 Glut_4,6,6
+SN,SN HYP,supertype,0584 AHN-RCH-LHA Otp Fezf1 Glut_6,6,5
+SN,SN HYP,supertype,0585 PVH-SO-PVa Otp Glut_1,6,6
+SN,SN HYP,supertype,0586 PVH-SO-PVa Otp Glut_2,6,6
+SN,SN HYP,supertype,0587 PVH-SO-PVa Otp Glut_3,6,6
+SN,SN HYP,supertype,0588 PVH-SO-PVa Otp Glut_4,6,6
+SN,SN HYP,supertype,0589 PVH-SO-PVa Otp Glut_5,6,5
+SN,SN HYP,supertype,0591 PH-ant-LHA Otp Bsx Glut_1,6,6
+SN,SN HYP,supertype,0592 PH-ant-LHA Otp Bsx Glut_2,4,6
+SN,SN HYP,supertype,0593 PH-ant-LHA Otp Bsx Glut_3,6,6
+SN,SN HYP,supertype,0594 PH-ant-LHA Otp Bsx Glut_4,6,6
+SN,SN HYP,supertype,0595 PH-ant-LHA Otp Bsx Glut_5,6,6
+SN,SN HYP,supertype,0596 PH-ant-LHA Otp Bsx Glut_6,3,4
+SN,SN HYP,supertype,0597 PH-ant-LHA Otp Bsx Glut_7,6,6
+SN,SN HYP,supertype,0598 STN-PSTN Pitx2 Glut_1,5,6
+SN,SN HYP,supertype,0599 STN-PSTN Pitx2 Glut_2,5,5
+SN,SN HYP,supertype,0600 STN-PSTN Pitx2 Glut_3,6,4
+SN,SN HYP,supertype,0601 STN-PSTN Pitx2 Glut_4,5,5
+SN,SN HYP,supertype,0602 STN-PSTN Pitx2 Glut_5,6,6
+SN,SN HYP,supertype,0603 STN-PSTN Pitx2 Glut_6,4,4
+SN,SN HYP,supertype,0605 PMv-TMv Pitx2 Glut_1,5,6
+SN,SN HYP,supertype,0606 PMv-TMv Pitx2 Glut_2,4,6
+SN,SN HYP,supertype,0607 PMv-TMv Pitx2 Glut_3,5,6
+SN,SN HYP,supertype,0608 PH-an Pitx2 Glut_1,5,5
+SN,SN HYP,supertype,0609 PH-an Pitx2 Glut_2,4,5
+SN,SN HYP,supertype,0610 PH Pitx2 Glut_1,4,3
+SN,SN HYP,supertype,0611 PH Pitx2 Glut_2,6,6
+SN,SN HYP,supertype,0612 PH-LHA Foxb1 Glut_1,6,6
+SN,SN HYP,supertype,0613 PH-LHA Foxb1 Glut_2,6,5
+SN,SN HYP,supertype,0614 PH-LHA Foxb1 Glut_3,6,6
+SN,SN HYP,supertype,0617 PH-LHA Foxb1 Glut_6,5,4
+SN,SN HYP,supertype,0620 PMd-LHA Foxb1 Glut_2,5,6
+SN,SN HYP,supertype,0621 PMd-LHA Foxb1 Glut_3,4,3
+SN,SN HYP,supertype,0622 PH-SUM Foxa1 Glut_1,3,3
+SN,SN HYP,supertype,0623 PH-SUM Foxa1 Glut_2,5,4
+SN,SN HYP,supertype,0624 PH-SUM Foxa1 Glut_3,5,6
+SN,SN HYP,supertype,0626 PH-SUM Foxa1 Glut_5,5,5
+SN,SN HYP,supertype,0627 PH-SUM Foxa1 Glut_6,5,6
+SN,SN HYP,supertype,0629 MM-ant Foxb1 Glut_1,5,5
+SN,SN HYP,supertype,0631 MM Foxb1 Glut_2,4,4
+SN,SN HYP,supertype,0720 SPA-SPFm-SPFp-POL-PIL-PoT Sp9 Glut_3,3,4
+SN,SN HYP,supertype,0839 LGv-SPFp-SPFm Nkx2-2 Tcf7l2 Gaba_6,3,4
+SN,SN HYP,supertype,0974 PGRN-PARN-MDRN Hoxb5 Glut_2,6,6
+SN,SN HYP,supertype,1160 Astro-NT NN_2,6,6
+SN,SN HYP,supertype,1173 Tanycyte NN_2,6,6
+SN,SN HYP,supertype,1179 OPC NN_1,6,6
+SN,SN HYP,supertype,1181 COP NN_1,6,6
+SN,SN HYP,supertype,1182 NFOL NN_2,6,6
+SN,SN HYP,supertype,1183 MFOL NN_3,5,6
+SN,SN HYP,supertype,1184 MOL NN_4,6,6
+SN,SN HYP,supertype,1194 Microglia NN_1,6,6
+seqFISH,seqFISH,supertype,0001 CLA-EPd-CTX Car3 Glut_1,8,8
+seqFISH,seqFISH,supertype,0002 CLA-EPd-CTX Car3 Glut_2,8,8
+seqFISH,seqFISH,supertype,0003 IT EP-CLA Glut_1,8,8
+seqFISH,seqFISH,supertype,0004 IT EP-CLA Glut_2,8,8
+seqFISH,seqFISH,supertype,0006 IT EP-CLA Glut_4,8,8
+seqFISH,seqFISH,supertype,0007 L5/6 IT TPE-ENT Glut_1,8,8
+seqFISH,seqFISH,supertype,0008 L5/6 IT TPE-ENT Glut_2,8,8
+seqFISH,seqFISH,supertype,0014 L6 IT CTX Glut_2,8,8
+seqFISH,seqFISH,supertype,0015 L6 IT CTX Glut_3,8,8
+seqFISH,seqFISH,supertype,0016 L6 IT CTX Glut_4,7,6
+seqFISH,seqFISH,supertype,0018 L5 IT CTX Glut_1,8,8
+seqFISH,seqFISH,supertype,0019 L5 IT CTX Glut_2,8,8
+seqFISH,seqFISH,supertype,0020 L5 IT CTX Glut_3,8,8
+seqFISH,seqFISH,supertype,0021 L5 IT CTX Glut_4,8,8
+seqFISH,seqFISH,supertype,0023 L4/5 IT CTX Glut_1,8,8
+seqFISH,seqFISH,supertype,0024 L4/5 IT CTX Glut_2,8,8
+seqFISH,seqFISH,supertype,0025 L4/5 IT CTX Glut_3,8,8
+seqFISH,seqFISH,supertype,0026 L4/5 IT CTX Glut_4,8,8
+seqFISH,seqFISH,supertype,0027 L4/5 IT CTX Glut_5,8,8
+seqFISH,seqFISH,supertype,0028 L4/5 IT CTX Glut_6,8,8
+seqFISH,seqFISH,supertype,0030 L2/3 IT CTX Glut_2,8,8
+seqFISH,seqFISH,supertype,0031 L2/3 IT CTX Glut_3,7,7
+seqFISH,seqFISH,supertype,0032 L2/3 IT CTX Glut_4,8,8
+seqFISH,seqFISH,supertype,0033 L2/3 IT ENT Glut_1,5,4
+seqFISH,seqFISH,supertype,0039 L2/3 IT PIR-ENTl Glut_1,8,8
+seqFISH,seqFISH,supertype,0040 L2/3 IT PIR-ENTl Glut_2,8,8
+seqFISH,seqFISH,supertype,0041 L2/3 IT PIR-ENTl Glut_3,8,8
+seqFISH,seqFISH,supertype,0042 L2/3 IT PIR-ENTl Glut_4,8,8
+seqFISH,seqFISH,supertype,0043 L2/3 IT PIR-ENTl Glut_5,8,8
+seqFISH,seqFISH,supertype,0044 L2/3 IT PIR-ENTl Glut_6,8,8
+seqFISH,seqFISH,supertype,0045 L2/3 IT PIR-ENTl Glut_7,8,8
+seqFISH,seqFISH,supertype,0046 IT AON-TT-DP Glut_1,8,8
+seqFISH,seqFISH,supertype,0048 IT AON-TT-DP Glut_3,8,8
+seqFISH,seqFISH,supertype,0049 IT AON-TT-DP Glut_4,8,8
+seqFISH,seqFISH,supertype,0050 IT AON-TT-DP Glut_5,8,8
+seqFISH,seqFISH,supertype,0055 MEA Slc17a7 Glut_1,6,7
+seqFISH,seqFISH,supertype,0056 MEA Slc17a7 Glut_2,8,8
+seqFISH,seqFISH,supertype,0057 MEA Slc17a7 Glut_3,5,5
+seqFISH,seqFISH,supertype,0058 COAp Grxcr2 Glut_1,6,7
+seqFISH,seqFISH,supertype,0059 COAp Grxcr2 Glut_2,4,8
+seqFISH,seqFISH,supertype,0060 LA-BLA-BMA-PA Glut_1,5,8
+seqFISH,seqFISH,supertype,0061 LA-BLA-BMA-PA Glut_2,6,8
+seqFISH,seqFISH,supertype,0062 LA-BLA-BMA-PA Glut_3,6,8
+seqFISH,seqFISH,supertype,0063 LA-BLA-BMA-PA Glut_4,6,8
+seqFISH,seqFISH,supertype,0064 LA-BLA-BMA-PA Glut_5,7,8
+seqFISH,seqFISH,supertype,0065 LA-BLA-BMA-PA Glut_6,6,7
+seqFISH,seqFISH,supertype,0069 CA1-ProS Glut_1,8,8
+seqFISH,seqFISH,supertype,0072 CA1-ProS Glut_4,8,8
+seqFISH,seqFISH,supertype,0077 CA3 Glut_3,8,8
+seqFISH,seqFISH,supertype,0078 CA3 Glut_4,8,8
+seqFISH,seqFISH,supertype,0079 CA3 Glut_5,6,4
+seqFISH,seqFISH,supertype,0080 L2 IT PPP-APr Glut_1,8,8
+seqFISH,seqFISH,supertype,0083 L2 IT PPP-APr Glut_4,8,8
+seqFISH,seqFISH,supertype,0085 L2/3 IT PPP Glut_2,7,8
+seqFISH,seqFISH,supertype,0086 L2/3 IT PPP Glut_3,5,5
+seqFISH,seqFISH,supertype,0087 L2/3 IT RSP Glut_1,7,8
+seqFISH,seqFISH,supertype,0088 L2/3 IT RSP Glut_2,8,8
+seqFISH,seqFISH,supertype,0089 L4 RSP-ACA Glut_1,6,8
+seqFISH,seqFISH,supertype,0090 L5 ET CTX Glut_1,8,8
+seqFISH,seqFISH,supertype,0091 L5 ET CTX Glut_2,8,8
+seqFISH,seqFISH,supertype,0092 L5 ET CTX Glut_3,8,8
+seqFISH,seqFISH,supertype,0093 L5 ET CTX Glut_4,8,8
+seqFISH,seqFISH,supertype,0094 L5 ET CTX Glut_5,8,8
+seqFISH,seqFISH,supertype,0095 L5 ET CTX Glut_6,8,8
+seqFISH,seqFISH,supertype,0099 L5 PPP Glut_1,7,8
+seqFISH,seqFISH,supertype,0100 CA2-FC-IG Glut_1,8,8
+seqFISH,seqFISH,supertype,0101 CA2-FC-IG Glut_2,8,8
+seqFISH,seqFISH,supertype,0102 NLOT Rho Glut_1,6,7
+seqFISH,seqFISH,supertype,0103 L6b EPd Glut_1,5,6
+seqFISH,seqFISH,supertype,0105 L6b EPd Glut_3,8,8
+seqFISH,seqFISH,supertype,0106 L6b/CT ENT Glut_1,8,8
+seqFISH,seqFISH,supertype,0110 L6b CTX Glut_1,8,8
+seqFISH,seqFISH,supertype,0111 L6b CTX Glut_2,8,8
+seqFISH,seqFISH,supertype,0112 L6b CTX Glut_3,8,8
+seqFISH,seqFISH,supertype,0114 L6 CT CTX Glut_1,8,8
+seqFISH,seqFISH,supertype,0115 L6 CT CTX Glut_2,8,8
+seqFISH,seqFISH,supertype,0116 L6 CT CTX Glut_3,6,6
+seqFISH,seqFISH,supertype,0117 L6 CT CTX Glut_4,7,5
+seqFISH,seqFISH,supertype,0118 L6 CT CTX Glut_5,8,8
+seqFISH,seqFISH,supertype,0122 L5 NP CTX Glut_1,7,7
+seqFISH,seqFISH,supertype,0123 L5 NP CTX Glut_2,5,7
+seqFISH,seqFISH,supertype,0124 L5 NP CTX Glut_3,8,8
+seqFISH,seqFISH,supertype,0125 L5 NP CTX Glut_4,8,8
+seqFISH,seqFISH,supertype,0129 NP PPP Glut_1,7,8
+seqFISH,seqFISH,supertype,0135 HPF CR Glut_1,6,8
+seqFISH,seqFISH,supertype,0137 DG Glut_2,8,8
+seqFISH,seqFISH,supertype,0138 DG Glut_3,8,8
+seqFISH,seqFISH,supertype,0141 DG-PIR Ex IMN_2,7,8
+seqFISH,seqFISH,supertype,0153 OB-in Frmd7 Gaba_4,8,8
+seqFISH,seqFISH,supertype,0158 OB-out Frmd7 Gaba_1,5,5
+seqFISH,seqFISH,supertype,0161 OB-mi Frmd7 Gaba_1,4,4
+seqFISH,seqFISH,supertype,0166 OB-STR-CTX Inh IMN_1,8,8
+seqFISH,seqFISH,supertype,0168 OB-STR-CTX Inh IMN_3,8,8
+seqFISH,seqFISH,supertype,0170 OB-STR-CTX Inh IMN_5,7,8
+seqFISH,seqFISH,supertype,0173 Vip Gaba_1,7,7
+seqFISH,seqFISH,supertype,0175 Vip Gaba_3,5,6
+seqFISH,seqFISH,supertype,0177 Vip Gaba_5,8,8
+seqFISH,seqFISH,supertype,0178 Vip Gaba_6,8,8
+seqFISH,seqFISH,supertype,0183 Vip Gaba_11,8,8
+seqFISH,seqFISH,supertype,0185 Sncg Gaba_1,6,8
+seqFISH,seqFISH,supertype,0187 Sncg Gaba_3,8,8
+seqFISH,seqFISH,supertype,0188 Sncg Gaba_4,6,5
+seqFISH,seqFISH,supertype,0195 RHP-COA Ndnf Gaba_3,7,5
+seqFISH,seqFISH,supertype,0197 RHP-COA Ndnf Gaba_5,4,5
+seqFISH,seqFISH,supertype,0199 Lamp5 Gaba_1,8,8
+seqFISH,seqFISH,supertype,0201 Lamp5 Gaba_3,4,6
+seqFISH,seqFISH,supertype,0203 Lamp5 Lhx6 Gaba_1,8,8
+seqFISH,seqFISH,supertype,0205 Pvalb Gaba_1,8,8
+seqFISH,seqFISH,supertype,0206 Pvalb Gaba_2,8,8
+seqFISH,seqFISH,supertype,0207 Pvalb Gaba_3,8,8
+seqFISH,seqFISH,supertype,0208 Pvalb Gaba_4,8,8
+seqFISH,seqFISH,supertype,0209 Pvalb Gaba_5,8,8
+seqFISH,seqFISH,supertype,0214 Sst Gaba_1,7,7
+seqFISH,seqFISH,supertype,0215 Sst Gaba_2,6,8
+seqFISH,seqFISH,supertype,0216 Sst Gaba_3,8,8
+seqFISH,seqFISH,supertype,0217 Sst Gaba_4,7,6
+seqFISH,seqFISH,supertype,0220 Sst Gaba_7,7,6
+seqFISH,seqFISH,supertype,0221 Sst Gaba_8,8,8
+seqFISH,seqFISH,supertype,0222 Sst Gaba_9,4,6
+seqFISH,seqFISH,supertype,0223 Sst Gaba_10,6,7
+seqFISH,seqFISH,supertype,0227 Sst Gaba_14,8,8
+seqFISH,seqFISH,supertype,0234 STR Prox1 Lhx6 Gaba_2,7,7
+seqFISH,seqFISH,supertype,0241 Sst Chodl Gaba_4,6,6
+seqFISH,seqFISH,supertype,0264 OT D3 Folh1 Gaba_3,7,7
+seqFISH,seqFISH,supertype,0267 STR D1 Gaba_3,5,6
+seqFISH,seqFISH,supertype,0268 STR D1 Gaba_4,6,6
+seqFISH,seqFISH,supertype,0271 STR D1 Gaba_7,7,7
+seqFISH,seqFISH,supertype,0274 STR D2 Gaba_1,7,7
+seqFISH,seqFISH,supertype,0275 STR D2 Gaba_2,7,7
+seqFISH,seqFISH,supertype,0277 STR D2 Gaba_4,7,7
+seqFISH,seqFISH,supertype,0278 STR D2 Gaba_5,6,7
+seqFISH,seqFISH,supertype,0279 STR D2 Gaba_6,7,6
+seqFISH,seqFISH,supertype,0280 STR D2 Gaba_7,5,7
+seqFISH,seqFISH,supertype,0283 STR D1 Sema5a Gaba_3,6,6
+seqFISH,seqFISH,supertype,0286 STR-PAL Chst9 Gaba_2,7,7
+seqFISH,seqFISH,supertype,0287 STR-PAL Chst9 Gaba_3,7,7
+seqFISH,seqFISH,supertype,0288 STR-PAL Chst9 Gaba_4,7,7
+seqFISH,seqFISH,supertype,0289 STR-PAL Chst9 Gaba_5,4,6
+seqFISH,seqFISH,supertype,0337 MEA-BST Sox6 Gaba_1,5,6
+seqFISH,seqFISH,supertype,0338 MEA-BST Sox6 Gaba_2,6,8
+seqFISH,seqFISH,supertype,0339 MEA-BST Sox6 Gaba_3,6,4
+seqFISH,seqFISH,supertype,0340 MEA-BST Sox6 Gaba_4,6,7
+seqFISH,seqFISH,supertype,0341 MEA-BST Sox6 Gaba_5,6,7
+seqFISH,seqFISH,supertype,0342 MEA-BST Sox6 Gaba_6,6,7
+seqFISH,seqFISH,supertype,0344 MEA-BST Sox6 Gaba_8,6,7
+seqFISH,seqFISH,supertype,0347 MEA-BST Lhx6 Sp9 Gaba_1,6,7
+seqFISH,seqFISH,supertype,0350 MEA-BST Lhx6 Sp9 Gaba_4,5,7
+seqFISH,seqFISH,supertype,0351 MEA-BST Lhx6 Sp9 Gaba_5,4,4
+seqFISH,seqFISH,supertype,0359 MEA-BST Lhx6 Nfib Gaba_3,5,7
+seqFISH,seqFISH,supertype,0362 MEA-BST Lhx6 Nfib Gaba_6,4,7
+seqFISH,seqFISH,supertype,0367 CEA-BST Six3 Cyp26b1 Gaba_1,5,7
+seqFISH,seqFISH,supertype,0368 CEA-BST Six3 Cyp26b1 Gaba_2,5,6
+seqFISH,seqFISH,supertype,0371 CEA-BST Six3 Cyp26b1 Gaba_5,6,7
+seqFISH,seqFISH,supertype,0386 CEA-BST Ebf1 Pdyn Gaba_3,7,7
+seqFISH,seqFISH,supertype,0392 CEA-BST Rai14 Pdyn Crh Gaba_1,4,4
+seqFISH,seqFISH,supertype,0425 BST-MPN Six3 Nrgn Gaba_6,7,7
+seqFISH,seqFISH,supertype,0433 RT-ZI Gnb3 Gaba_3,4,4
+seqFISH,seqFISH,supertype,0434 RT-ZI Gnb3 Gaba_4,8,6
+seqFISH,seqFISH,supertype,0435 RT-ZI Gnb3 Gaba_5,7,8
+seqFISH,seqFISH,supertype,0446 AHN-SBPV-PVHd Pdrm12 Gaba_1,5,5
+seqFISH,seqFISH,supertype,0459 ZI Pax6 Gaba_1,8,8
+seqFISH,seqFISH,supertype,0460 ZI Pax6 Gaba_2,5,6
+seqFISH,seqFISH,supertype,0461 ZI Pax6 Gaba_3,8,8
+seqFISH,seqFISH,supertype,0462 ZI Pax6 Gaba_4,7,8
+seqFISH,seqFISH,supertype,0465 ZI Pax6 Gaba_7,8,6
+seqFISH,seqFISH,supertype,0466 ZI Pax6 Gaba_8,8,8
+seqFISH,seqFISH,supertype,0470 DMH-LHA Gsx1 Gaba_1,6,8
+seqFISH,seqFISH,supertype,0471 DMH-LHA Gsx1 Gaba_2,7,8
+seqFISH,seqFISH,supertype,0475 PVHd-DMH Lhx6 Gaba_2,4,7
+seqFISH,seqFISH,supertype,0478 TU-ARH Otp Six6 Gaba_1,7,8
+seqFISH,seqFISH,supertype,0479 TU-ARH Otp Six6 Gaba_2,7,8
+seqFISH,seqFISH,supertype,0480 TU-ARH Otp Six6 Gaba_3,7,8
+seqFISH,seqFISH,supertype,0482 PVpo-VMPO-MPN Hmx2 Gaba_1,7,8
+seqFISH,seqFISH,supertype,0483 PVpo-VMPO-MPN Hmx2 Gaba_2,6,7
+seqFISH,seqFISH,supertype,0488 DMH Hmx2 Gaba_2,6,8
+seqFISH,seqFISH,supertype,0491 DMH Hmx2 Gaba_5,6,8
+seqFISH,seqFISH,supertype,0493 ARH-PVp Tbx3 Gaba_1,4,4
+seqFISH,seqFISH,supertype,0495 ARH-PVp Tbx3 Gaba_3,4,4
+seqFISH,seqFISH,supertype,0505 MEA-COA-BMA Ccdc42 Glut_1,4,5
+seqFISH,seqFISH,supertype,0509 COAa-PAA-MEA Barhl2 Glut_1,4,5
+seqFISH,seqFISH,supertype,0512 COAa-PAA-MEA Barhl2 Glut_4,4,7
+seqFISH,seqFISH,supertype,0514 COAa-PAA-MEA Barhl2 Glut_6,6,7
+seqFISH,seqFISH,supertype,0560 DMH-LHA Vgll2 Glut_2,5,5
+seqFISH,seqFISH,supertype,0568 VMH Nr5a1 Glut_3,4,5
+seqFISH,seqFISH,supertype,0572 LHA Pmch Glut_1,5,6
+seqFISH,seqFISH,supertype,0593 PH-ant-LHA Otp Bsx Glut_3,4,5
+seqFISH,seqFISH,supertype,0602 STN-PSTN Pitx2 Glut_5,5,5
+seqFISH,seqFISH,supertype,0632 MH Tac2 Glut_1,6,4
+seqFISH,seqFISH,supertype,0633 MH Tac2 Glut_2,7,4
+seqFISH,seqFISH,supertype,0634 MH Tac2 Glut_3,7,4
+seqFISH,seqFISH,supertype,0636 MH Tac2 Glut_5,5,4
+seqFISH,seqFISH,supertype,0654 TH Prkcd Grin2c Glut_1,8,8
+seqFISH,seqFISH,supertype,0655 TH Prkcd Grin2c Glut_2,5,6
+seqFISH,seqFISH,supertype,0657 TH Prkcd Grin2c Glut_4,8,8
+seqFISH,seqFISH,supertype,0658 TH Prkcd Grin2c Glut_5,8,7
+seqFISH,seqFISH,supertype,0659 TH Prkcd Grin2c Glut_6,8,8
+seqFISH,seqFISH,supertype,0660 TH Prkcd Grin2c Glut_7,8,8
+seqFISH,seqFISH,supertype,0661 TH Prkcd Grin2c Glut_8,8,8
+seqFISH,seqFISH,supertype,0663 TH Prkcd Grin2c Glut_10,8,8
+seqFISH,seqFISH,supertype,0664 TH Prkcd Grin2c Glut_11,5,5
+seqFISH,seqFISH,supertype,0665 TH Prkcd Grin2c Glut_12,7,5
+seqFISH,seqFISH,supertype,0666 TH Prkcd Grin2c Glut_13,8,8
+seqFISH,seqFISH,supertype,0667 TH Prkcd Grin2c Glut_14,7,6
+seqFISH,seqFISH,supertype,0669 RE-Xi Nox4 Glut_2,7,8
+seqFISH,seqFISH,supertype,0675 PF Fzd5 Glut_2,6,6
+seqFISH,seqFISH,supertype,0807 IC Six3 En2 Gaba_1,7,8
+seqFISH,seqFISH,supertype,1159 Astro-NT NN_1,8,8
+seqFISH,seqFISH,supertype,1160 Astro-NT NN_2,8,8
+seqFISH,seqFISH,supertype,1161 Astro-TE NN_1,8,8
+seqFISH,seqFISH,supertype,1163 Astro-TE NN_3,8,8
+seqFISH,seqFISH,supertype,1169 Astroependymal NN_1,8,8
+seqFISH,seqFISH,supertype,1173 Tanycyte NN_2,4,4
+seqFISH,seqFISH,supertype,1175 Ependymal NN_1,8,8
+seqFISH,seqFISH,supertype,1176 Ependymal NN_2,8,8
+seqFISH,seqFISH,supertype,1178 CHOR NN_1,8,8
+seqFISH,seqFISH,supertype,1179 OPC NN_1,6,5
+seqFISH,seqFISH,supertype,1180 OPC NN_2,8,8
+seqFISH,seqFISH,supertype,1181 COP NN_1,8,8
+seqFISH,seqFISH,supertype,1182 NFOL NN_2,8,8
+seqFISH,seqFISH,supertype,1183 MFOL NN_3,8,8
+seqFISH,seqFISH,supertype,1184 MOL NN_4,8,8
+seqFISH,seqFISH,supertype,1186 ABC NN_1,8,8
+seqFISH,seqFISH,supertype,1187 VLMC NN_1,8,8
+seqFISH,seqFISH,supertype,1188 VLMC NN_2,8,8
+seqFISH,seqFISH,supertype,1189 VLMC NN_3,6,4
+seqFISH,seqFISH,supertype,1191 Peri NN_1,8,8
+seqFISH,seqFISH,supertype,1192 SMC NN_1,8,8
+seqFISH,seqFISH,supertype,1193 Endo NN_1,8,8
+seqFISH,seqFISH,supertype,1194 Microglia NN_1,8,8
+seqFISH,seqFISH,supertype,1195 BAM NN_1,8,8
+seqFISH,seqFISH,supertype,1197 DC NN_1,8,8
+seqFISH,seqFISH,supertype,1198 B cells NN_1,8,8
+seqFISH,seqFISH,supertype,1199 ILC NN_2,4,5

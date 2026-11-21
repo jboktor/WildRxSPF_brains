@@ -1,0 +1,6 @@
+modality,inference,n_units,rho_size,p_size
+D-SPIN programs,animals,139,-0.35718061201234375,1.586454750844825e-5
+MAST DEGs (nuclei),nuclei,139,0.7052647439204864,3.274687264809091e-22
+Pseudobulk expression,animals,139,-0.5956371509550443,1.0401945497146883e-14
+popAlign state,animals,103,-0.19918247568489827,0.04368821832850394
+pySCENIC regulons (supertype GRN),animals,139,-0.3598533386419818,1.355394024383242e-5

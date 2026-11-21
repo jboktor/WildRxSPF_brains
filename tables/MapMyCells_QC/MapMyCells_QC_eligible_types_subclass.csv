@@ -1,0 +1,238 @@
+modality,stratum,level,cell_type,n_rep_SPF,n_rep_WildR
+SN,SN AMY,subclass,001 CLA-EPd-CTX Car3 Glut,6,6
+SN,SN AMY,subclass,002 IT EP-CLA Glut,6,6
+SN,SN AMY,subclass,007 L2/3 IT CTX Glut,4,6
+SN,SN AMY,subclass,008 L2/3 IT ENT Glut,6,6
+SN,SN AMY,subclass,009 L2/3 IT PIR-ENTl Glut,6,6
+SN,SN AMY,subclass,010 IT AON-TT-DP Glut,6,6
+SN,SN AMY,subclass,012 MEA Slc17a7 Glut,6,6
+SN,SN AMY,subclass,013 COAp Grxcr2 Glut,6,6
+SN,SN AMY,subclass,014 LA-BLA-BMA-PA Glut,6,6
+SN,SN AMY,subclass,017 CA3 Glut,6,4
+SN,SN AMY,subclass,026 NLOT Rho Glut,3,3
+SN,SN AMY,subclass,027 L6b EPd Glut,6,6
+SN,SN AMY,subclass,030 L6 CT CTX Glut,3,4
+SN,SN AMY,subclass,036 HPF CR Glut,3,4
+SN,SN AMY,subclass,037 DG Glut,6,6
+SN,SN AMY,subclass,038 DG-PIR Ex IMN,5,5
+SN,SN AMY,subclass,046 Vip Gaba,6,6
+SN,SN AMY,subclass,047 Sncg Gaba,6,6
+SN,SN AMY,subclass,048 RHP-COA Ndnf Gaba,6,6
+SN,SN AMY,subclass,049 Lamp5 Gaba,6,6
+SN,SN AMY,subclass,050 Lamp5 Lhx6 Gaba,6,6
+SN,SN AMY,subclass,051 Pvalb chandelier Gaba,6,6
+SN,SN AMY,subclass,052 Pvalb Gaba,6,6
+SN,SN AMY,subclass,053 Sst Gaba,6,6
+SN,SN AMY,subclass,054 STR Prox1 Lhx6 Gaba,6,6
+SN,SN AMY,subclass,056 Sst Chodl Gaba,6,6
+SN,SN AMY,subclass,057 NDB-SI-MA-STRv Lhx8 Gaba,6,6
+SN,SN AMY,subclass,061 STR D1 Gaba,4,5
+SN,SN AMY,subclass,062 STR D2 Gaba,6,6
+SN,SN AMY,subclass,063 STR D1 Sema5a Gaba,5,5
+SN,SN AMY,subclass,064 STR-PAL Chst9 Gaba,6,6
+SN,SN AMY,subclass,065 IA Mgp Gaba,5,6
+SN,SN AMY,subclass,073 MEA-BST Sox6 Gaba,6,6
+SN,SN AMY,subclass,074 MEA-BST Lhx6 Sp9 Gaba,6,6
+SN,SN AMY,subclass,075 MEA-BST Lhx6 Nr2e1 Gaba,6,6
+SN,SN AMY,subclass,076 MEA-BST Lhx6 Nfib Gaba,6,6
+SN,SN AMY,subclass,079 CEA-BST Six3 Cyp26b1 Gaba,6,6
+SN,SN AMY,subclass,080 CEA-AAA-BST Six3 Sp9 Gaba,6,6
+SN,SN AMY,subclass,082 CEA-BST Ebf1 Pdyn Gaba,6,6
+SN,SN AMY,subclass,083 CEA-BST Rai14 Pdyn Crh Gaba,4,4
+SN,SN AMY,subclass,090 BST-MPN Six3 Nrgn Gaba,4,6
+SN,SN AMY,subclass,113 MEA-COA-BMA Ccdc42 Glut,6,6
+SN,SN AMY,subclass,114 COAa-PAA-MEA Barhl2 Glut,6,6
+SN,SN AMY,subclass,119 SI-MA-LPO-LHA Skor1 Glut,6,6
+SN,SN AMY,subclass,120 MEA Otp Foxp2 Glut,6,6
+SN,SN AMY,subclass,121 MEA-BST Otp Zic2 Glut,6,6
+SN,SN AMY,subclass,122 LHA-MEA Otp Glut,6,6
+SN,SN AMY,subclass,243 PGRN-PARN-MDRN Hoxb5 Glut,6,5
+SN,SN AMY,subclass,318 Astro-NT NN,6,6
+SN,SN AMY,subclass,319 Astro-TE NN,6,6
+SN,SN AMY,subclass,326 OPC NN,6,6
+SN,SN AMY,subclass,327 Oligo NN,6,6
+SN,SN AMY,subclass,334 Microglia NN,5,4
+SN,SN HYP,subclass,057 NDB-SI-MA-STRv Lhx8 Gaba,6,6
+SN,SN HYP,subclass,073 MEA-BST Sox6 Gaba,6,6
+SN,SN HYP,subclass,074 MEA-BST Lhx6 Sp9 Gaba,6,6
+SN,SN HYP,subclass,076 MEA-BST Lhx6 Nfib Gaba,6,6
+SN,SN HYP,subclass,080 CEA-AAA-BST Six3 Sp9 Gaba,4,4
+SN,SN HYP,subclass,084 BST-SI-AAA Six3 Slc22a3 Gaba,3,4
+SN,SN HYP,subclass,085 SI-MPO-LPO Lhx8 Gaba,5,6
+SN,SN HYP,subclass,086 MPO-ADP Lhx8 Gaba,5,6
+SN,SN HYP,subclass,087 MPN-MPO-LPO Lhx6 Zfhx3 Gaba,6,6
+SN,SN HYP,subclass,088 BST Tac2 Gaba,6,6
+SN,SN HYP,subclass,089 PVR Six3 Sox3 Gaba,6,6
+SN,SN HYP,subclass,090 BST-MPN Six3 Nrgn Gaba,6,6
+SN,SN HYP,subclass,091 ARH-PVi Six6 Dopa-Gaba,3,4
+SN,SN HYP,subclass,092 TMv-PMv Tbx3 Hist-Gaba,6,6
+SN,SN HYP,subclass,093 RT-ZI Gnb3 Gaba,5,6
+SN,SN HYP,subclass,094 SCH Six6 Cdc14a Gaba,6,6
+SN,SN HYP,subclass,095 DMH Prdm13 Gaba,6,6
+SN,SN HYP,subclass,097 PVHd-SBPV Six3 Prox1 Gaba,6,6
+SN,SN HYP,subclass,098 AHN-SBPV-PVHd Pdrm12 Gaba,6,6
+SN,SN HYP,subclass,099 SBPV-PVa Six6 Satb2 Gaba,6,6
+SN,SN HYP,subclass,100 AHN Onecut3 Gaba,6,6
+SN,SN HYP,subclass,101 ZI Pax6 Gaba,6,6
+SN,SN HYP,subclass,102 DMH-LHA Gsx1 Gaba,6,6
+SN,SN HYP,subclass,103 PVHd-DMH Lhx6 Gaba,6,6
+SN,SN HYP,subclass,104 TU-ARH Otp Six6 Gaba,6,6
+SN,SN HYP,subclass,105 TMd-DMH Foxd2 Gaba,6,6
+SN,SN HYP,subclass,106 PVpo-VMPO-MPN Hmx2 Gaba,6,6
+SN,SN HYP,subclass,107 DMH Hmx2 Gaba,6,6
+SN,SN HYP,subclass,108 ARH-PVp Tbx3 Gaba,6,6
+SN,SN HYP,subclass,109 LGv-ZI Otx2 Gaba,5,4
+SN,SN HYP,subclass,112 GPi Tbr1 Cngb3 Gaba-Glut,5,5
+SN,SN HYP,subclass,115 MS-SF Bsx Glut,3,4
+SN,SN HYP,subclass,117 LHA Barhl2 Glut,6,6
+SN,SN HYP,subclass,118 ADP-MPO Trp73 Glut,6,6
+SN,SN HYP,subclass,119 SI-MA-LPO-LHA Skor1 Glut,6,6
+SN,SN HYP,subclass,123 DMH Nkx2-4 Glut,6,6
+SN,SN HYP,subclass,124 MPN-MPO-PVpo Hmx2 Glut,5,6
+SN,SN HYP,subclass,125 DMH Hmx2 Glut,6,6
+SN,SN HYP,subclass,126 ARH-PVp Tbx3 Glut,6,6
+SN,SN HYP,subclass,127 DMH-LHA Vgll2 Glut,6,6
+SN,SN HYP,subclass,128 VMH Fezf1 Glut,6,6
+SN,SN HYP,subclass,129 VMH Nr5a1 Glut,6,6
+SN,SN HYP,subclass,130 LHA Pmch Glut,6,6
+SN,SN HYP,subclass,131 LHA-AHN-PVH Otp Trh Glut,6,6
+SN,SN HYP,subclass,132 AHN-RCH-LHA Otp Fezf1 Glut,6,6
+SN,SN HYP,subclass,133 PVH-SO-PVa Otp Glut,6,6
+SN,SN HYP,subclass,134 PH-ant-LHA Otp Bsx Glut,6,6
+SN,SN HYP,subclass,135 STN-PSTN Pitx2 Glut,6,6
+SN,SN HYP,subclass,136 PMv-TMv Pitx2 Glut,5,6
+SN,SN HYP,subclass,137 PH-an Pitx2 Glut,6,6
+SN,SN HYP,subclass,138 PH Pitx2 Glut,6,6
+SN,SN HYP,subclass,139 PH-LHA Foxb1 Glut,6,6
+SN,SN HYP,subclass,140 PMd-LHA Foxb1 Glut,6,6
+SN,SN HYP,subclass,141 PH-SUM Foxa1 Glut,6,6
+SN,SN HYP,subclass,143 MM-ant Foxb1 Glut,5,5
+SN,SN HYP,subclass,144 MM Foxb1 Glut,4,4
+SN,SN HYP,subclass,149 PVT-PT Ntrk1 Glut,4,4
+SN,SN HYP,subclass,152 RE-Xi Nox4 Glut,5,6
+SN,SN HYP,subclass,168 SPA-SPFm-SPFp-POL-PIL-PoT Sp9 Glut,5,6
+SN,SN HYP,subclass,203 LGv-SPFp-SPFm Nkx2-2 Tcf7l2 Gaba,3,4
+SN,SN HYP,subclass,243 PGRN-PARN-MDRN Hoxb5 Glut,6,6
+SN,SN HYP,subclass,318 Astro-NT NN,6,6
+SN,SN HYP,subclass,322 Tanycyte NN,6,6
+SN,SN HYP,subclass,326 OPC NN,6,6
+SN,SN HYP,subclass,327 Oligo NN,6,6
+SN,SN HYP,subclass,334 Microglia NN,6,6
+seqFISH,seqFISH,subclass,001 CLA-EPd-CTX Car3 Glut,8,8
+seqFISH,seqFISH,subclass,002 IT EP-CLA Glut,8,8
+seqFISH,seqFISH,subclass,003 L5/6 IT TPE-ENT Glut,8,8
+seqFISH,seqFISH,subclass,004 L6 IT CTX Glut,8,8
+seqFISH,seqFISH,subclass,005 L5 IT CTX Glut,8,8
+seqFISH,seqFISH,subclass,006 L4/5 IT CTX Glut,8,8
+seqFISH,seqFISH,subclass,007 L2/3 IT CTX Glut,8,8
+seqFISH,seqFISH,subclass,008 L2/3 IT ENT Glut,8,8
+seqFISH,seqFISH,subclass,009 L2/3 IT PIR-ENTl Glut,8,8
+seqFISH,seqFISH,subclass,010 IT AON-TT-DP Glut,8,8
+seqFISH,seqFISH,subclass,012 MEA Slc17a7 Glut,8,8
+seqFISH,seqFISH,subclass,013 COAp Grxcr2 Glut,6,8
+seqFISH,seqFISH,subclass,014 LA-BLA-BMA-PA Glut,8,8
+seqFISH,seqFISH,subclass,016 CA1-ProS Glut,8,8
+seqFISH,seqFISH,subclass,017 CA3 Glut,8,8
+seqFISH,seqFISH,subclass,018 L2 IT PPP-APr Glut,8,8
+seqFISH,seqFISH,subclass,019 L2/3 IT PPP Glut,8,8
+seqFISH,seqFISH,subclass,020 L2/3 IT RSP Glut,8,8
+seqFISH,seqFISH,subclass,021 L4 RSP-ACA Glut,6,8
+seqFISH,seqFISH,subclass,022 L5 ET CTX Glut,8,8
+seqFISH,seqFISH,subclass,023 SUB-ProS Glut,8,8
+seqFISH,seqFISH,subclass,024 L5 PPP Glut,7,8
+seqFISH,seqFISH,subclass,025 CA2-FC-IG Glut,8,8
+seqFISH,seqFISH,subclass,026 NLOT Rho Glut,6,7
+seqFISH,seqFISH,subclass,027 L6b EPd Glut,8,8
+seqFISH,seqFISH,subclass,028 L6b/CT ENT Glut,8,8
+seqFISH,seqFISH,subclass,029 L6b CTX Glut,8,8
+seqFISH,seqFISH,subclass,030 L6 CT CTX Glut,8,8
+seqFISH,seqFISH,subclass,032 L5 NP CTX Glut,8,8
+seqFISH,seqFISH,subclass,034 NP PPP Glut,7,8
+seqFISH,seqFISH,subclass,036 HPF CR Glut,6,8
+seqFISH,seqFISH,subclass,037 DG Glut,8,8
+seqFISH,seqFISH,subclass,038 DG-PIR Ex IMN,8,8
+seqFISH,seqFISH,subclass,039 OB Meis2 Thsd7b Gaba,6,7
+seqFISH,seqFISH,subclass,041 OB-in Frmd7 Gaba,8,8
+seqFISH,seqFISH,subclass,042 OB-out Frmd7 Gaba,8,6
+seqFISH,seqFISH,subclass,043 OB-mi Frmd7 Gaba,4,4
+seqFISH,seqFISH,subclass,045 OB-STR-CTX Inh IMN,8,8
+seqFISH,seqFISH,subclass,046 Vip Gaba,8,8
+seqFISH,seqFISH,subclass,047 Sncg Gaba,8,8
+seqFISH,seqFISH,subclass,048 RHP-COA Ndnf Gaba,8,8
+seqFISH,seqFISH,subclass,049 Lamp5 Gaba,8,8
+seqFISH,seqFISH,subclass,050 Lamp5 Lhx6 Gaba,8,8
+seqFISH,seqFISH,subclass,052 Pvalb Gaba,8,8
+seqFISH,seqFISH,subclass,053 Sst Gaba,8,8
+seqFISH,seqFISH,subclass,054 STR Prox1 Lhx6 Gaba,8,8
+seqFISH,seqFISH,subclass,056 Sst Chodl Gaba,8,8
+seqFISH,seqFISH,subclass,057 NDB-SI-MA-STRv Lhx8 Gaba,5,8
+seqFISH,seqFISH,subclass,058 PAL-STR Gaba-Chol,4,5
+seqFISH,seqFISH,subclass,060 OT D3 Folh1 Gaba,7,7
+seqFISH,seqFISH,subclass,061 STR D1 Gaba,7,7
+seqFISH,seqFISH,subclass,062 STR D2 Gaba,7,7
+seqFISH,seqFISH,subclass,063 STR D1 Sema5a Gaba,7,7
+seqFISH,seqFISH,subclass,064 STR-PAL Chst9 Gaba,7,7
+seqFISH,seqFISH,subclass,065 IA Mgp Gaba,7,8
+seqFISH,seqFISH,subclass,073 MEA-BST Sox6 Gaba,8,8
+seqFISH,seqFISH,subclass,074 MEA-BST Lhx6 Sp9 Gaba,7,7
+seqFISH,seqFISH,subclass,075 MEA-BST Lhx6 Nr2e1 Gaba,4,6
+seqFISH,seqFISH,subclass,076 MEA-BST Lhx6 Nfib Gaba,7,8
+seqFISH,seqFISH,subclass,079 CEA-BST Six3 Cyp26b1 Gaba,7,7
+seqFISH,seqFISH,subclass,080 CEA-AAA-BST Six3 Sp9 Gaba,6,7
+seqFISH,seqFISH,subclass,082 CEA-BST Ebf1 Pdyn Gaba,7,7
+seqFISH,seqFISH,subclass,083 CEA-BST Rai14 Pdyn Crh Gaba,4,4
+seqFISH,seqFISH,subclass,089 PVR Six3 Sox3 Gaba,5,5
+seqFISH,seqFISH,subclass,090 BST-MPN Six3 Nrgn Gaba,7,7
+seqFISH,seqFISH,subclass,093 RT-ZI Gnb3 Gaba,8,8
+seqFISH,seqFISH,subclass,097 PVHd-SBPV Six3 Prox1 Gaba,5,7
+seqFISH,seqFISH,subclass,098 AHN-SBPV-PVHd Pdrm12 Gaba,7,8
+seqFISH,seqFISH,subclass,099 SBPV-PVa Six6 Satb2 Gaba,5,5
+seqFISH,seqFISH,subclass,101 ZI Pax6 Gaba,8,8
+seqFISH,seqFISH,subclass,102 DMH-LHA Gsx1 Gaba,8,8
+seqFISH,seqFISH,subclass,103 PVHd-DMH Lhx6 Gaba,7,8
+seqFISH,seqFISH,subclass,104 TU-ARH Otp Six6 Gaba,7,8
+seqFISH,seqFISH,subclass,106 PVpo-VMPO-MPN Hmx2 Gaba,7,8
+seqFISH,seqFISH,subclass,107 DMH Hmx2 Gaba,7,8
+seqFISH,seqFISH,subclass,108 ARH-PVp Tbx3 Gaba,5,7
+seqFISH,seqFISH,subclass,109 LGv-ZI Otx2 Gaba,6,4
+seqFISH,seqFISH,subclass,113 MEA-COA-BMA Ccdc42 Glut,4,6
+seqFISH,seqFISH,subclass,114 COAa-PAA-MEA Barhl2 Glut,8,7
+seqFISH,seqFISH,subclass,127 DMH-LHA Vgll2 Glut,5,6
+seqFISH,seqFISH,subclass,128 VMH Fezf1 Glut,4,5
+seqFISH,seqFISH,subclass,129 VMH Nr5a1 Glut,5,5
+seqFISH,seqFISH,subclass,130 LHA Pmch Glut,5,8
+seqFISH,seqFISH,subclass,133 PVH-SO-PVa Otp Glut,4,5
+seqFISH,seqFISH,subclass,134 PH-ant-LHA Otp Bsx Glut,6,7
+seqFISH,seqFISH,subclass,135 STN-PSTN Pitx2 Glut,5,7
+seqFISH,seqFISH,subclass,139 PH-LHA Foxb1 Glut,5,6
+seqFISH,seqFISH,subclass,145 MH Tac2 Glut,7,5
+seqFISH,seqFISH,subclass,146 LH Pou4f1 Sox1 Glut,6,6
+seqFISH,seqFISH,subclass,150 CM-IAD-CL-PCN Sema5b Glut,7,5
+seqFISH,seqFISH,subclass,151 TH Prkcd Grin2c Glut,8,8
+seqFISH,seqFISH,subclass,152 RE-Xi Nox4 Glut,7,8
+seqFISH,seqFISH,subclass,154 PF Fzd5 Glut,6,8
+seqFISH,seqFISH,subclass,168 SPA-SPFm-SPFp-POL-PIL-PoT Sp9 Glut,8,6
+seqFISH,seqFISH,subclass,181 IC Tfap2d Maf Glut,8,7
+seqFISH,seqFISH,subclass,198 IC Six3 En2 Gaba,7,8
+seqFISH,seqFISH,subclass,203 LGv-SPFp-SPFm Nkx2-2 Tcf7l2 Gaba,7,7
+seqFISH,seqFISH,subclass,285 MY Lhx1 Gly-Gaba,7,5
+seqFISH,seqFISH,subclass,300 PARN-MDRNd-NTS Gbx2 Gly-Gaba,6,4
+seqFISH,seqFISH,subclass,306 SPVI-SPVC Sall3 Lhx1 Gly-Gaba,5,5
+seqFISH,seqFISH,subclass,308 DCO Il22 Gly-Gaba,4,5
+seqFISH,seqFISH,subclass,318 Astro-NT NN,8,8
+seqFISH,seqFISH,subclass,319 Astro-TE NN,8,8
+seqFISH,seqFISH,subclass,321 Astroependymal NN,8,8
+seqFISH,seqFISH,subclass,322 Tanycyte NN,5,4
+seqFISH,seqFISH,subclass,323 Ependymal NN,8,8
+seqFISH,seqFISH,subclass,325 CHOR NN,8,8
+seqFISH,seqFISH,subclass,326 OPC NN,8,8
+seqFISH,seqFISH,subclass,327 Oligo NN,8,8
+seqFISH,seqFISH,subclass,329 ABC NN,8,8
+seqFISH,seqFISH,subclass,330 VLMC NN,8,8
+seqFISH,seqFISH,subclass,331 Peri NN,8,8
+seqFISH,seqFISH,subclass,332 SMC NN,8,8
+seqFISH,seqFISH,subclass,333 Endo NN,8,8
+seqFISH,seqFISH,subclass,334 Microglia NN,8,8
+seqFISH,seqFISH,subclass,335 BAM NN,8,8
+seqFISH,seqFISH,subclass,337 DC NN,8,8
+seqFISH,seqFISH,subclass,338 Lymphoid NN,8,8
