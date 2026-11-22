@@ -46,12 +46,18 @@ suppressPackageStartupMessages({
 wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
 source_date <- "2026-11-11"
 analysis_date <- "2026-11-12"
-viewer_date <- "2026-11-15"
-zstack_date <- "2026-11-14e"
+viewer_date <- "2026-11-21j"
+region_dashboard_date <- "2026-11-22e"
+covariation_date <- "2026-11-21c"
+registration_qc_date <- "2026-11-21c"
 hemi_date <- "2026-11-14e"
 source_dir <- file.path(wkdir, "data/interim/2DG_CCF_Integration", source_date)
 analysis_dir <- file.path(wkdir, "data/interim/2DG_CCF_Integration", analysis_date)
-viewer_dir <- file.path(wkdir, "data/interim/2DG_CCF_Integration", viewer_date)
+covariation_dir <- file.path(
+  wkdir,
+  "data/interim/2DG_CCF_Integration",
+  covariation_date
+)
 figure_dir <- file.path(wkdir, "figures/2DG_CCF_Integration")
 table_dir <- file.path(wkdir, "tables/2DG_CCF_Integration")
 
@@ -75,37 +81,29 @@ roi_path <- file.path(
   table_dir,
   glue("2DG_ROI_seed_ccf_overlap_{analysis_date}.csv")
 )
-widget_rds <- file.path(
-  viewer_dir,
-  glue("2DG_CCF_interactive3d_widget_{viewer_date}.rds")
-)
-transition_rds <- file.path(
-  viewer_dir,
-  glue("2DG_contrast_transition_widget_{viewer_date}.rds")
-)
-transition_fullscreen <- file.path(
+viewer_html <- file.path(
   figure_dir,
-  glue("2DG_contrast_transition_fullscreen_{viewer_date}.html")
+  glue("2DG_CCF_interactive3d_{viewer_date}.html")
+)
+region_dashboard_html <- file.path(
+  figure_dir,
+  glue("2DG_CCF_region_dashboard_{region_dashboard_date}.html")
 )
 covariation_rds <- file.path(
-  viewer_dir,
-  glue("2DG_region_covariation_widget_{viewer_date}.rds")
+  covariation_dir,
+  glue("2DG_region_covariation_widget_{covariation_date}.rds")
 )
 covariation_table_path <- file.path(
   table_dir,
-  glue("2DG_region_covariation_{viewer_date}.csv")
-)
-color_note_path <- file.path(
-  viewer_dir,
-  glue("2DG_viewer_color_sampling_note_{viewer_date}.json")
+  glue("2DG_region_covariation_{covariation_date}.csv")
 )
 covariation_png <- file.path(
   figure_dir,
-  glue("2DG_region_covariation_{viewer_date}.png")
+  glue("2DG_region_covariation_{covariation_date}.png")
 )
-zstack_html <- file.path(
+registration_qc_html <- file.path(
   figure_dir,
-  glue("2DG_CCF_zstack_browser_{zstack_date}.html")
+  glue("2DG_registration_qc_browser_{registration_qc_date}.html")
 )
 hemisphere_provenance_path <- file.path(
   table_dir,
@@ -139,10 +137,6 @@ bilateral_2dg_path <- file.path(
 template_figure <- file.path(
   figure_dir,
   glue("2DG_template_intruder_qc_{source_date}.png")
-)
-registration_figure <- file.path(
-  figure_dir,
-  glue("2DG_CCF_registration_qc_status_{analysis_date}.png")
 )
 decision_figure <- file.path(
   figure_dir,
@@ -234,8 +228,8 @@ upgrade adds what a controlled analysis requires: Baseline and within-genotype
 Intruder−Baseline maps warped through the same Template transforms as
 specificity controls, a pre-specified H1–H5 hypothesis battery with explicit
 pass/fail language, and a wide interactive 3D CCF explorer (Baseline/Intruder
-heatmaps, density controls, AP overlap, contrast transition, region
-co-variation).
+heatmaps, density controls, AP overlap, and region co-variation), plus a
+front-to-back per-section registration QC browser.
 
 ```{r}
 #| label: display-stats
@@ -324,45 +318,64 @@ Each Template coronal slice was fit into Allen CCFv3 and scored by tissue Dice
 against the atlas. A second gate rejects fits that would invent a discontinuous
 anterior–posterior (AP) trajectory even when Dice is high. Only
 `accepted_final` slices feed every downstream overlay, enrichment, and
-co-embedding step.
+co-embedding step. The browser below replaces the former Dice-by-slice summary:
+it exposes the actual anatomy, warp, effect projection, and AP context for every
+delivered section.
 
-::: {.figure-card}
+::: {.figure-card .fig-wide}
 ```{r}
 #| label: display-h1-registration
 #| echo: false
-#| out.width: "62%"
-#| fig.align: "center"
+#| results: asis
 
-display_saved_image(
-  registration_figure,
-  "Controlled registration QC figure not yet written."
-)
+if (file.exists(registration_qc_html)) {
+  href <- notebook_href(registration_qc_html)
+  cat(
+    "<p><a class='btn btn-sm' href='", href,
+    "' target='_blank' rel='noopener'>Open registration QC fullscreen</a></p>",
+    "<iframe src='", href,
+    "' width='100%' height='930' loading='lazy' data-external='1' ",
+    "title='Per-slice 2DG to Allen CCF registration QC browser'></iframe>\n",
+    sep = ""
+  )
+} else {
+  cat("<p><em>Registration QC browser not yet built.</em></p>\n")
+}
 ```
 
 ::: {.fig-caption}
-[**Figure 1.**]{.fig-num} Template→CCF Dice by source slice. Green =
-`accepted_final`; orange = high-Dice fits rejected only by AP continuity; grey =
-failed or blank.
+[**Figure 1.**]{.fig-num} Per-section Template→CCF registration audit. Move
+front-to-back through all 66 delivered planes; toggle Intruder or Baseline.
+Panels show original Template anatomy, source contrast, selected Allen plane,
+warped-Template/Allen edge agreement, registered contrast, and sagittal/AP
+trajectory context. Filters expose accepted versus withheld planes.
 :::
 
 ::: {.takeaways}
 **Decision: `r decision_of("H1")`**
 
-- **What was tested.** Pre-declared claim that accepted Template slices occupy
-  plausible CCF planes (Dice + AP continuity), not merely high Dice.
+- **How to review a plane.** Start with panels 1–3 to compare the delivered
+  Template and contrast with the selected Allen anatomy. Panel 4 is the direct
+  shape audit: cyan is warped Template tissue, orange is Allen tissue, and
+  green marks edge agreement. Panel 5 verifies where the chosen contrast lands.
+- **What was tested.** Accepted planes must pass tissue overlap, inside-atlas,
+  and non-folding transform checks, then preserve a plausible front-to-back AP
+  trajectory. Dice is shown as one metric in the browser, not as the visual
+  conclusion.
 - **Result.** 53/66 slices are `accepted_final` (mean Dice = 0.960). Twelve
   slices keep high Dice but fail AP continuity and are excluded. Template001 is
   blank and skipped.
-- **Takeaway.** The registered 2DG / CCF frame used below is strict: high Dice
-  alone is not enough. Continuity rejects prevent a smooth-looking but
-  anatomically invented AP path from entering later maps.
+- **Takeaway.** Use the **Rejected / blank** filter to inspect exactly what was
+  withheld. No rejected plane contributes to regional summaries or the 3D
+  co-embedding below.
 :::
 :::
 
 ### Interactive CCF co-embedding
 
-Tall Plotly explorer with Baseline / Intruder heatmaps, CCF borders, seqFISH
-NEUROeSTIMator cells, density (“cell depth”) controls, and an AP window matched
+Fixed-viewport Plotly explorer with symmetric Baseline / Intruder heatmaps,
+CCF domain and subdomain surfaces, optional wire meshes and parcel borders,
+seqFISH NEUROeSTIMator cells, shared density controls, and an AP window matched
 to the registered seqFISH section band (~6725–7800 µm).
 
 **How colors are generated.** 2DG clouds are colored by continuous signed t
@@ -380,26 +393,61 @@ Viewer seqFISH coordinates use **anatomical ML** (those sections un-mirrored abo
 plan:
 [analysis_md/2DG_seqFISH_hemisphere_symmetry_plan.md]{.path}.
 
-Anatomy toggle: **CCF points** (border subsample) or **CCF outline shell**
-(translucent Allen whole-brain mesh from `annotation_25.nrrd`) with shell α
-buttons.
+The redesigned anatomy controls are independent of the data controls. Choose
+one 2DG contrast at a time (Intruder, Baseline, or none) to avoid ambiguous
+overplotting; seqFISH remains an independent layer. A translucent whole-brain
+surface can remain as context while a large Allen domain and one of its
+subdomains are selected. The selected domain itself can be hidden while
+retaining its subdomain. Surface, wire mesh, parcel points, and opacity can each
+be changed without resetting the statistical data, density, or AP scope. The
+curated colors and rendered surfaces follow the supplied
+brainrender/BrainGlobe reference aesthetic.
+
+```{r}
+#| label: display-interactive-3d-link
+#| echo: false
+#| results: asis
+
+if (file.exists(viewer_html)) {
+  cat(
+    "<p><a class='btn btn-sm' href='",
+    notebook_href(viewer_html),
+    "' target='_blank' rel='noopener'>Open modular 3D explorer</a></p>\n",
+    sep = ""
+  )
+} else {
+  cat("<p><em>Fullscreen 3D explorer not yet built.</em></p>\n")
+}
+```
 
 ::: {.figure-card .fig-wide}
 ```{r}
 #| label: display-interactive-3d
 #| echo: false
+#| results: asis
 
-display_widget(
-  widget_rds,
-  "Interactive 3D widget not yet built. Run plot_2dg_ccf_interactive3d.R."
-)
+if (file.exists(viewer_html)) {
+  cat(
+    "<iframe src='", notebook_href(viewer_html),
+    "' width='100%' height='920' loading='lazy' data-external='1' ",
+    "title='Fixed-viewport 2DG and seqFISH 3D CCF explorer'></iframe>\n",
+    sep = ""
+  )
+} else {
+  cat(
+    "<p><em>Interactive 3D widget not yet built. ",
+    "Run plot_2dg_ccf_modular_viewer.R.</em></p>\n"
+  )
+}
 ```
 
 ::: {.fig-caption}
-[**Figure 2.**]{.fig-num} Multi-map CCF explorer. Buttons: Intruder / Baseline /
-Baseline+Intruder / Intruder+CCF / seqFISH AP overlap / All maps+CCF; density
-low→high and point-size toggles. AP-overlap mode keeps only voxels/cells inside
-the seqFISH AP window.
+[**Figure 2.**]{.fig-num} Modular CCF explorer. A single selector switches
+between Intruder and Baseline (or hides 2DG), while seqFISH is independently
+available. The same density and AP-scope views apply to both 2DG contrasts.
+Anatomical controls independently select whole-brain context, a large Allen
+domain, a nested subdomain, surface, wire mesh, or parcel-border points. Camera
+presets change orientation without changing any selected layer.
 :::
 
 ::: {.takeaways}
@@ -407,8 +455,12 @@ the seqFISH AP window.
 
 - **Same CCF frame.** Baseline and Intruder WildR−SPF heatmaps (RdBu; blue =
   WildR↑) sit with seqFISH NE cells (Viridis) and Allen anatomy (points or
-  translucent shell). Colors are random voxel/cell subsamples — not cell-type
-  strata.
+  curated translucent region surfaces). Colors are random voxel/cell
+  subsamples — not cell-type strata.
+- **Symmetric controls.** Intruder and Baseline share one contrast selector and
+  the same density, point-size, and AP-scope controls. Anatomy is separate:
+  whole-brain context, selected domain, subdomain, surface, and wireframe can be
+  changed without resetting the statistical data.
 - **Why AP overlap matters.** Restricting to the seqFISH AP band
   (~6725–7800 µm) is the honest spatial comparison plane; full-brain clouds
   overstate co-localization.
@@ -419,103 +471,86 @@ the seqFISH AP window.
 :::
 :::
 
-### Allen z-stack registration browser
+### Regional signature ranking and linked anatomy
 
-Side-by-side **input Template slice** vs **Allen coronal plane** with selectable
-warped metrics, plus a mid-sagittal inset marking the current AP cut. Scroll
-accepted slices; toggle Intruder / Baseline / I−B / Template / tissue mask.
-This is the slice-wise companion to H1: confirm that each accepted plane’s
-warped contrast lands on the intended Allen cut.
+The paired explorer below turns the same accepted CCF-registered 2DG maps into
+an anatomical ranking and inspection tool. The left panel groups the currently
+enabled Allen subdomains under 12 larger domains. Bars diverge around zero:
+positive/blue is WildR-enriched and negative/red is SPF-enriched. The default
+score is the voxel-weighted mean signed t among significant voxels from
+accepted registrations. Domain summaries are calculated independently from
+their Allen descendant IDs; they are not additive because some Allen hierarchy
+composites overlap.
+
+Clicking a bar links the rank to three complementary anatomical views. **3D
+slices** shows significant voxels only on accepted coronal sections that
+intersect the selected anatomy. **3D average** shades the selected mesh by its
+descriptive mean t. **2D coronal** moves through all 66 delivered sections,
+including rejected and blank inputs, with full Allen parcel context and the
+selected domain/subdomain outlined. Rejected sections are shown for QC context
+but never contribute to the ranking.
 
 ```{r}
-#| label: display-zstack-link
+#| label: display-region-dashboard-link
 #| echo: false
 #| results: asis
 
-if (file.exists(zstack_html)) {
+if (file.exists(region_dashboard_html)) {
   cat(
     "<p><a class='btn btn-sm' href='",
-    notebook_href(zstack_html),
-    "' target='_blank' rel='noopener'>Open z-stack registration browser</a> ",
-    "<span class='path'>", zstack_html, "</span></p>\n",
+    notebook_href(region_dashboard_html),
+    "' target='_blank' rel='noopener'>Open regional signature explorer fullscreen</a></p>\n",
     sep = ""
   )
-} else {
-  cat("<p><em>Z-stack browser not yet built.</em></p>\n")
-}
-```
-
-::: {.callout-note}
-Sibling-map metrics (Baseline / I−B) are painted on the **Allen** panel from CCF
-overlay points; the left panel is Template anatomy only (no dense source-space
-sibling warp is stored). Colorbar: blue = WildR↑, red = SPF↑; ML left ← midline
-→ right.
-:::
-
-::: {.takeaways}
-**Z-stack takeaways**
-
-- **What was built.** Per-accepted-slice browser: Template anatomy | Allen plane
-  + warped Intruder / Baseline / I−B overlays + tissue mask, with AP inset.
-- **Conclusion.** Use it to audit whether a given AP cut’s 2DG contrast is
-  anatomically plausible before trusting regional summaries from that plane.
-  Continuity-rejected slices stay out of the scroll set (same gate as H1).
-:::
-
-### Contrast transition (Baseline → Intruder → NE)
-
-Press **Play / hold cycles** (or open the fullscreen page) to flip between SPF /
-WildR Baseline differences, Intruder differences, and regional NEUROeSTIMator
-WildR−SPF means. The animation is a visual bridge from home-cage Baseline
-structure → social Intruder structure → seqFISH excitability polarity in the
-same CCF coordinates.
-
-```{r}
-#| label: display-transition-link
-#| echo: false
-#| results: asis
-
-if (file.exists(transition_fullscreen)) {
-  cat(
-    "<p><a class='btn btn-sm' href='",
-    notebook_href(transition_fullscreen),
-    "' target='_blank' rel='noopener'>Open fullscreen contrast transition</a></p>\n",
-    sep = ""
-  )
-} else {
-  cat("<p><em>Fullscreen transition page not yet written.</em></p>\n")
 }
 ```
 
 ::: {.figure-card .fig-wide}
 ```{r}
-#| label: display-contrast-transition
+#| label: display-region-dashboard
 #| echo: false
+#| results: asis
 
-display_widget(
-  transition_rds,
-  "Contrast transition widget not yet built. Run plot_2dg_ccf_interactive3d.R."
-)
+if (file.exists(region_dashboard_html)) {
+  cat(
+    "<iframe src='", notebook_href(region_dashboard_html),
+    "' width='100%' height='900' loading='lazy' data-external='1' ",
+    "title='Linked 2DG Allen domain ranking and anatomical section explorer'></iframe>\n",
+    sep = ""
+  )
+} else {
+  cat(
+    "<p><em>Regional signature explorer not yet built. ",
+    "Run build_2dg_ccf_region_dashboard.py.</em></p>\n"
+  )
+}
 ```
 
 ::: {.fig-caption}
-[**Figure 2b.**]{.fig-num} Animated 3D transition across three signed contrasts:
-Baseline WildR−SPF voxels → Intruder WildR−SPF voxels → Allen-region centroids
-colored by seqFISH NEUROeSTIMator WildR−SPF mean activity.
+[**Figure 2a.**]{.fig-num} Linked regional signature explorer. The diverging
+bars rank the curated Allen domains and subdomains by accepted-map WildR−SPF
+signal. Contrast, ranking direction, metric, minimum voxel coverage and number
+of displayed subdomains are interactive. Bar selection drives the adjacent
+3D slice evidence, descriptive mesh-average view and 66-section coronal atlas
+browser.
 :::
 
 ::: {.takeaways}
-**Transition takeaways**
+**How to interpret this dashboard**
 
-- **Shared polarity.** All frames use the same RdBu convention (blue = WildR↑;
-  red = SPF↑). NE regional Δ is scaled ×8 only for visibility — not a new
-  statistical transform.
-- **What to look for.** Whether Intruder hotspots resemble Baseline polarity,
-  and whether NE centroids align with either map’s sign structure (they often
-  do not one-to-one — see Fig. 2c / H2–H3).
-- **Takeaway.** Qualitative specificity check only; formal claims stay with the
-  hypothesis battery. Fullscreen page:
-  `figures/2DG_CCF_Integration/2DG_contrast_transition_fullscreen_2026-11-15.html`.
+- **What the score measures.** Mean signed t is averaged across significant
+  voxels assigned to the selected Allen hierarchy branch. `n_voxels`,
+  `n_slices` and mean |t| are available as coverage and magnitude checks.
+- **What it does not measure.** These are descriptive group statistical maps,
+  not animal-level estimates. The source TIFFs do not contain parcel-level
+  p values, FDR, standard errors or confidence intervals.
+- **Why the views differ.** The 3D modes use accepted registrations only. The
+  2D browser deliberately retains all delivered sections so rejected,
+  continuity-withheld, blank and missing-Baseline inputs remain auditable.
+- **How to use ranks.** Sort by WildR, SPF or absolute difference to find
+  anatomical candidates, then inspect their spatial support before drawing a
+  biological conclusion. A strong bar supported by few voxels or one section
+  should be treated cautiously.
 :::
 :::
 
@@ -539,7 +574,7 @@ display_widget(
 ```
 
 ::: {.fig-caption}
-[**Figure 2c.**]{.fig-num} Interactive per-region scatter panels (filtered:
+[**Figure 2b.**]{.fig-num} Interactive per-region scatter panels (filtered:
 ≥100 seqFISH cells and ≥10 Intruder overlay pixels). Orange =
 pre-specified limbic/hypothalamic set. Axes: positive = WildR higher.
 :::
@@ -605,7 +640,7 @@ if (!is.null(covariation) && nrow(covariation) > 2L) {
 - **Baseline vs Intruder.** Negative (ρ ≈ −0.34, p ≈ 3.8×10⁻⁵): the two 2DG
   contrasts are not the same spatial polarity across parcels.
 - **Scope.** Descriptive region-level only — not animal-level inference. Table:
-  [tables/2DG_CCF_Integration/2DG_region_covariation_2026-11-15.csv]{.path}.
+  [tables/2DG_CCF_Integration/2DG_region_covariation_2026-11-21c.csv]{.path}.
 :::
 :::
 
@@ -631,7 +666,7 @@ display_saved_image(
 ```
 
 ::: {.fig-caption}
-[**Figure 2d.**]{.fig-num} Counts of hemisphere symmetry classes for Baseline 2DG,
+[**Figure 2c.**]{.fig-num} Counts of hemisphere symmetry classes for Baseline 2DG,
 Intruder 2DG, and NEUROeSTIMator WildR−SPF regional effects.
 :::
 
@@ -662,7 +697,7 @@ display_saved_image(
 ```
 
 ::: {.fig-caption}
-[**Figure 2e.**]{.fig-num} Per-region signature strip (limbic / non-indeterminate
+[**Figure 2d.**]{.fig-num} Per-region signature strip (limbic / non-indeterminate
 focus). Full table:
 [tables/2DG_CCF_Integration/2DG_NE_hemisphere_symmetry_classes_2026-11-14e.csv]{.path}.
 :::
@@ -692,7 +727,7 @@ display_saved_image(
 ```
 
 ::: {.fig-caption}
-[**Figure 2f.**]{.fig-num} Lateralization-index concordance: NE vs Intruder and NE
+[**Figure 2e.**]{.fig-num} Lateralization-index concordance: NE vs Intruder and NE
 vs Baseline. Index = (R−L)/(|R|+|L|); positive = right-biased WildR−SPF effect.
 :::
 
@@ -944,7 +979,7 @@ pre-specified battery:
    frame for everything above is trustworthy where used.
 2. **H2 not supported.** Limbic/hypothalamic \|t\| enrichment is a **Baseline**
    property (Δ ≈ +0.63, p ≈ 0.0003), not Intruder-specific (Δ ≈ −0.03, p ≈ 0.85).
-   Parcel-level NE↔2DG co-variation (Fig. 2c) points the same way.
+   Parcel-level NE↔2DG co-variation (Fig. 2b) points the same way.
 3. **H3 supported.** Gate-allocated Intruder positive mean t correlates with
    NEUROeSTIMator Hedges’ g (ρ = −0.66, p ≈ 0.041); Baseline does not. The
    negative sign is part of the result, not a labeling error.
@@ -976,6 +1011,8 @@ Ordinary rendering loads dated tables/figures/widgets only. Set
 #| label: cell-warp-siblings
 #| eval: !expr run_analysis
 
+set -euo pipefail
+
 /resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/python \
   /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/python_scripts/warp_2dg_sibling_maps_to_ccf.py \
   all
@@ -985,6 +1022,8 @@ Ordinary rendering loads dated tables/figures/widgets only. Set
 #| label: cell-hypothesis-battery
 #| eval: !expr run_analysis
 
+set -euo pipefail
+
 /resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript \
   /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/R_scripts/test_2dg_neuroestimator_hypotheses.R
 ```
@@ -993,28 +1032,59 @@ Ordinary rendering loads dated tables/figures/widgets only. Set
 #| label: cell-interactive-3d
 #| eval: !expr run_analysis
 
+set -euo pipefail
+
 /resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/python \
   /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/python_scripts/export_ccf_border_points.py
 
 /resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/python \
-  /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/python_scripts/export_allen_ccf_shell_mesh.py
+  /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/python_scripts/export_2dg_ccf_region_meshes.py
 
 /resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/python \
-  /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/python_scripts/build_2dg_ccf_zstack_browser.py
+  /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/python_scripts/build_2dg_registration_qc_browser.py
 
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript \
+  /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/R_scripts/plot_2dg_ccf_modular_viewer.R
+```
+
+```{bash}
+#| label: cell-region-dashboard
+#| eval: !expr run_analysis
+
+set -euo pipefail
+
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/python \
+  /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/python_scripts/build_2dg_ccf_region_dashboard.py
+```
+
+```{bash}
+#| label: cell-covariation-widget-historical
+#| eval: !expr run_analysis
+
+set -euo pipefail
+
+# Historical producer for the displayed 2026-11-21c co-variation artifacts.
 /resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript \
   /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/R_scripts/plot_2dg_ccf_interactive3d.R
 ```
 
-Interactive viewer artifacts: `viewer_date = 2026-11-15` (centered full-domain
-3D / transition / co-variation; white backgrounds; anatomical seqFISH ML) and
-`zstack_date = 2026-11-14e` under [figures/2DG_CCF_Integration]{.path}.
+Interactive viewer artifacts: `viewer_date = 2026-11-21j` (modular 3D
+explorer with curated Allen domain/subdomain meshes; white background;
+anatomical seqFISH ML; region meshes exported as `2026-11-21e`). Co-variation artifacts remain
+`covariation_date = 2026-11-21c`; registration QC is
+`registration_qc_date = 2026-11-21c` under
+[figures/2DG_CCF_Integration]{.path}.
+The linked regional ranking and coronal/3D section explorer is
+`region_dashboard_date = 2026-11-22e`; it uses accepted registered voxels for
+scores and all 66 delivered sections for atlas/QC navigation.
 Hemisphere symmetry tables/figures: `hemi_date = 2026-11-14e`. Hypothesis
 battery remains dated `2026-11-12` (step G open — not re-run here).
 
 ```{bash}
 #| label: cell-hemisphere-symmetry
 #| eval: !expr run_analysis
+
+set -euo pipefail
 
 /resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript \
   /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/R_scripts/analyze_2dg_seqfish_hemisphere_symmetry.R

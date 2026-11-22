@@ -23,7 +23,7 @@ suppressPackageStartupMessages({
 WKDIR <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
 SOURCE_DATE <- "2026-11-11"
 CONTROL_DATE <- "2026-11-12"
-ANALYSIS_DATE <- "2026-11-15"
+ANALYSIS_DATE <- "2026-11-21c"
 
 SOURCE_DIR <- file.path(WKDIR, "data/interim/2DG_CCF_Integration", SOURCE_DATE)
 CONTROL_DIR <- file.path(WKDIR, "data/interim/2DG_CCF_Integration", CONTROL_DATE)
@@ -82,10 +82,11 @@ N_SEQ_LOW <- 5000L
 N_SEQ_MED <- 12000L
 N_SEQ_HIGH <- 25000L
 SET_SEED <- 42L
-# Near-fullscreen vertical canvas; scene uses the full plot domain (no bottom pin).
-PLOT_HEIGHT_3D <- 1600L
-PLOT_HEIGHT_TRANSITION <- 1600L
-PLOT_WIDTH <- 1500L
+# A single-viewport canvas keeps controls and color scales visible while the
+# scene itself rotates/zooms. Standalone HTML is resized to exactly 100vw×100vh.
+PLOT_HEIGHT_3D <- 920L
+PLOT_HEIGHT_TRANSITION <- 920L
+PLOT_WIDTH <- NULL
 
 log_message <- function(...) {
   message("[", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "] ", ...)
@@ -875,6 +876,40 @@ write_fullscreen_page <- function(widget, path) {
   writeLines(html, path)
 }
 
+write_viewport_page <- function(widget, path) {
+  saveWidget(widget, path, selfcontained = TRUE, title = "2DG CCF explorer")
+  html <- paste(readLines(path, warn = FALSE), collapse = "\n")
+  inject <- paste0(
+    "<style>",
+    "html,body{margin:0!important;padding:0!important;width:100%;height:100%;",
+    "overflow:hidden!important;background:#fff;}",
+    "body>.html-widget,.html-widget,.plotly,.js-plotly-plot{",
+    "position:fixed!important;inset:0!important;width:100vw!important;",
+    "height:100vh!important;max-width:none!important;max-height:none!important;}",
+    ".svg-container,.main-svg{width:100%!important;height:100%!important;}",
+    "</style>",
+    "<script>",
+    "(function(){",
+    "function fit(){",
+    "var el=document.querySelector('.js-plotly-plot');",
+    "if(!el||!window.Plotly){setTimeout(fit,60);return;}",
+    "Plotly.relayout(el,{width:window.innerWidth,height:window.innerHeight,autosize:true});",
+    "Plotly.Plots.resize(el);",
+    "}",
+    "window.addEventListener('resize',fit);",
+    "window.addEventListener('load',function(){setTimeout(fit,0);});",
+    "setTimeout(fit,80);",
+    "})();",
+    "</script>"
+  )
+  if (grepl("</head>", html, ignore.case = TRUE)) {
+    html <- sub("</head>", paste0(inject, "\n</head>"), html, ignore.case = TRUE)
+  } else {
+    html <- paste0(inject, "\n", html)
+  }
+  writeLines(html, path)
+}
+
 region_centroids_from_joined <- function(joined, concordance) {
   cells <- joined[
     registered_ccf == TRUE &
@@ -1051,7 +1086,7 @@ main <- function() {
 
   log_message("Building 3D explorer")
   explorer <- build_explorer(intruder, baseline, borders, seqfish, shell, ap_min, ap_max)
-  saveWidget(explorer, WIDGET_3D_HTML, selfcontained = TRUE, title = "2DG CCF explorer")
+  write_viewport_page(explorer, WIDGET_3D_HTML)
   saveRDS(explorer, WIDGET_3D_RDS, compress = "xz")
 
   log_message("Building contrast transition")
