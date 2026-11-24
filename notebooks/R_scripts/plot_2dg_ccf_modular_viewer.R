@@ -22,9 +22,9 @@ suppressPackageStartupMessages({
 })
 
 WKDIR <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
-SOURCE_DATE <- "2026-11-11"
-CONTROL_DATE <- "2026-11-12"
-ANALYSIS_DATE <- "2026-11-21j"
+SOURCE_DATE <- "2026-11-23c"
+CONTROL_DATE <- "2026-11-23c"
+ANALYSIS_DATE <- "2026-11-23c"
 MESH_DATE <- "2026-11-21e"
 
 SOURCE_DIR <- file.path(WKDIR, "data/interim/2DG_CCF_Integration", SOURCE_DATE)

@@ -21,9 +21,9 @@ suppressPackageStartupMessages({
 })
 
 WKDIR <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
-SOURCE_DATE <- "2026-11-11"
-CONTROL_DATE <- "2026-11-12"
-ANALYSIS_DATE <- "2026-11-21c"
+SOURCE_DATE <- "2026-11-23c"
+CONTROL_DATE <- "2026-11-23c"
+ANALYSIS_DATE <- "2026-11-23h"
 
 SOURCE_DIR <- file.path(WKDIR, "data/interim/2DG_CCF_Integration", SOURCE_DATE)
 CONTROL_DIR <- file.path(WKDIR, "data/interim/2DG_CCF_Integration", CONTROL_DATE)
@@ -628,17 +628,30 @@ build_transition <- function(intruder, baseline, region_centroids, shell) {
   config(p, displaylogo = FALSE, responsive = TRUE)
 }
 
-spearman_label <- function(x, y) {
+spearman_label <- function(x, y, compact = FALSE) {
   ok <- is.finite(x) & is.finite(y)
   if (sum(ok) < 5L) return("ρ = NA")
   ct <- suppressWarnings(cor.test(x[ok], y[ok], method = "spearman", exact = FALSE))
+  if (isTRUE(compact)) {
+    return(sprintf(
+      "ρ = %.2f · p = %.2g · n = %d",
+      unname(ct$estimate),
+      ct$p.value,
+      sum(ok)
+    ))
+  }
   sprintf("Spearman ρ = %.3f (p = %.3g, n = %d)", unname(ct$estimate), ct$p.value, sum(ok))
 }
 
 build_covariation <- function(covar) {
   covar <- copy(covar)
   covar[, set_label := ifelse(in_prespecified_set %in% TRUE, "Limbic/hypothalamic set", "Other regions")]
-  covar[, size_cells := pmax(7, 3 + 4 * log10(pmax(n_cells_total, 1)))]
+  # Compact markers so panels stay readable at ~450 px height.
+  covar[, size_cells := pmax(4.5, 2.0 + 2.2 * log10(pmax(n_cells_total, 1)))]
+
+  axis_font <- list(size = 10)
+  title_font <- list(size = 11)
+  tick_font <- list(size = 9)
 
   mk <- function(xcol, xlab, name, color) {
     plot_ly(
@@ -650,7 +663,11 @@ build_covariation <- function(covar) {
       name = name,
       color = ~set_label,
       colors = c("Limbic/hypothalamic set" = "#FF6C0C", "Other regions" = color),
-      marker = list(size = ~size_cells, opacity = 0.75, line = list(width = 0.4, color = "#333")),
+      marker = list(
+        size = ~size_cells,
+        opacity = 0.72,
+        line = list(width = 0.25, color = "rgba(40,44,52,0.35)")
+      ),
       text = ~sprintf(
         "%s<br>%s<br>2DG mean t=%.2f<br>NE WildR−SPF=%.4f<br>cells=%d; overlay px=%d",
         annotation_name,
@@ -661,39 +678,30 @@ build_covariation <- function(covar) {
         n_overlay_pixels
       ),
       hoverinfo = "text",
-      showlegend = FALSE
+      showlegend = name == "vs Intruder"
     ) %>%
       layout(
         xaxis = list(
-          title = paste0(xlab, "<br><sup>→ WildR higher  |  SPF higher ←</sup>"),
+          title = list(text = xlab, font = title_font),
           zeroline = TRUE,
-          zerolinecolor = "#888"
+          zerolinecolor = "#888",
+          tickfont = tick_font,
+          titlefont = title_font
         ),
         yaxis = list(
-          title = "NEUROeSTIMator WildR − SPF<br><sup>→ WildR higher activity</sup>",
+          title = list(text = "NE WildR − SPF", font = title_font),
           zeroline = TRUE,
-          zerolinecolor = "#888"
+          zerolinecolor = "#888",
+          tickfont = tick_font,
+          titlefont = title_font
         ),
-        annotations = list(
-          list(
-            text = spearman_label(
-              covar[[xcol]],
-              covar$seqfish_wildr_minus_spf_descriptive
-            ),
-            xref = "paper",
-            yref = "paper",
-            x = 0.02,
-            y = 1.08,
-            showarrow = FALSE,
-            align = "left",
-            font = list(size = 12)
-          )
-        )
+        font = axis_font
       )
   }
 
-  p1 <- mk("intruder_mean_t", "Intruder 2DG mean t (WildR − SPF)", "vs Intruder", "#9ecae1")
-  p2 <- mk("baseline_mean_t", "Baseline 2DG mean t (WildR − SPF)", "vs Baseline", "#a1d99b")
+  p1 <- mk("intruder_mean_t", "Intruder 2DG mean t", "vs Intruder", "#9ecae1")
+  p2 <- mk("baseline_mean_t", "Baseline 2DG mean t", "vs Baseline", "#a1d99b")
+  ne_lim <- max(abs(covar$seqfish_wildr_minus_spf_descriptive), na.rm = TRUE)
   p3 <- plot_ly(
     covar,
     x = ~baseline_mean_t,
@@ -703,19 +711,23 @@ build_covariation <- function(covar) {
     name = "Baseline vs Intruder",
     marker = list(
       size = ~size_cells,
-      opacity = 0.8,
+      opacity = 0.75,
       color = ~seqfish_wildr_minus_spf_descriptive,
-      colorscale = "RdBu",
-      reversescale = TRUE,
-      colorbar = list(
-        title = list(
-          text = "NE Δ<br><span style='font-size:11px'>blue=WildR↑</span>"
-        ),
-        tickvals = NULL
+      colorscale = list(
+        list(0, "#b2182b"),
+        list(0.5, "#f7f7f7"),
+        list(1, "#2166ac")
       ),
-      cmin = -max(abs(covar$seqfish_wildr_minus_spf_descriptive), na.rm = TRUE),
-      cmax = max(abs(covar$seqfish_wildr_minus_spf_descriptive), na.rm = TRUE),
-      line = list(width = 0.4, color = "#333")
+      colorbar = list(
+        title = list(text = "NE Δ", font = list(size = 10)),
+        thickness = 10,
+        len = 0.55,
+        y = 0.5,
+        tickfont = list(size = 9)
+      ),
+      cmin = -ne_lim,
+      cmax = ne_lim,
+      line = list(width = 0.25, color = "rgba(40,44,52,0.35)")
     ),
     text = ~sprintf(
       "%s<br>Baseline t=%.2f<br>Intruder t=%.2f<br>NE Δ=%.4f",
@@ -728,34 +740,94 @@ build_covariation <- function(covar) {
     showlegend = FALSE
   ) %>%
     layout(
-      xaxis = list(title = "Baseline 2DG mean t (WildR − SPF)", zeroline = TRUE),
-      yaxis = list(title = "Intruder 2DG mean t (WildR − SPF)", zeroline = TRUE),
-      annotations = list(list(
-        text = spearman_label(covar$baseline_mean_t, covar$intruder_mean_t),
-        xref = "paper", yref = "paper", x = 0.02, y = 1.08,
-        showarrow = FALSE, font = list(size = 12)
-      ))
+      xaxis = list(
+        title = list(text = "Baseline 2DG mean t", font = title_font),
+        zeroline = TRUE,
+        tickfont = tick_font
+      ),
+      yaxis = list(
+        title = list(text = "Intruder 2DG mean t", font = title_font),
+        zeroline = TRUE,
+        tickfont = tick_font
+      )
     )
 
-  subplot(p1, p2, p3, nrows = 1, shareY = FALSE, titleX = TRUE, titleY = TRUE, margin = 0.06) %>%
+  # Place one compact Spearman label above each panel domain so they cannot collide.
+  panel_stats <- list(
+    spearman_label(
+      covar$intruder_mean_t,
+      covar$seqfish_wildr_minus_spf_descriptive,
+      compact = TRUE
+    ),
+    spearman_label(
+      covar$baseline_mean_t,
+      covar$seqfish_wildr_minus_spf_descriptive,
+      compact = TRUE
+    ),
+    spearman_label(
+      covar$baseline_mean_t,
+      covar$intruder_mean_t,
+      compact = TRUE
+    )
+  )
+  panel_heads <- c(
+    "NE Δ vs Intruder",
+    "NE Δ vs Baseline",
+    "Intruder vs Baseline"
+  )
+  annotations <- lapply(seq_along(panel_stats), function(i) {
+    list(
+      text = paste0("<b>", panel_heads[[i]], "</b><br>", panel_stats[[i]]),
+      xref = "paper",
+      yref = "paper",
+      x = (i - 0.5) / 3,
+      y = 1.16,
+      xanchor = "center",
+      yanchor = "bottom",
+      showarrow = FALSE,
+      align = "center",
+      font = list(size = 10, color = "#222")
+    )
+  })
+
+  p <- subplot(
+    p1, p2, p3,
+    nrows = 1,
+    shareY = FALSE,
+    titleX = TRUE,
+    titleY = TRUE,
+    margin = 0.04
+  ) %>%
     layout(
       title = list(
         text = paste0(
-          "Per-region co-variation — NEUROeSTIMator vs 2DG effects<br>",
-          "<sup>Filtered Allen parcels with ≥100 seqFISH cells and ≥10 Intruder overlay pixels. ",
-          "Orange = pre-specified limbic/hypothalamic set. Marker size ∝ log10(cells).</sup>"
+          "<span style='font-size:13px'><b>Per-region co-variation</b></span>",
+          "<span style='font-size:10px;color:#626a75'> · ≥100 cells · ≥10 Intruder px · ",
+          "orange = limbic/hypothalamic set · size ∝ log10(cells)</span>"
         ),
-        x = 0.02,
+        x = 0.01,
         xanchor = "left",
-        y = 0.98
+        y = 0.995,
+        pad = list(t = 0, b = 0)
       ),
-      height = 720,
-      width = PLOT_WIDTH,
+      annotations = annotations,
+      autosize = TRUE,
       showlegend = TRUE,
-      legend = list(orientation = "h", y = -0.12),
-      margin = list(t = 90, b = 80, l = 70, r = 40)
+      legend = list(
+        orientation = "h",
+        y = -0.18,
+        x = 0,
+        font = list(size = 10),
+        itemsizing = "constant"
+      ),
+      margin = list(t = 72, b = 58, l = 48, r = 56),
+      font = list(size = 10, family = "Inter, Helvetica, Arial, sans-serif")
     ) %>%
-    config(displaylogo = FALSE, responsive = TRUE)
+    config(displaylogo = FALSE, responsive = TRUE, displayModeBar = FALSE)
+  # Keep the embedded notebook widget short enough to read without page scroll.
+  p$width <- PLOT_WIDTH
+  p$height <- 430
+  p
 }
 
 build_covariation_static <- function(covar, path) {
@@ -807,16 +879,18 @@ build_covariation_static <- function(covar, path) {
     geom_vline(xintercept = 0, linewidth = 0.3, colour = "grey50") +
     geom_point(
       aes(colour = set_label, size = n_cells_total),
-      alpha = 0.75
+      alpha = 0.7,
+      stroke = 0.2
     ) +
-    geom_smooth(method = "lm", se = TRUE, linewidth = 0.6, colour = "#222222", fill = "#cccccc") +
+    geom_smooth(method = "lm", se = TRUE, linewidth = 0.45, colour = "#222222", fill = "#dddddd") +
     geom_text(
       data = stats,
       aes(x = -Inf, y = Inf, label = label),
       inherit.aes = FALSE,
-      hjust = -0.05,
-      vjust = 1.2,
-      size = 3.2
+      hjust = -0.04,
+      vjust = 1.15,
+      size = 2.6,
+      lineheight = 0.95
     ) +
     facet_wrap(~panel, scales = "free", nrow = 1) +
     scale_colour_manual(
@@ -825,7 +899,7 @@ build_covariation_static <- function(covar, path) {
         "Other regions" = "#4C78A8"
       )
     ) +
-    scale_size_area(max_size = 8, breaks = c(100, 500, 2000, 8000)) +
+    scale_size_area(max_size = 5.5, breaks = c(100, 500, 2000, 8000)) +
     labs(
       title = "Per-region co-variation: NEUROeSTIMator WildR−SPF vs 2DG effects",
       subtitle = paste0(
@@ -837,14 +911,20 @@ build_covariation_static <- function(covar, path) {
       colour = NULL,
       size = "seqFISH cells"
     ) +
-    theme_bw(base_size = 12) +
+    theme_bw(base_size = 10) +
     theme(
       legend.position = "bottom",
+      legend.text = element_text(size = 8),
+      legend.title = element_text(size = 8),
       strip.background = element_rect(fill = "#f2f2f2", colour = NA),
-      plot.title = element_text(face = "bold"),
-      plot.subtitle = element_text(size = 9)
+      strip.text = element_text(size = 9, face = "bold"),
+      plot.title = element_text(face = "bold", size = 11),
+      plot.subtitle = element_text(size = 8),
+      axis.title = element_text(size = 9),
+      axis.text = element_text(size = 8),
+      plot.margin = margin(6, 8, 4, 6)
     )
-  ggsave(path, p, width = 14.5, height = 5.2, dpi = 200, bg = "white")
+  ggsave(path, p, width = 13.5, height = 3.9, dpi = 200, bg = "white")
 }
 
 write_fullscreen_page <- function(widget, path) {

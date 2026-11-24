@@ -290,6 +290,23 @@ main.content a:not(.provenance):not(.quarto-category):hover {
 .figure-card:not(.fig-wide) > img { max-width: 920px; }
 .figure-card.fig-wide img { max-width: 100%; }
 
+// Compact interactive co-variation card: give the card room, keep the widget short
+// enough that Fig 2b can be read without scrolling inside the page section.
+.figure-card.fig-covar {
+  padding-top: 1.35rem;
+  padding-bottom: 1.1rem;
+  overflow: visible;
+}
+.figure-card.fig-covar .plotly.html-widget,
+.figure-card.fig-covar .js-plotly-plot {
+  width: 100% !important;
+  max-height: 440px;
+  overflow: visible;
+}
+.figure-card.fig-covar .svg-container {
+  max-height: 440px !important;
+}
+
 .panel-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

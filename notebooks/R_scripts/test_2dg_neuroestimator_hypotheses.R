@@ -12,8 +12,8 @@ suppressPackageStartupMessages({
 })
 
 WKDIR <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
-SOURCE_DATE <- "2026-11-11"
-ANALYSIS_DATE <- "2026-11-12"
+SOURCE_DATE <- "2026-11-23c"
+ANALYSIS_DATE <- "2026-11-23c"
 N_PERM <- 10000L
 ALPHA_H3 <- 0.10
 SET_SEED <- 42L

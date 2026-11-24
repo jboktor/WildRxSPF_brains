@@ -17,8 +17,8 @@ suppressPackageStartupMessages({
 })
 
 WKDIR <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
-ANALYSIS_DATE <- "2026-11-11"
-EFFECT_ANALYSIS_DATE <- "2026-11-11"
+ANALYSIS_DATE <- "2026-11-23c"
+EFFECT_ANALYSIS_DATE <- "2026-11-23c"
 
 CCF_PATH <- file.path(
   WKDIR,

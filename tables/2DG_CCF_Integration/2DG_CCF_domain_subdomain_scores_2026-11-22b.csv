@@ -1,0 +1,179 @@
+contrast,key,label,short_label,group,level,color,domain_order,subdomain_order,mean_t,mean_abs_t,n_voxels,n_slices,frac_wildr_positive
+intruder,domain__isocortex,Isocortex,Isocortex,Isocortex,domain,#7bc8b5,0,-1,-1.1264750830286854,2.1564706712135973,20224,42,0.2421875
+intruder,region__MOp,MOp · Primary motor area,MOp,Isocortex,subdomain,#bce4db,0,0,-2.099562326580532,2.1811340482177206,3757,17,0.021559755123768964
+intruder,region__MOs,MOs · Secondary motor area,MOs,Isocortex,subdomain,#a7dacf,0,1,-1.9548734071491403,2.0028025495616855,1501,15,0.013324450366422385
+intruder,region__SSp,SSp · Primary somatosensory area,SSp,Isocortex,subdomain,#8dcec0,0,2,-0.9840908956637255,2.081634471875783,3047,26,0.27863472267804396
+intruder,region__ACA,ACA · Anterior cingulate area,ACA,Isocortex,subdomain,#69bbaa,0,3,-2.000922407074408,2.066852449557998,1760,12,0.015909090909090907
+intruder,region__PL,PL · Prelimbic area,PL,Isocortex,subdomain,#54aa9a,0,4,-1.8029584407806396,1.8029584407806396,10,3,0.0
+intruder,region__ILA,ILA · Infralimbic area,ILA,Isocortex,subdomain,#429989,0,5,1.8144625466445397,1.9936702169221023,58,2,0.9482758620689655
+intruder,region__ORB,ORB · Orbital area,ORB,Isocortex,subdomain,#2f8778,0,6,2.438831095567875,2.4784982076816604,822,3,0.9902676399026764
+intruder,region__AI,AI · Agranular insular area,AI,Isocortex,subdomain,#237467,0,7,0.5362780875093904,2.121354437058142,1038,16,0.6233140655105973
+intruder,region__RSP,RSP · Retrosplenial area,RSP,Isocortex,subdomain,#176256,0,8,-0.8657494640070672,2.0260836204126083,682,19,0.30791788856304986
+intruder,region__VISp,VISp · Primary visual area,VISp,Isocortex,subdomain,#0f5046,0,9,-1.7548394942842822,2.5535119263602217,1876,13,0.2105543710021322
+intruder,region__AUDp,AUDp · Primary auditory area,AUDp,Isocortex,subdomain,#093f37,0,10,-1.9078714705225248,1.9078714705225248,134,7,0.0
+intruder,region__ENTl,"ENTl · Entorhinal area, lateral part",ENTl,Isocortex,subdomain,#06302a,0,11,1.8153034249088795,2.102818788070024,2330,15,0.9261802575107296
+intruder,domain__olfactory_areas,Olfactory areas,Olfactory areas,Olfactory areas,domain,#76c9d6,1,-1,1.2069545773802883,2.0943978587097494,4384,28,0.7967609489051095
+intruder,region__MOB,MOB · Main olfactory bulb,MOB,Olfactory areas,subdomain,#b7e4ea,1,0,,,0,0,
+intruder,region__AOB,AOB · Accessory olfactory bulb,AOB,Olfactory areas,subdomain,#8ed4de,1,1,,,0,0,
+intruder,region__AON,AON · Anterior olfactory nucleus,AON,Olfactory areas,subdomain,#64c1cf,1,2,1.8883662753634982,1.9563012091942082,153,2,0.9803921568627451
+intruder,region__PIR,PIR · Piriform area,PIR,Olfactory areas,subdomain,#3cabbc,1,3,1.3391188675516217,2.098663231858935,3294,24,0.8309046751669702
+intruder,region__OT,OT · Olfactory tubercle,OT,Olfactory areas,subdomain,#238e9f,1,4,-1.825894135015982,1.825894135015982,54,4,0.0
+intruder,domain__hippocampal_formation,Hippocampal formation,Hippocampal formation,Hippocampal formation,domain,#aa87d8,2,-1,0.7003777727055727,2.047951540316493,11602,31,0.6651439406998794
+intruder,region__HIP,HIP · Hippocampal region,HIP,Hippocampal formation,subdomain,#d7c4eb,2,0,-0.04109777743243963,2.0282584285497887,6406,27,0.48969715891351856
+intruder,region__CA1,CA1 · Field CA1,CA1,Hippocampal formation,subdomain,#c3a7e3,2,1,0.39215579107485066,2.0488729884555967,2749,17,0.5947617315387413
+intruder,region__CA3,CA3 · Field CA3,CA3,Hippocampal formation,subdomain,#ad8ad8,2,2,-0.8031685395746042,2.013376513459035,1208,19,0.3054635761589404
+intruder,region__DG,DG · Dentate gyrus,DG,Hippocampal formation,subdomain,#906ac5,2,3,-0.09093802689317669,2.0094639327010797,2207,22,0.4789306751246035
+intruder,region__SUB,SUB · Subiculum,SUB,Hippocampal formation,subdomain,#714ba8,2,4,0.9998758749781128,1.9326227343812281,343,7,0.7551020408163265
+intruder,domain__amygdala,Amygdala,Amygdala,Amygdala,domain,#d1495b,3,-1,0.13627478615182342,2.074648275531706,1525,21,0.5422950819672131
+intruder,region__LA,LA · Lateral amygdalar nucleus,LA,Amygdala,subdomain,#f4a261,3,0,1.996041086154243,2.100214779948274,313,8,0.9744408945686901
+intruder,region__BLA,BLA · Basolateral amygdalar nucleus,BLA,Amygdala,subdomain,#e76f51,3,1,0.26638189593054584,2.149596977950935,399,10,0.5939849624060151
+intruder,region__BMA,BMA · Basomedial amygdalar nucleus,BMA,Amygdala,subdomain,#d1495b,3,2,-0.09698501386140529,1.8955260828921665,38,7,0.5
+intruder,region__CEA,CEA · Central amygdalar nucleus,CEA,Amygdala,subdomain,#9b2226,3,3,0.7505451948084728,2.0033303549949157,188,8,0.7021276595744681
+intruder,region__MEA,MEA · Medial amygdalar nucleus,MEA,Amygdala,subdomain,#7f1525,3,4,-1.0559594511587085,2.0663179426288925,299,8,0.23411371237458195
+intruder,region__COA,COA · Cortical amygdalar area,COA,Amygdala,subdomain,#c9184a,3,5,-1.107109533468254,2.031596568262153,253,13,0.2490118577075099
+intruder,region__PA,PA · Posterior amygdalar nucleus,PA,Amygdala,subdomain,#721329,3,6,-1.8518475941249302,1.9515172958374023,35,3,0.02857142857142857
+intruder,domain__striatum,Striatum,Striatum,Striatum,domain,#d7bd58,4,-1,-1.3474064465672801,2.1410683493070963,11060,26,0.19448462929475588
+intruder,region__CP,CP · Caudoputamen,CP,Striatum,subdomain,#f3df8d,4,0,-1.5477117304986179,2.1562020824715264,9628,26,0.15101786456169505
+intruder,region__ACB,ACB · Nucleus accumbens,ACB,Striatum,subdomain,#e7ce6c,4,1,-0.9834374608729668,1.9457601256992505,253,5,0.25296442687747034
+intruder,region__FS,FS · Fundus of striatum,FS,Striatum,subdomain,#d8b849,4,2,0.08609159843071357,2.0097617936301067,143,4,0.48951048951048953
+intruder,region__LSX,LSX · Lateral septal complex,LSX,Striatum,subdomain,#c5a12e,4,3,-0.26059015220570797,2.035563994790906,107,6,0.4392523364485981
+intruder,region__STRa,STRa · Striatum-like amygdalar nuclei,STRa,Striatum,subdomain,#a98520,4,4,-0.004402929353544296,2.0758186913894163,562,12,0.4928825622775801
+intruder,domain__pallidum,Pallidum,Pallidum,Pallidum,domain,#bfad55,5,-1,-1.5098583683555509,1.985349659566526,648,17,0.12808641975308643
+intruder,region__GPe,"GPe · Globus pallidus, external segment",GPe,Pallidum,subdomain,#e3d789,5,0,-1.8129465964532667,1.8727163499401462,62,4,0.016129032258064516
+intruder,region__GPi,"GPi · Globus pallidus, internal segment",GPi,Pallidum,subdomain,#cabe68,5,1,-2.062270947506553,2.062270947506553,95,3,0.0
+intruder,region__BST,BST · Bed nuclei of the stria terminalis,BST,Pallidum,subdomain,#ad9844,5,2,1.1781675653024153,1.857492658224973,88,5,0.8181818181818182
+intruder,region__SI,SI · Substantia innominata,SI,Pallidum,subdomain,#8e7b32,5,3,-2.003758485118548,2.029115453362465,288,12,0.006944444444444444
+intruder,region__MS,MS · Medial septal complex,MS,Pallidum,subdomain,#716126,5,4,,,0,0,
+intruder,domain__thalamus,Thalamus,Thalamus,Thalamus,domain,#66b77c,6,-1,1.6782239629076672,2.0249483156863444,2387,23,0.9116045245077503
+intruder,region__LGd,LGd · Dorsal part of the lateral geniculate complex,LGd,Thalamus,subdomain,#a8d7ad,6,0,1.5833452298091009,1.8707520044766939,26,6,0.9230769230769231
+intruder,region__MG,MG · Medial geniculate complex,MG,Thalamus,subdomain,#8bcb98,6,1,1.8195686340332027,1.8195686340332027,31,3,1.0
+intruder,region__VPM,VPM · Ventral posteromedial nucleus of the thalamus,VPM,Thalamus,subdomain,#6fbd83,6,2,1.800565299040042,1.9142372948782784,161,8,0.968944099378882
+intruder,region__VPL,VPL · Ventral posterolateral nucleus of the thalamus,VPL,Thalamus,subdomain,#55ad6e,6,3,1.012420038907033,1.992708281750949,265,5,0.7622641509433963
+intruder,region__MD,MD · Mediodorsal nucleus of thalamus,MD,Thalamus,subdomain,#3d995a,6,4,1.895413917965359,1.895413917965359,180,6,1.0
+intruder,region__PVT,PVT · Paraventricular nucleus of the thalamus,PVT,Thalamus,subdomain,#2d8349,6,5,1.851109996918709,1.851109996918709,31,6,1.0
+intruder,region__RT,RT · Reticular nucleus of the thalamus,RT,Thalamus,subdomain,#206e3c,6,6,0.5160556850054404,1.8725146205220002,151,6,0.6556291390728477
+intruder,region__LH,LH · Lateral habenula,LH,Thalamus,subdomain,#155a31,6,7,2.3325171182066287,2.3325171182066287,347,7,1.0
+intruder,region__MH,MH · Medial habenula,MH,Thalamus,subdomain,#0b4727,6,8,2.3015815683467657,2.3015815683467657,334,7,1.0
+intruder,domain__hypothalamus,Hypothalamus,Hypothalamus,Hypothalamus,domain,#3a86ff,7,-1,0.6766666644056079,1.9796618995532183,1704,22,0.6660798122065728
+intruder,region__LHA,LHA · Lateral hypothalamic area,LHA,Hypothalamus,subdomain,#90e0ef,7,0,0.25002285851372613,2.001134592692057,450,13,0.5355555555555556
+intruder,region__ZI,ZI · Zona incerta,ZI,Hypothalamus,subdomain,#72d2ec,7,1,1.8071180716493076,1.860035408708386,133,7,0.9849624060150376
+intruder,region__ARH,ARH · Arcuate hypothalamic nucleus,ARH,Hypothalamus,subdomain,#48cae4,7,2,-1.9397492842240767,1.9397492842240767,22,2,0.0
+intruder,region__MPO,MPO · Medial preoptic area,MPO,Hypothalamus,subdomain,#28b9dc,7,3,-0.26566684813726515,1.8590079489208402,21,5,0.42857142857142855
+intruder,region__SO,SO · Supraoptic nucleus,SO,Hypothalamus,subdomain,#11a4cf,7,4,,,0,0,
+intruder,region__VMH,VMH · Ventromedial hypothalamic nucleus,VMH,Hypothalamus,subdomain,#0096c7,7,5,-1.6676176558149622,1.8902840107045276,47,3,0.06382978723404255
+intruder,region__SCH,SCH · Suprachiasmatic nucleus,SCH,Hypothalamus,subdomain,#087eb3,7,6,,,0,0,
+intruder,region__PMv,PMv · Ventral premammillary nucleus,PMv,Hypothalamus,subdomain,#12679d,7,7,-1.7323408126831057,1.7323408126831057,1,1,0.0
+intruder,region__DMH,DMH · Dorsomedial nucleus of the hypothalamus,DMH,Hypothalamus,subdomain,#185188,7,8,1.2803997626671424,1.87192755479079,13,2,0.8461538461538461
+intruder,region__MM,MM · Medial mammillary nucleus,MM,Hypothalamus,subdomain,#123d70,7,9,,,0,0,
+intruder,region__PVH,PVH · Paraventricular hypothalamic nucleus,PVH,Hypothalamus,subdomain,#023e8a,7,10,1.9311487347471947,1.9311487347471947,102,4,1.0
+intruder,domain__midbrain,Midbrain,Midbrain,Midbrain,domain,#cc6ca8,8,-1,1.841004276576373,2.1282766985854265,8562,18,0.9291053492174726
+intruder,region__VTA,VTA · Ventral tegmental area,VTA,Midbrain,subdomain,#efb0d1,8,0,1.9306737281180717,1.9306737281180717,37,3,1.0
+intruder,region__SNc,"SNc · Substantia nigra, compact part",SNc,Midbrain,subdomain,#e794c2,8,1,1.9054311321627706,1.9054311321627706,31,2,1.0
+intruder,region__SNr,"SNr · Substantia nigra, reticular part",SNr,Midbrain,subdomain,#da78b2,8,2,1.8567423820495605,1.8567423820495605,42,4,1.0
+intruder,region__PAG,PAG · Periaqueductal gray,PAG,Midbrain,subdomain,#c75da0,8,3,2.132580222396363,2.147177498400177,1721,15,0.9959325973271353
+intruder,region__SCs,"SCs · Superior colliculus, sensory related",SCs,Midbrain,subdomain,#b14991,8,4,0.6467717326288198,2.0541614328834674,754,8,0.6671087533156499
+intruder,region__SCm,"SCm · Superior colliculus, motor related",SCm,Midbrain,subdomain,#a23e83,8,5,0.8782506798409127,2.0289118390469936,925,10,0.7124324324324325
+intruder,region__IC,IC · Inferior colliculus,IC,Midbrain,subdomain,#923476,8,6,1.8777209783004503,2.0062162108340504,118,5,0.9661016949152542
+intruder,region__DR,DR · Dorsal nucleus raphe,DR,Midbrain,subdomain,#752861,8,7,2.04298650064776,2.04298650064776,62,3,1.0
+intruder,region__RN,RN · Red nucleus,RN,Midbrain,subdomain,#5a1e4c,8,8,2.0122044245402018,2.0122044245402018,15,3,1.0
+intruder,domain__pons,Pons,Pons,Pons,domain,#b79b87,9,-1,2.307544057085247,2.325881838013948,7749,13,0.9952251903471415
+intruder,region__LC,LC · Locus ceruleus,LC,Pons,subdomain,#dac8bb,9,0,1.8419981002807613,1.8419981002807613,5,2,1.0
+intruder,region__PB,PB · Parabrachial nucleus,PB,Pons,subdomain,#c7ad9a,9,1,2.0830368874436718,2.0830368874436718,236,4,1.0
+intruder,region__PG,PG · Pontine gray,PG,Pons,subdomain,#a98b76,9,2,2.1927266835797883,2.203940425442396,647,5,0.9969088098918083
+intruder,domain__medulla,Medulla,Medulla,Medulla,domain,#907768,10,-1,2.1074091841175226,2.23106968098986,4786,12,0.9705390722941913
+intruder,region__NTS,NTS · Nucleus of the solitary tract,NTS,Medulla,subdomain,#c3ada0,10,0,1.8750845735723318,1.8750845735723318,22,2,1.0
+intruder,region__DMX,DMX · Dorsal motor nucleus of the vagus nerve,DMX,Medulla,subdomain,#a58a7a,10,1,1.9352806683244377,1.9352806683244377,29,1,1.0
+intruder,region__AP,AP · Area postrema,AP,Medulla,subdomain,#866c5e,10,2,,,0,0,
+intruder,region__IO,IO · Inferior olivary complex,IO,Medulla,subdomain,#6e574c,10,3,2.121999047019265,2.121999047019265,22,3,1.0
+intruder,domain__cerebellum,Cerebellum,Cerebellum,Cerebellum,domain,#9fc26b,11,-1,2.1132108270064407,2.4906191567537603,4227,17,0.8982730068606577
+intruder,region__CBX,CBX · Cerebellar cortex,CBX,Cerebellum,subdomain,#c9dfa5,11,0,2.1365222022527126,2.526276298814839,3790,10,0.8952506596306069
+intruder,region__CBN,CBN · Cerebellar nuclei,CBN,Cerebellum,subdomain,#91b858,11,1,1.6671742291089549,2.1378395034972417,251,4,0.8685258964143426
+baseline,domain__isocortex,Isocortex,Isocortex,Isocortex,domain,#7bc8b5,0,-1,1.0471218583672546,4.9254048525019805,5463,42,0.6706937580084202
+baseline,region__MOp,MOp · Primary motor area,MOp,Isocortex,subdomain,#bce4db,0,0,4.572489155289724,4.738759708572608,442,9,0.9886877828054299
+baseline,region__MOs,MOs · Secondary motor area,MOs,Isocortex,subdomain,#a7dacf,0,1,-0.6445574447281212,5.59256730015598,280,9,0.5
+baseline,region__SSp,SSp · Primary somatosensory area,SSp,Isocortex,subdomain,#8dcec0,0,2,-3.7159425841848037,5.817232571725961,465,15,0.210752688172043
+baseline,region__ACA,ACA · Anterior cingulate area,ACA,Isocortex,subdomain,#69bbaa,0,3,-5.31853114336367,5.684083973889112,385,10,0.033766233766233764
+baseline,region__PL,PL · Prelimbic area,PL,Isocortex,subdomain,#54aa9a,0,4,-5.590092841062041,5.590092841062041,288,4,0.0
+baseline,region__ILA,ILA · Infralimbic area,ILA,Isocortex,subdomain,#429989,0,5,-5.054015750378507,5.276558719466926,195,1,0.020512820512820513
+baseline,region__ORB,ORB · Orbital area,ORB,Isocortex,subdomain,#2f8778,0,6,4.965772043867433,4.965772043867433,36,2,1.0
+baseline,region__AI,AI · Agranular insular area,AI,Isocortex,subdomain,#237467,0,7,-2.0236149147437246,5.774363121673995,464,16,0.375
+baseline,region__RSP,RSP · Retrosplenial area,RSP,Isocortex,subdomain,#176256,0,8,-6.729896137758704,6.729896137758704,9,2,0.0
+baseline,region__VISp,VISp · Primary visual area,VISp,Isocortex,subdomain,#0f5046,0,9,5.064901775360352,5.064901775360352,23,3,1.0
+baseline,region__AUDp,AUDp · Primary auditory area,AUDp,Isocortex,subdomain,#093f37,0,10,4.530900211852899,4.530900211852899,30,2,1.0
+baseline,region__ENTl,"ENTl · Entorhinal area, lateral part",ENTl,Isocortex,subdomain,#06302a,0,11,4.01239337782105,4.01239337782105,1664,16,1.0
+baseline,domain__olfactory_areas,Olfactory areas,Olfactory areas,Olfactory areas,domain,#76c9d6,1,-1,-0.03654630371165839,5.483015137826784,537,27,0.5772811918063314
+baseline,region__MOB,MOB · Main olfactory bulb,MOB,Olfactory areas,subdomain,#b7e4ea,1,0,,,0,0,
+baseline,region__AOB,AOB · Accessory olfactory bulb,AOB,Olfactory areas,subdomain,#8ed4de,1,1,,,0,0,
+baseline,region__AON,AON · Anterior olfactory nucleus,AON,Olfactory areas,subdomain,#64c1cf,1,2,,,0,0,
+baseline,region__PIR,PIR · Piriform area,PIR,Olfactory areas,subdomain,#3cabbc,1,3,-2.0547324266719285,5.8271453749307724,338,24,0.3905325443786982
+baseline,region__OT,OT · Olfactory tubercle,OT,Olfactory areas,subdomain,#238e9f,1,4,-4.8077593902647955,6.5144386817484765,13,3,0.15384615384615385
+baseline,domain__hippocampal_formation,Hippocampal formation,Hippocampal formation,Hippocampal formation,domain,#aa87d8,2,-1,1.656129965384049,4.362392804849513,13601,24,0.7586942136607603
+baseline,region__HIP,HIP · Hippocampal region,HIP,Hippocampal formation,subdomain,#d7c4eb,2,0,0.1066547470562727,4.583642178826104,8216,20,0.6009006815968841
+baseline,region__CA1,CA1 · Field CA1,CA1,Hippocampal formation,subdomain,#c3a7e3,2,1,1.019227021968749,4.52347938060328,1940,17,0.6958762886597938
+baseline,region__CA3,CA3 · Field CA3,CA3,Hippocampal formation,subdomain,#ad8ad8,2,2,0.2852494851450089,4.4657968279194415,3018,13,0.5914512922465208
+baseline,region__DG,DG · Dentate gyrus,DG,Hippocampal formation,subdomain,#906ac5,2,3,-0.660648752598433,4.729180796312999,3086,17,0.5482825664290344
+baseline,region__SUB,SUB · Subiculum,SUB,Hippocampal formation,subdomain,#714ba8,2,4,3.8463463643020424,3.8463463643020424,871,5,1.0
+baseline,domain__amygdala,Amygdala,Amygdala,Amygdala,domain,#d1495b,3,-1,-3.1662015289231316,5.570036569803547,1480,21,0.2695945945945946
+baseline,region__LA,LA · Lateral amygdalar nucleus,LA,Amygdala,subdomain,#f4a261,3,0,-0.7966420378469907,5.398995594008904,182,12,0.5
+baseline,region__BLA,BLA · Basolateral amygdalar nucleus,BLA,Amygdala,subdomain,#e76f51,3,1,-4.456617289229146,5.960253168593903,496,14,0.16129032258064516
+baseline,region__BMA,BMA · Basomedial amygdalar nucleus,BMA,Amygdala,subdomain,#d1495b,3,2,-2.340738660437829,6.35802043927789,15,7,0.4
+baseline,region__CEA,CEA · Central amygdalar nucleus,CEA,Amygdala,subdomain,#9b2226,3,3,-5.6713545540111285,5.6713545540111285,526,7,0.0
+baseline,region__MEA,MEA · Medial amygdalar nucleus,MEA,Amygdala,subdomain,#7f1525,3,4,-1.6479224263102792,5.255214473531602,74,7,0.5
+baseline,region__COA,COA · Cortical amygdalar area,COA,Amygdala,subdomain,#c9184a,3,5,4.466155147379441,5.214265475318331,37,6,0.9459459459459459
+baseline,region__PA,PA · Posterior amygdalar nucleus,PA,Amygdala,subdomain,#721329,3,6,4.296232386332774,4.296232386332774,150,6,1.0
+baseline,domain__striatum,Striatum,Striatum,Striatum,domain,#d7bd58,4,-1,-3.4658522579290674,5.467239615710882,4625,26,0.21491891891891893
+baseline,region__CP,CP · Caudoputamen,CP,Striatum,subdomain,#f3df8d,4,0,-3.3181074915802053,5.279270165280909,3072,23,0.21516927083333334
+baseline,region__ACB,ACB · Nucleus accumbens,ACB,Striatum,subdomain,#e7ce6c,4,1,1.2393219852742774,5.363713393239638,431,4,0.6612529002320185
+baseline,region__FS,FS · Fundus of striatum,FS,Striatum,subdomain,#d8b849,4,2,,,0,0,
+baseline,region__LSX,LSX · Lateral septal complex,LSX,Striatum,subdomain,#c5a12e,4,3,-6.630993989072061,6.630993989072061,290,6,0.0
+baseline,region__STRa,STRa · Striatum-like amygdalar nuclei,STRa,Striatum,subdomain,#a98520,4,4,-5.22080579304448,5.654149318197691,616,12,0.060064935064935064
+baseline,domain__pallidum,Pallidum,Pallidum,Pallidum,domain,#bfad55,5,-1,-5.661969609459532,6.354381871969204,740,21,0.06486486486486487
+baseline,region__GPe,"GPe · Globus pallidus, external segment",GPe,Pallidum,subdomain,#e3d789,5,0,-5.92509278070509,6.4298187741050565,320,6,0.046875
+baseline,region__GPi,"GPi · Globus pallidus, internal segment",GPi,Pallidum,subdomain,#cabe68,5,1,-7.223314212251253,7.223314212251253,24,5,0.0
+baseline,region__BST,BST · Bed nuclei of the stria terminalis,BST,Pallidum,subdomain,#ad9844,5,2,-6.226644042800156,6.226644042800156,87,6,0.0
+baseline,region__SI,SI · Substantia innominata,SI,Pallidum,subdomain,#8e7b32,5,3,-5.899633020506809,6.317626955698355,102,13,0.0392156862745098
+baseline,region__MS,MS · Medial septal complex,MS,Pallidum,subdomain,#716126,5,4,-5.939855415876864,5.939855415876864,114,5,0.0
+baseline,domain__thalamus,Thalamus,Thalamus,Thalamus,domain,#66b77c,6,-1,-5.179655802380589,5.794051602200239,8821,19,0.07006008389071534
+baseline,region__LGd,LGd · Dorsal part of the lateral geniculate complex,LGd,Thalamus,subdomain,#a8d7ad,6,0,-4.841346822324619,4.841346822324619,184,5,0.0
+baseline,region__MG,MG · Medial geniculate complex,MG,Thalamus,subdomain,#8bcb98,6,1,3.086730822656621,5.2578840318788185,7,2,0.8571428571428571
+baseline,region__VPM,VPM · Ventral posteromedial nucleus of the thalamus,VPM,Thalamus,subdomain,#6fbd83,6,2,-5.531427908848049,5.531427908848049,1230,7,0.0
+baseline,region__VPL,VPL · Ventral posterolateral nucleus of the thalamus,VPL,Thalamus,subdomain,#55ad6e,6,3,-5.782264320254202,6.459800282171514,218,9,0.06422018348623854
+baseline,region__MD,MD · Mediodorsal nucleus of thalamus,MD,Thalamus,subdomain,#3d995a,6,4,-6.1210564353685255,6.1210564353685255,615,5,0.0
+baseline,region__PVT,PVT · Paraventricular nucleus of the thalamus,PVT,Thalamus,subdomain,#2d8349,6,5,-6.576244585334813,6.576244585334813,105,5,0.0
+baseline,region__RT,RT · Reticular nucleus of the thalamus,RT,Thalamus,subdomain,#206e3c,6,6,-4.658095119439591,5.951175314162797,279,10,0.15412186379928317
+baseline,region__LH,LH · Lateral habenula,LH,Thalamus,subdomain,#155a31,6,7,-5.521791406377315,5.521791406377315,675,5,0.0
+baseline,region__MH,MH · Medial habenula,MH,Thalamus,subdomain,#0b4727,6,8,-6.4782004380760405,6.4782004380760405,251,5,0.0
+baseline,domain__hypothalamus,Hypothalamus,Hypothalamus,Hypothalamus,domain,#3a86ff,7,-1,-5.618029418741933,6.102242585980205,2923,27,0.04892234006158057
+baseline,region__LHA,LHA · Lateral hypothalamic area,LHA,Hypothalamus,subdomain,#90e0ef,7,0,-5.9417597470312655,6.252400343448052,568,14,0.03345070422535211
+baseline,region__ZI,ZI · Zona incerta,ZI,Hypothalamus,subdomain,#72d2ec,7,1,-5.0393749052568015,6.178639771690312,596,18,0.12080536912751678
+baseline,region__ARH,ARH · Arcuate hypothalamic nucleus,ARH,Hypothalamus,subdomain,#48cae4,7,2,,,0,0,
+baseline,region__MPO,MPO · Medial preoptic area,MPO,Hypothalamus,subdomain,#28b9dc,7,3,-5.963314574392961,5.963314574392961,125,8,0.0
+baseline,region__SO,SO · Supraoptic nucleus,SO,Hypothalamus,subdomain,#11a4cf,7,4,,,0,0,
+baseline,region__VMH,VMH · Ventromedial hypothalamic nucleus,VMH,Hypothalamus,subdomain,#0096c7,7,5,-6.637786182089571,6.637786182089571,23,3,0.0
+baseline,region__SCH,SCH · Suprachiasmatic nucleus,SCH,Hypothalamus,subdomain,#087eb3,7,6,,,0,0,
+baseline,region__PMv,PMv · Ventral premammillary nucleus,PMv,Hypothalamus,subdomain,#12679d,7,7,,,0,0,
+baseline,region__DMH,DMH · Dorsomedial nucleus of the hypothalamus,DMH,Hypothalamus,subdomain,#185188,7,8,-5.307188494757997,5.307188494757997,320,5,0.0
+baseline,region__MM,MM · Medial mammillary nucleus,MM,Hypothalamus,subdomain,#123d70,7,9,5.585052113256624,5.585052113256624,17,2,1.0
+baseline,region__PVH,PVH · Paraventricular hypothalamic nucleus,PVH,Hypothalamus,subdomain,#023e8a,7,10,-7.059019041197879,7.059019041197879,17,2,0.0
+baseline,domain__midbrain,Midbrain,Midbrain,Midbrain,domain,#cc6ca8,8,-1,3.087357139230215,4.789262847630046,5303,20,0.8629077880445031
+baseline,region__VTA,VTA · Ventral tegmental area,VTA,Midbrain,subdomain,#efb0d1,8,0,,,0,0,
+baseline,region__SNc,"SNc · Substantia nigra, compact part",SNc,Midbrain,subdomain,#e794c2,8,1,4.912042897289509,4.912042897289509,79,2,1.0
+baseline,region__SNr,"SNr · Substantia nigra, reticular part",SNr,Midbrain,subdomain,#da78b2,8,2,4.896094900476346,4.896094900476346,481,5,1.0
+baseline,region__PAG,PAG · Periaqueductal gray,PAG,Midbrain,subdomain,#c75da0,8,3,-1.9105822152208147,5.657872178689772,256,10,0.390625
+baseline,region__SCs,"SCs · Superior colliculus, sensory related",SCs,Midbrain,subdomain,#b14991,8,4,,,0,0,
+baseline,region__SCm,"SCm · Superior colliculus, motor related",SCm,Midbrain,subdomain,#a23e83,8,5,5.801599744272243,5.801599744272243,13,1,1.0
+baseline,region__IC,IC · Inferior colliculus,IC,Midbrain,subdomain,#923476,8,6,-1.3092738717954444,5.699418460919052,170,5,0.40588235294117647
+baseline,region__DR,DR · Dorsal nucleus raphe,DR,Midbrain,subdomain,#752861,8,7,,,0,0,
+baseline,region__RN,RN · Red nucleus,RN,Midbrain,subdomain,#5a1e4c,8,8,4.990123752178075,4.990123752178075,195,5,1.0
+baseline,domain__pons,Pons,Pons,Pons,domain,#b79b87,9,-1,3.1149442741886255,4.984701284616104,2097,13,0.8593228421554602
+baseline,region__LC,LC · Locus ceruleus,LC,Pons,subdomain,#dac8bb,9,0,-7.43607246455538,7.43607246455538,1,1,0.0
+baseline,region__PB,PB · Parabrachial nucleus,PB,Pons,subdomain,#c7ad9a,9,1,-6.83984759549906,6.83984759549906,83,4,0.0
+baseline,region__PG,PG · Pontine gray,PG,Pons,subdomain,#a98b76,9,2,5.166836136913709,5.166836136913709,288,4,1.0
+baseline,domain__medulla,Medulla,Medulla,Medulla,domain,#907768,10,-1,4.746183926054477,4.746183926054477,114,3,1.0
+baseline,region__NTS,NTS · Nucleus of the solitary tract,NTS,Medulla,subdomain,#c3ada0,10,0,5.6010289532294,5.6010289532294,2,1,1.0
+baseline,region__DMX,DMX · Dorsal motor nucleus of the vagus nerve,DMX,Medulla,subdomain,#a58a7a,10,1,5.628189581183118,5.628189581183118,2,1,1.0
+baseline,region__AP,AP · Area postrema,AP,Medulla,subdomain,#866c5e,10,2,,,0,0,
+baseline,region__IO,IO · Inferior olivary complex,IO,Medulla,subdomain,#6e574c,10,3,,,0,0,
+baseline,domain__cerebellum,Cerebellum,Cerebellum,Cerebellum,domain,#9fc26b,11,-1,3.2799845550554667,4.127421008952241,9706,14,0.9340614053162992
+baseline,region__CBX,CBX · Cerebellar cortex,CBX,Cerebellum,subdomain,#c9dfa5,11,0,3.2983332607593288,4.130610057291242,9323,7,0.9348922020808752
+baseline,region__CBN,CBN · Cerebellar nuclei,CBN,Cerebellum,subdomain,#91b858,11,1,2.982744418490957,4.172889477972731,220,3,0.9181818181818182

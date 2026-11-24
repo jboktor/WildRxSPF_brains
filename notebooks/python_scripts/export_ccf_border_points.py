@@ -11,7 +11,7 @@ from PIL import Image
 
 
 WKDIR = Path("/resnick/groups/mthomson/jboktor/WILDRxSPF_brains")
-ANALYSIS_DATE = "2026-11-12"
+ANALYSIS_DATE = "2026-11-23c"
 BORDER_PATH = (
     WKDIR / "data/input/allen_registration_ref/annotations_25_border_only.tif"
 )

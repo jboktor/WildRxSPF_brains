@@ -26,8 +26,8 @@ from PIL import Image
 
 
 WKDIR = Path("/resnick/groups/mthomson/jboktor/WILDRxSPF_brains")
-SOURCE_ANALYSIS_DATE = "2026-11-11"
-ANALYSIS_DATE = "2026-11-12"
+SOURCE_ANALYSIS_DATE = "2026-11-23c"
+ANALYSIS_DATE = "2026-11-23c"
 T_SIGNIFICANCE = 1.725
 
 INPUT_ROOT = WKDIR / "data/input/2DG_data"

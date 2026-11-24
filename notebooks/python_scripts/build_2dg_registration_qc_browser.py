@@ -11,8 +11,10 @@ continuity-rejected and blank sections. Each frame shows:
 5. the selected effect projected onto the Allen plane; and
 6. sagittal AP context plus the full front-to-back registration trajectory.
 
-This is display-only. It reuses the 2026-11-11 registration products and the
-2026-11-12 Baseline decoding LUT; it does not refit Elastix.
+This is display-only. It reuses the dated registration products and the
+validated Baseline decoding LUT; it does not refit Elastix. Panel 5 densifies
+the discrete source→atlas splat inside the warped tissue footprint so effect
+mass matches source-space coverage instead of looking like sparse single pixels.
 
 Run with the spatialomics Python binary:
 
@@ -41,9 +43,12 @@ from skimage.segmentation import find_boundaries
 
 
 WKDIR = Path("/resnick/groups/mthomson/jboktor/WILDRxSPF_brains")
-SOURCE_DATE = "2026-11-11"
-CONTROL_DATE = "2026-11-12"
-ANALYSIS_DATE = "2026-11-21c"
+SOURCE_DATE = "2026-11-23c"
+CONTROL_DATE = "2026-11-23c"
+ANALYSIS_DATE = "2026-11-23j"
+# Must match register_2dg_to_allen_ccf.FLIP_SOURCE_LEFT_RIGHT: prepared
+# Template/Intruder arrays are L–R flipped so image-left = CCF anatomical left.
+SOURCE_FLIPPED_FOR_CCF = True
 
 SOURCE_DIR = WKDIR / "data/interim/2DG_CCF_Integration" / SOURCE_DATE
 OUT_DIR = WKDIR / "data/interim/2DG_CCF_Integration" / ANALYSIS_DATE
@@ -139,8 +144,8 @@ def rasterize_mean(
     out = np.full(shape, np.nan, dtype=np.float32)
     sums = np.zeros(shape, dtype=np.float64)
     counts = np.zeros(shape, dtype=np.int32)
-    yi = ys.astype(int)
-    xi = xs.astype(int)
+    yi = np.rint(ys).astype(int)
+    xi = np.rint(xs).astype(int)
     values = np.asarray(values, dtype=float)
     ok = (
         np.isfinite(values)
@@ -154,6 +159,98 @@ def rasterize_mean(
     occupied = counts > 0
     out[occupied] = (sums[occupied] / counts[occupied]).astype(np.float32)
     return out
+
+
+def densify_warped_field(
+    sparse: np.ndarray,
+    *,
+    support: np.ndarray | None = None,
+    max_gap_px: int = 2,
+) -> np.ndarray:
+    """Fill holes left by discrete source→atlas point mapping.
+
+    Registered pixels land on unique atlas voxels with gaps between them, so a
+    raw splat looks artificially thin versus the contiguous source image. Fill
+    missing values inside the warped tissue support by nearest-neighbor within
+    ``max_gap_px`` (≈ source→atlas scale at 25 µm).
+    """
+    dense = np.array(sparse, dtype=np.float32, copy=True)
+    known = np.isfinite(dense)
+    if not known.any():
+        return dense
+    if support is None:
+        support = ndimage.binary_closing(known, iterations=max_gap_px)
+        support = ndimage.binary_dilation(support, iterations=1)
+    else:
+        support = support.astype(bool)
+    need = support & ~known
+    if not need.any():
+        return dense
+    _, nearest = ndimage.distance_transform_edt(
+        ~known,
+        return_distances=True,
+        return_indices=True,
+    )
+    dist = ndimage.distance_transform_edt(~known)
+    fillable = need & (dist <= max_gap_px)
+    if fillable.any():
+        dense[fillable] = dense[nearest[0][fillable], nearest[1][fillable]]
+    return dense
+
+
+def warped_tissue_support(
+    atlas_y: np.ndarray,
+    atlas_x: np.ndarray,
+    shape: tuple[int, int],
+    *,
+    close_iter: int = 2,
+) -> np.ndarray:
+    support = np.zeros(shape, dtype=bool)
+    yi = np.rint(atlas_y).astype(int)
+    xi = np.rint(atlas_x).astype(int)
+    ok = (yi >= 0) & (yi < shape[0]) & (xi >= 0) & (xi < shape[1])
+    support[yi[ok], xi[ok]] = True
+    support = ndimage.binary_closing(support, iterations=close_iter)
+    support = ndimage.binary_fill_holes(support)
+    return support
+
+
+def effect_overlay_rgb(
+    base_gray: np.ndarray,
+    effect: np.ndarray,
+    *,
+    display_dilate: int = 1,
+) -> np.ndarray:
+    """High-visibility RdBu effect composite for QC panel 5.
+
+    Significant voxels are blended strongly onto a slightly muted atlas gray so
+    thin single-pixel hits remain readable. Optional 1-px dilation is display
+    only and does not invent new t values outside densified support.
+    """
+    base = np.clip(np.asarray(base_gray, dtype=np.float32), 0, 1)
+    rgb = np.stack([base * 0.72, base * 0.72, base * 0.72], axis=-1)
+    finite = np.isfinite(effect)
+    sig = finite & (np.abs(effect) >= T_THRESHOLD)
+    if display_dilate > 0 and sig.any():
+        sig = ndimage.binary_dilation(sig, iterations=display_dilate) & finite
+    if not sig.any():
+        return rgb
+    values = np.clip(effect[sig] / T_CLIP, -1.0, 1.0)
+    # RdBu_r-like: negative → blue (WildR↑), positive → red (SPF↑)
+    color = np.zeros((values.size, 3), dtype=np.float32)
+    neg = values < 0
+    pos = ~neg
+    mag_neg = -values[neg]
+    mag_pos = values[pos]
+    color[neg, 0] = 0.08 + 0.15 * (1.0 - mag_neg)
+    color[neg, 1] = 0.20 + 0.35 * (1.0 - mag_neg)
+    color[neg, 2] = 0.55 + 0.45 * mag_neg
+    color[pos, 0] = 0.55 + 0.45 * mag_pos
+    color[pos, 1] = 0.18 + 0.25 * (1.0 - mag_pos)
+    color[pos, 2] = 0.12 + 0.15 * (1.0 - mag_pos)
+    alpha = 0.88
+    rgb[sig] = (1.0 - alpha) * rgb[sig] + alpha * color
+    return np.clip(rgb, 0, 1)
 
 
 def effect_overlay(base: np.ndarray, effect: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -232,8 +329,17 @@ def build_frame(
     intruder_t = prepared["t_value"].astype(np.float32)
     baseline_path = BASELINE_ROOT / f"template42{source_number:03d}.tif"
     baseline_available = baseline_path.exists()
-    baseline_t = decode_rgb_t(baseline_path, lut_map, template.shape)
-    source_effect = intruder_t if map_key == "intruder" else baseline_t
+    # Baseline RGB TIFFs are stored in the original delivered orientation
+    # (image-left = anatomical right). Prepared Template/Intruder were flipped
+    # before Elastix. Keep an unflipped copy for source_x lookups into the warp,
+    # and a flipped copy for panel-2 display next to the prepared anatomy.
+    baseline_t_native = decode_rgb_t(baseline_path, lut_map, template.shape)
+    baseline_t_display = (
+        np.flip(baseline_t_native, axis=1).copy()
+        if SOURCE_FLIPPED_FOR_CCF
+        else baseline_t_native
+    )
+    source_effect = intruder_t if map_key == "intruder" else baseline_t_display
 
     allen_plane = nissl[ap_index].astype(np.float32)
     allen_tissue = annotation[ap_index] > 0
@@ -255,19 +361,29 @@ def build_frame(
         )
         atlas_y = pixels["atlas_y"].to_numpy()
         atlas_x = pixels["atlas_x"].to_numpy()
-        warped_template = rasterize_mean(
-            pixels["template_2dg"].to_numpy(),
-            atlas_y,
-            atlas_x,
-            atlas_shape,
+        support = warped_tissue_support(atlas_y, atlas_x, atlas_shape)
+        warped_template = densify_warped_field(
+            rasterize_mean(
+                pixels["template_2dg"].to_numpy(),
+                atlas_y,
+                atlas_x,
+                atlas_shape,
+            ),
+            support=support,
+            max_gap_px=2,
         )
         if map_key == "intruder":
             values = pixels["t_value"].to_numpy()
         else:
+            # pixels.source_x is the unflipped delivered coordinate.
             sy = pixels["source_y"].to_numpy(dtype=int)
             sx = pixels["source_x"].to_numpy(dtype=int)
-            values = baseline_t[sy, sx]
-        warped_effect = rasterize_mean(values, atlas_y, atlas_x, atlas_shape)
+            values = baseline_t_native[sy, sx]
+        warped_effect = densify_warped_field(
+            rasterize_mean(values, atlas_y, atlas_x, atlas_shape),
+            support=support,
+            max_gap_px=2,
+        )
 
     template_gray = grayscale(template, positive_only=True)
     allen_gray = grayscale(np.log1p(np.maximum(allen_plane, 0)), positive_only=True)
@@ -319,18 +435,12 @@ def build_frame(
         weight="bold",
     )
 
-    registered_base, registered_masked = effect_overlay(allen_gray, warped_effect)
-    axes[1, 1].imshow(registered_base, cmap="gray", vmin=0, vmax=1)
-    axes[1, 1].imshow(
-        registered_masked,
-        cmap="RdBu_r",
-        norm=Normalize(-T_CLIP, T_CLIP),
-        alpha=0.82,
-    )
-    axes[1, 1].contour(allen_tissue, levels=[0.5], colors=["#333333"], linewidths=0.35)
+    registered_rgb = effect_overlay_rgb(allen_gray, warped_effect, display_dilate=1)
+    axes[1, 1].imshow(registered_rgb)
+    axes[1, 1].contour(allen_tissue, levels=[0.5], colors=["#222222"], linewidths=0.4)
     axes[1, 1].set_title(
-        f"5 · {map_label} projected into CCF",
-        fontsize=10.5,
+        f"5 · {map_label} projected into CCF\n(densified within warped tissue; |t|≥{T_THRESHOLD:g})",
+        fontsize=9.6,
         weight="bold",
     )
     if map_key == "baseline" and not baseline_available:
@@ -426,7 +536,10 @@ def build_frame(
         0.015,
         (
             "Registration metrics describe anatomical alignment, not WildR−SPF evidence. "
-            f"Effect overlay shows |t| ≥ {T_THRESHOLD}; blue = WildR↑, red = SPF↑."
+            "Panel 2 Baseline is L–R flipped to the prepared/CCF orientation so it "
+            "matches panel 5 (Intruder was already prepared flipped). "
+            f"Panel 5 densifies discrete source→atlas hits inside warped tissue "
+            f"(NN fill ≤2 px); |t| ≥ {T_THRESHOLD}; blue = WildR↑, red = SPF↑."
         ),
         ha="left",
         va="bottom",
@@ -498,6 +611,25 @@ def build_frames(
         "map_labels": {
             "intruder": "Intruder WildR−SPF",
             "baseline": "Baseline WildR−SPF",
+        },
+        "panel5_densify": {
+            "method": "nearest_neighbor_fill_within_warped_tissue_support",
+            "max_gap_px": 2,
+            "display_dilate_px": 1,
+            "note": (
+                "Discrete registered pixels leave atlas gaps; densify for "
+                "QC visualization so effect mass matches source coverage."
+            ),
+        },
+        "orientation": {
+            "source_flipped_for_ccf": SOURCE_FLIPPED_FOR_CCF,
+            "intruder_panel2": "prepared (already flipped)",
+            "baseline_panel2": "native TIFF flipped for display to match prepared",
+            "baseline_panel5": "native TIFF sampled at pixels.source_x (unflipped) then placed by flipped warp",
+            "note": (
+                "Image-left in panels 2/5 is CCF anatomical left. Downstream sibling "
+                "warps also sample native RGB at source_x — CCF L–R is correct."
+            ),
         },
         "n_baseline_available": sum(
             frame["baseline_available"] for frame in frames

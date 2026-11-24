@@ -8,6 +8,9 @@ Primary inputs (preferred over the older RGB overlay exports):
 * ``WildRvSPF Intruder/WildRvSPF_Intruder###.tif`` — identity-palette
   grayscale statistical map (y), one pixel larger on each side with border
   value 142. Crop to the Template FOV, then ``t = (y / 18.409) - 7.762``.
+* ``2DG_Template_Allen_manual_matches_2026-11-23b_final.csv`` — manual
+  bregma anchors per Template index. AP search is restricted to
+  ``AP_SEARCH_OFFSETS`` around each anchor (±0.1 mm).
 
 The older RGB Baseline/Intruder overlays remain on disk as secondary archives
 and are not used by the primary pipeline. Existing dated artifacts are never
@@ -50,11 +53,14 @@ from skimage.segmentation import find_boundaries
 
 
 WKDIR = Path("/resnick/groups/mthomson/jboktor/WILDRxSPF_brains")
-ANALYSIS_DATE = "2026-11-11"
-EFFECT_ANALYSIS_DATE = "2026-11-11"
+ANALYSIS_DATE = "2026-11-23c"
+EFFECT_ANALYSIS_DATE = "2026-11-23c"
 INPUT_ROOT = WKDIR / "data/input/2DG_data"
 TEMPLATE_ROOT = INPUT_ROOT / "Template"
 INTRUDER_SCALAR_ROOT = INPUT_ROOT / "WildRvSPF Intruder"
+MANUAL_MATCHES_PATH = (
+    INPUT_ROOT / "2DG_Template_Allen_manual_matches_2026-11-23b_final.csv"
+)
 # Legacy RGB exports retained for inventory/cross-checks only.
 LEGACY_INTRUDER_RGB_ROOT = INPUT_ROOT / "WildR vs SPF _Intruder"
 LEGACY_BASELINE_RGB_ROOT = INPUT_ROOT / "WilderR vs SPF _Baseline"
@@ -91,7 +97,8 @@ MIN_DICE = 0.45
 MIN_INSIDE_FRACTION = 0.80
 MIN_JACOBIAN = 0.15
 MAX_JACOBIAN = 6.0
-AP_SEARCH_OFFSETS = (-8, -4, 0, 4, 8)
+# Manual bregma anchors are trusted; allow only ±0.1 mm (±4 voxels at 25 µm).
+AP_SEARCH_OFFSETS = (-4, -2, 0, 2, 4)
 
 
 @dataclass
@@ -265,9 +272,34 @@ def nominal_allen_index(bregma_mm: float) -> int:
     return int(round(CCF_BREGMA_ZERO_INDEX - bregma_mm / (CCF_VOXEL_UM / 1000.0)))
 
 
+def load_manual_bregma_anchors() -> pd.DataFrame:
+    if not MANUAL_MATCHES_PATH.exists():
+        raise FileNotFoundError(
+            f"Manual Template↔Allen matches CSV not found: {MANUAL_MATCHES_PATH}"
+        )
+    anchors = pd.read_csv(MANUAL_MATCHES_PATH)
+    required = {"template_index", "bregma"}
+    missing = required - set(anchors.columns)
+    if missing:
+        raise ValueError(
+            f"Manual matches CSV missing columns {sorted(missing)}: {MANUAL_MATCHES_PATH}"
+        )
+    anchors = anchors.rename(
+        columns={"template_index": "source_number", "bregma": "manual_bregma_mm"}
+    )
+    anchors["source_number"] = anchors["source_number"].astype(int)
+    anchors["manual_bregma_mm"] = pd.to_numeric(
+        anchors["manual_bregma_mm"], errors="coerce"
+    )
+    if anchors["source_number"].duplicated().any():
+        raise ValueError("Manual matches CSV has duplicated template_index values")
+    return anchors[["source_number", "manual_bregma_mm"]]
+
+
 def build_manifest() -> pd.DataFrame:
     rows = []
     pairs = source_files()
+    anchors = load_manual_bregma_anchors()
     tissue_source_numbers = []
     for template_path, _ in pairs:
         source_number = int(template_path.stem.replace("Template", ""))
@@ -282,9 +314,21 @@ def build_manifest() -> pd.DataFrame:
     for position, (template_path, intruder_path) in enumerate(pairs):
         rebuilt = load_template_intruder_pair(template_path, intruder_path)
         source_number = int(template_path.stem.replace("Template", ""))
-        bregma = NOMINAL_FIRST_BREGMA_MM - (
-            source_number - first_tissue
-        ) * NOMINAL_SECTION_SPACING_MM
+        anchor_rows = anchors.loc[anchors.source_number == source_number]
+        if len(anchor_rows):
+            manual_bregma = anchor_rows.manual_bregma_mm.iloc[0]
+        else:
+            manual_bregma = np.nan
+        has_manual_anchor = bool(pd.notna(manual_bregma))
+        if has_manual_anchor:
+            bregma = float(manual_bregma)
+            allen_index = nominal_allen_index(bregma)
+            anchor_source = "manual_csv"
+        else:
+            bregma = np.nan
+            allen_index = -1
+            anchor_source = "missing"
+        skip_registration = bool(rebuilt["blank_template"] or not has_manual_anchor)
         rows.append(
             {
                 "slice_position": position,
@@ -296,13 +340,17 @@ def build_manifest() -> pd.DataFrame:
                 "width_px": int(rebuilt["template_y"].shape[1]),
                 "intruder_raw_height_px": int(rebuilt["intruder_raw_shape"][0]),
                 "intruder_raw_width_px": int(rebuilt["intruder_raw_shape"][1]),
+                "manual_bregma_mm": (
+                    float(manual_bregma) if has_manual_anchor else np.nan
+                ),
+                "anchor_source": anchor_source,
                 "nominal_bregma_mm": bregma,
-                "nominal_allen_index": nominal_allen_index(bregma),
+                "nominal_allen_index": allen_index,
                 "template_tissue_fraction": rebuilt["template_tissue_fraction"],
                 "intruder_signal_fraction": rebuilt["intruder_signal_fraction"],
                 "significant_overlay_fraction": rebuilt["significant_overlay_fraction"],
                 "blank_template": rebuilt["blank_template"],
-                "skip_registration": rebuilt["blank_template"],
+                "skip_registration": skip_registration,
                 "email_expected_slice_count": EXPECTED_EMAIL_SLICE_COUNT,
                 "observed_slice_count": len(pairs),
                 "n_tissue_slices": len(tissue_source_numbers),
@@ -315,6 +363,8 @@ def build_manifest() -> pd.DataFrame:
                 "t_formula": "t = (y / 18.409) - 7.762",
                 "template_2dg_formula": "2DG = y / 1.494",
                 "t_significance_threshold": T_SIGNIFICANCE,
+                "manual_matches_path": str(MANUAL_MATCHES_PATH),
+                "ap_search_offsets": ",".join(str(x) for x in AP_SEARCH_OFFSETS),
             }
         )
     return pd.DataFrame(rows)
@@ -392,11 +442,22 @@ def write_preparation_qc(output_root: Path, manifest: pd.DataFrame) -> None:
             == EXPECTED_EMAIL_SLICE_COUNT
         ),
         "first_tissue_source_number": int(manifest.first_tissue_source_number.iloc[0]),
-        "first_nominal_bregma_mm": float(tissue.nominal_bregma_mm.iloc[0])
-        if len(tissue)
+        "manual_matches_path": str(MANUAL_MATCHES_PATH),
+        "n_manual_anchors": int(
+            manifest.anchor_source.eq("manual_csv").sum()
+            if "anchor_source" in manifest.columns
+            else 0
+        ),
+        "ap_search_offsets": list(AP_SEARCH_OFFSETS),
+        "first_nominal_bregma_mm": float(
+            tissue.loc[tissue.nominal_bregma_mm.notna(), "nominal_bregma_mm"].iloc[0]
+        )
+        if len(tissue.loc[tissue.nominal_bregma_mm.notna()])
         else None,
-        "last_nominal_bregma_mm": float(tissue.nominal_bregma_mm.iloc[-1])
-        if len(tissue)
+        "last_nominal_bregma_mm": float(
+            tissue.loc[tissue.nominal_bregma_mm.notna(), "nominal_bregma_mm"].iloc[-1]
+        )
+        if len(tissue.loc[tissue.nominal_bregma_mm.notna()])
         else None,
         "spacing_mm": NOMINAL_SECTION_SPACING_MM,
         "source_orientation": "image left is anatomical right (email)",
@@ -791,14 +852,28 @@ def register_slice(output_root: Path, slice_position: int) -> None:
 
     prepared = np.load(prepared_path(output_root, slice_position))
     tissue = prepared["tissue"].astype(bool)
-    if bool(getattr(row, "skip_registration", False)) or not tissue.any():
+    blank_or_empty = bool(getattr(row, "blank_template", False)) or not tissue.any()
+    missing_anchor = bool(getattr(row, "skip_registration", False)) and not blank_or_empty
+    if blank_or_empty or missing_anchor:
+        nominal_bregma = (
+            float(row.nominal_bregma_mm)
+            if pd.notna(row.nominal_bregma_mm)
+            else float("nan")
+        )
+        nominal_index = (
+            int(row.nominal_allen_index)
+            if pd.notna(row.nominal_allen_index) and int(row.nominal_allen_index) >= 0
+            else -1
+        )
         metrics = {
             "slice_position": slice_position,
             "source_number": int(row.source_number),
-            "nominal_bregma_mm": float(row.nominal_bregma_mm),
-            "nominal_allen_index": int(row.nominal_allen_index),
-            "selected_allen_index": int(row.nominal_allen_index),
-            "selected_bregma_mm": float(row.nominal_bregma_mm),
+            "manual_bregma_mm": nominal_bregma,
+            "anchor_source": getattr(row, "anchor_source", "missing"),
+            "nominal_bregma_mm": nominal_bregma,
+            "nominal_allen_index": nominal_index,
+            "selected_allen_index": nominal_index,
+            "selected_bregma_mm": nominal_bregma,
             "ap_offset_voxels": 0,
             "dice": 0.0,
             "nmi": float("nan"),
@@ -806,7 +881,9 @@ def register_slice(output_root: Path, slice_position: int) -> None:
             "n_tissue_pixels": 0,
             "n_overlay_pixels": 0,
             "accepted_slice_fit": False,
-            "rejection_reason": "blank_or_empty_template",
+            "rejection_reason": (
+                "blank_or_empty_template" if blank_or_empty else "no_manual_anchor"
+            ),
             "jacobian_min": float("nan"),
             "jacobian_max": float("nan"),
             "jacobian_mean": float("nan"),
@@ -857,11 +934,18 @@ def register_slice(output_root: Path, slice_position: int) -> None:
                 "skipped": True,
             },
         )
-        log(f"Slice {slice_position} skipped (blank template); metrics={metrics_path}")
+        log(
+            f"Slice {slice_position} skipped "
+            f"({metrics['rejection_reason']}); metrics={metrics_path}"
+        )
         return
     fixed = ndimage.gaussian_filter(tissue.astype(np.float32), sigma=3)
     atlas = load_atlas()
     nominal = int(row.nominal_allen_index)
+    if nominal < 0:
+        raise ValueError(
+            f"Slice {slice_position} lacks a usable manual Allen AP anchor"
+        )
     candidate_indices = sorted(
         {
             int(np.clip(nominal + offset, 0, atlas.annotation.shape[0] - 1))
@@ -983,6 +1067,8 @@ def register_slice(output_root: Path, slice_position: int) -> None:
     metrics = {
         "slice_position": slice_position,
         "source_number": int(row.source_number),
+        "manual_bregma_mm": float(row.nominal_bregma_mm),
+        "anchor_source": getattr(row, "anchor_source", "manual_csv"),
         "nominal_bregma_mm": float(row.nominal_bregma_mm),
         "nominal_allen_index": nominal,
         "selected_allen_index": selected_index,
@@ -1084,10 +1170,33 @@ def add_continuity_qc(metrics: pd.DataFrame) -> pd.DataFrame:
     metrics = metrics.sort_values("slice_position").reset_index(drop=True)
     delta = metrics.selected_allen_index.diff()
     metrics["selected_ap_step_voxels"] = delta
-    metrics["ap_monotonic"] = delta.isna() | (delta >= 0)
     expected_step = NOMINAL_SECTION_SPACING_MM / (CCF_VOXEL_UM / 1000.0)
+    max_offset = max(abs(x) for x in AP_SEARCH_OFFSETS)
+
+    # Infer stack AP travel from accepted anchors/fits. Manual anchors run
+    # posterior→anterior (Allen AP index decreases as slice_position increases).
+    fit_ok = metrics.loc[
+        metrics.accepted_slice_fit.astype(bool)
+        & (metrics.selected_allen_index >= 0)
+    ]
+    if len(fit_ok) >= 2:
+        ap_direction = int(
+            np.sign(
+                float(fit_ok.selected_allen_index.iloc[-1])
+                - float(fit_ok.selected_allen_index.iloc[0])
+            )
+        )
+    else:
+        ap_direction = 1
+    if ap_direction == 0:
+        ap_direction = 1
+    metrics["ap_travel_direction"] = ap_direction
+    metrics["ap_monotonic"] = delta.isna() | (
+        (delta * ap_direction) >= 0
+    )
     metrics["ap_step_plausible"] = delta.isna() | (
-        (delta >= 0) & (delta <= expected_step + 2 * max(abs(x) for x in AP_SEARCH_OFFSETS))
+        ((delta * ap_direction) >= 0)
+        & ((delta.abs()) <= expected_step + 2 * max_offset)
     )
     metrics["accepted_final"] = False
     metrics["strict_ap_delta_from_last_accepted"] = np.nan
@@ -1099,6 +1208,9 @@ def add_continuity_qc(metrics: pd.DataFrame) -> pd.DataFrame:
             metrics.at[row_index, "continuity_note"] = "per-slice registration gate failed"
             continue
         current_index = int(metrics.at[row_index, "selected_allen_index"])
+        if current_index < 0:
+            metrics.at[row_index, "continuity_note"] = "missing Allen AP selection"
+            continue
         current_position = int(metrics.at[row_index, "slice_position"])
         if last_index is None:
             metrics.at[row_index, "accepted_final"] = True
@@ -1108,11 +1220,9 @@ def add_continuity_qc(metrics: pd.DataFrame) -> pd.DataFrame:
         strict_delta = current_index - last_index
         metrics.at[row_index, "strict_ap_delta_from_last_accepted"] = strict_delta
         position_delta = current_position - last_position
-        maximum_step = (
-            position_delta * expected_step
-            + 2 * max(abs(x) for x in AP_SEARCH_OFFSETS)
-        )
-        if strict_delta < 0 or strict_delta > maximum_step:
+        maximum_step = position_delta * expected_step + 2 * max_offset
+        directed_step = strict_delta * ap_direction
+        if directed_step < 0 or abs(strict_delta) > maximum_step:
             metrics.at[row_index, "continuity_note"] = (
                 "strict monotonic AP continuity gate failed"
             )

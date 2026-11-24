@@ -44,13 +44,13 @@ suppressPackageStartupMessages({
 })
 
 wkdir <- "/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
-source_date <- "2026-11-11"
-analysis_date <- "2026-11-12"
-viewer_date <- "2026-11-21j"
-region_dashboard_date <- "2026-11-22e"
-covariation_date <- "2026-11-21c"
-registration_qc_date <- "2026-11-21c"
-hemi_date <- "2026-11-14e"
+source_date <- "2026-11-23c"
+analysis_date <- "2026-11-23c"
+viewer_date <- "2026-11-23c"
+region_dashboard_date <- "2026-11-23k"
+covariation_date <- "2026-11-23h"
+registration_qc_date <- "2026-11-23j"
+hemi_date <- "2026-11-23c"
 source_dir <- file.path(wkdir, "data/interim/2DG_CCF_Integration", source_date)
 analysis_dir <- file.path(wkdir, "data/interim/2DG_CCF_Integration", analysis_date)
 covariation_dir <- file.path(
@@ -127,7 +127,7 @@ symmetry_strip_figure <- file.path(
 )
 symmetry_lat_figure <- file.path(
   figure_dir,
-  glue("2DG_NE_lateralization_concordance_sidebyside_{hemi_date}.png")
+  glue("2DG_NE_lateralization_concordance_{hemi_date}.png")
 )
 bilateral_2dg_path <- file.path(
   table_dir,
@@ -290,12 +290,15 @@ cat(":::\n")
 ## Background
 
 Scalar `Template/` anatomy and `WildRvSPF Intruder/` t maps are the primary
-inputs (`2DG = y/1.494`, `t = (y/18.409)−7.762`). Accepted Template→CCF warps
-from [data/interim/2DG_CCF_Integration/2026-11-11]{.path} are reused—without
-re-fitting Elastix—to place Baseline and WildR/SPF Intruder−Baseline RGB maps
-into the same coordinates via the validated 254-color LUT. seqFISH still lacks
-a verified section→animal key, so every cross-modality test remains
-section/gate-level and non-animal.
+inputs (`2DG = y/1.494`, `t = (y/18.409)−7.762`). Template→CCF AP planes are
+initialized from manual bregma anchors in
+[data/input/2DG_data/2DG_Template_Allen_manual_matches_2026-11-23b_final.csv]{.path}
+(Templates 5–66; 1–4 skipped), with Elastix AP search limited to ±0.1 mm
+around each anchor. Accepted warps under
+[data/interim/2DG_CCF_Integration/2026-11-23c]{.path} then place Baseline and
+WildR/SPF Intruder−Baseline RGB maps into the same coordinates via the
+validated 254-color LUT. seqFISH still lacks a verified section→animal key, so
+every cross-modality test remains section/gate-level and non-animal.
 
 ## Hypotheses
 
@@ -330,15 +333,27 @@ are promoted as findings.
 :::
 
 ::: {.takeaways}
-**Battery at a glance**
+**Battery at a glance (`2026-11-23c` manual-anchor registration)**
 
-- **Supported:** H1 (registration QC), H3 (Intruder↔NE gate coupling).
-- **Not supported:** H2 (limbic/hypothalamic \|t\| enrichment is Baseline-driven,
-  not Intruder-specific).
-- **Inconclusive:** H4 (SPF Intruder−Baseline nearly matches Intruder \|ρ\|);
-  H5 (ROI seed footprints are not anatomical).
-- **Scope.** All cross-modality tests are section/gate-level until a verified
-  seqFISH section→animal key exists.
+```{r}
+#| label: display-battery-glance
+#| echo: false
+#| results: asis
+
+if (is.null(battery)) {
+  cat("- Battery table not yet available.\n")
+} else {
+  supported <- battery[decision == "supported", hypothesis_id]
+  not_supported <- battery[decision == "not_supported", hypothesis_id]
+  inconclusive <- battery[decision %in% c("inconclusive", "open"), hypothesis_id]
+  cat("- **Supported:** ", if (length(supported)) paste(supported, collapse = ", ") else "none", ".\n", sep = "")
+  cat("- **Not supported:** ", if (length(not_supported)) paste(not_supported, collapse = ", ") else "none", ".\n", sep = "")
+  if (length(inconclusive)) {
+    cat("- **Inconclusive/open:** ", paste(inconclusive, collapse = ", "), ".\n", sep = "")
+  }
+  cat("- **Scope.** All cross-modality tests are section/gate-level until a verified seqFISH section→animal key exists.\n")
+}
+```
 :::
 :::
 
@@ -594,10 +609,11 @@ annotation: descriptive NEUROeSTIMator WildR−SPF Δ vs Intruder mean t, Baseli
 mean t, and Baseline vs Intruder. Orange marks the pre-specified
 limbic/hypothalamic set used in H2.
 
-::: {.figure-card .fig-wide}
+::: {.figure-card .fig-wide .fig-covar}
 ```{r}
 #| label: display-region-covariation
 #| echo: false
+#| fig.height: 4.5
 
 display_widget(
   covariation_rds,
@@ -610,18 +626,6 @@ display_widget(
 ≥100 seqFISH cells and ≥10 Intruder overlay pixels). Orange =
 pre-specified limbic/hypothalamic set. Axes: positive = WildR higher.
 :::
-
-```{r}
-#| label: display-covariation-static
-#| echo: false
-#| out.width: "78%"
-#| fig.align: "center"
-
-display_saved_image(
-  covariation_png,
-  "Static co-variation figure not yet written."
-)
-```
 
 ```{r}
 #| label: display-covariation-stats
@@ -672,7 +676,7 @@ if (!is.null(covariation) && nrow(covariation) > 2L) {
 - **Baseline vs Intruder.** Negative (ρ ≈ −0.34, p ≈ 3.8×10⁻⁵): the two 2DG
   contrasts are not the same spatial polarity across parcels.
 - **Scope.** Descriptive region-level only — not animal-level inference. Table:
-  [tables/2DG_CCF_Integration/2DG_region_covariation_2026-11-21c.csv]{.path}.
+  [tables/2DG_CCF_Integration/2DG_region_covariation_2026-11-23h.csv]{.path}.
 :::
 :::
 
@@ -1003,23 +1007,65 @@ if (!is.null(battery)) {
 
 ### Findings
 
-Synthesizing the co-embedding, regional co-variation, hemisphere audit, and
-pre-specified battery:
+```{r}
+#| label: display-findings
+#| echo: false
+#| results: asis
 
-1. **H1 supported.** Strict Template→CCF registration yields 53 accepted slices
-   at mean Dice 0.960 with an intact continuity gate — the shared coordinate
-   frame for everything above is trustworthy where used.
-2. **H2 not supported.** Limbic/hypothalamic \|t\| enrichment is a **Baseline**
-   property (Δ ≈ +0.63, p ≈ 0.0003), not Intruder-specific (Δ ≈ −0.03, p ≈ 0.85).
-   Parcel-level NE↔2DG co-variation (Fig. 2b) points the same way.
-3. **H3 supported.** Gate-allocated Intruder positive mean t correlates with
-   NEUROeSTIMator Hedges’ g (ρ = −0.66, p ≈ 0.041); Baseline does not. The
-   negative sign is part of the result, not a labeling error.
-4. **H4 inconclusive.** SPF Intruder−Baseline nearly matches Intruder \|ρ\|, so
-   genotype WildR−SPF Intruder is not cleanly isolated from context-driven
-   structure.
-5. **H5 inconclusive.** ROI seed overlays do not currently provide trustworthy
-   anatomical parcel footprints under accepted CCF planes.
+if (is.null(battery) || is.null(registration)) {
+  cat(
+    "Findings will refresh after the `2026-11-23c` manual-anchor registration ",
+    "and controlled battery finish writing dated tables.\n"
+  )
+} else {
+  n_acc <- sum(registration$accepted_final)
+  mean_dice <- if (n_acc) {
+    round(mean(registration$dice[registration$accepted_final], na.rm = TRUE), 3)
+  } else {
+    NA_real_
+  }
+  row_of <- function(id) battery[hypothesis_id == id][1]
+  fmt_num <- function(x) {
+    x_num <- suppressWarnings(as.numeric(x))
+    if (length(x_num) && is.finite(x_num[1])) {
+      return(as.character(signif(x_num[1], 3)))
+    }
+    x_chr <- as.character(x[1])
+    if (!length(x_chr) || is.na(x_chr) || !nzchar(x_chr)) return("NA")
+    x_chr
+  }
+  fmt <- function(id) {
+    row <- row_of(id)
+    if (nrow(row) == 0 || is.na(row$decision[1])) {
+      return(paste0("**", id, "** — not yet computed."))
+    }
+    paste0(
+      "**", id, " ", row$decision[1], ".** ",
+      "estimate=", fmt_num(row$estimate[1]),
+      ", p_perm=", fmt_num(row$p_perm[1]),
+      if (!is.na(row$control_result[1]) && nzchar(as.character(row$control_result[1]))) {
+        paste0("; control: ", row$control_result[1])
+      } else {
+        ""
+      }
+    )
+  }
+  cat(
+    "Synthesizing the co-embedding, regional co-variation, hemisphere audit, and ",
+    "pre-specified battery under stamp `2026-11-23c` ",
+    "(manual bregma anchors; AP search ±0.1 mm):\n\n",
+    "1. ", fmt("H1"),
+    " Strict Template→CCF yields ", n_acc, " accepted slices",
+    if (!is.na(mean_dice)) paste0(" (mean Dice ", mean_dice, ")") else "",
+    " with continuity gated to the corrected AP direction.\n",
+    "2. ", fmt("H2"), "\n",
+    "3. ", fmt("H3"), "\n",
+    "4. ", fmt("H4"), "\n",
+    "5. ", fmt("H5"), "\n",
+    sep = ""
+  )
+}
+```
 
 ::: {.callout-warning}
 None of these tests are animal-level. 2DG remains a group map; seqFISH still
@@ -1038,6 +1084,28 @@ genotype effect without that key and without resolving H4.
 
 Ordinary rendering loads dated tables/figures/widgets only. Set
 `run_analysis <- TRUE` to rebuild; registration is never submitted by render.
+
+```{bash}
+#| label: cell-register-anchor-based
+#| eval: !expr run_analysis
+
+set -euo pipefail
+
+# Manual-anchor Template→CCF redo (ANALYSIS_DATE=2026-11-23c).
+# AP search: ±0.1 mm around
+# data/input/2DG_data/2DG_Template_Allen_manual_matches_2026-11-23b_final.csv
+/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/python \
+  /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/python_scripts/register_2dg_to_allen_ccf.py \
+  prepare
+
+mkdir -p /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/.cluster_runs/2dg_allen_ccf
+sbatch /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/shell_scripts/run_2dg_allen_ccf_registration.sh
+# After array completion:
+# python register_2dg_to_allen_ccf.py aggregate
+# python register_2dg_to_allen_ccf.py annotation-map
+# python register_2dg_to_allen_ccf.py export-scalar-t
+# Rscript integrate_2dg_neuroestimator_ccf.R
+```
 
 ```{bash}
 #| label: cell-warp-siblings
@@ -1095,22 +1163,28 @@ set -euo pipefail
 
 set -euo pipefail
 
-# Historical producer for the displayed 2026-11-21c co-variation artifacts.
+# Co-variation artifacts for the current analysis stamp.
 /resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/Rscript \
   /resnick/groups/mthomson/jboktor/WILDRxSPF_brains/notebooks/R_scripts/plot_2dg_ccf_interactive3d.R
 ```
 
-Interactive viewer artifacts: `viewer_date = 2026-11-21j` (modular 3D
+Interactive viewer artifacts: `viewer_date = 2026-11-23c` (modular 3D
 explorer with curated Allen domain/subdomain meshes; white background;
-anatomical seqFISH ML; region meshes exported as `2026-11-21e`). Co-variation artifacts remain
-`covariation_date = 2026-11-21c`; registration QC is
-`registration_qc_date = 2026-11-21c` under
-[figures/2DG_CCF_Integration]{.path}.
-The linked regional ranking and coronal/3D section explorer is
-`region_dashboard_date = 2026-11-22e`; it uses accepted registered voxels for
-scores and all 66 delivered sections for atlas/QC navigation.
-Hemisphere symmetry tables/figures: `hemi_date = 2026-11-14e`. Hypothesis
-battery remains dated `2026-11-12` (step G open — not re-run here).
+anatomical seqFISH ML; region meshes reused from `2026-11-21e`). Registration
+QC browser is `registration_qc_date = 2026-11-23j` (panel 5 densifies
+discrete source→atlas hits; Baseline panel 2 L–R-flipped for display so it
+matches prepared/CCF orientation — display-only; sibling warps already used
+`source_x` correctly).
+Region dashboard is `region_dashboard_date = 2026-11-23k` (signed-t colors
+aligned across bars / 3D mesh tint / slice voxels: blue=WildR↑, red=SPF↑;
+2D coronal uses grayscale Allen + region outlines only — no regional fill).
+Hemisphere symmetry and the controlled hypothesis battery use stamp
+`2026-11-23c`; co-variation uses `covariation_date = 2026-11-23h`
+(compact widget layout: shorter panels, smaller markers/labels)
+(avoids colliding with the modular viewer HTML path). All sit under
+[figures/2DG_CCF_Integration]{.path} / [tables/2DG_CCF_Integration]{.path},
+built from manual-anchor registration under
+[data/interim/2DG_CCF_Integration/2026-11-23c]{.path}.
 
 ```{bash}
 #| label: cell-hemisphere-symmetry

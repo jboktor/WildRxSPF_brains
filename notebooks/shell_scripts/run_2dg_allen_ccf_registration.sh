@@ -39,7 +39,7 @@ set -euo pipefail
 WKDIR="/resnick/groups/mthomson/jboktor/WILDRxSPF_brains"
 PYTHON="/resnick/groups/MazmanianLab/jboktor/software/miniforge3/envs/spatialomics/bin/python"
 SCRIPT="${WKDIR}/notebooks/python_scripts/register_2dg_to_allen_ccf.py"
-MANIFEST="${WKDIR}/data/interim/2DG_CCF_Integration/2026-11-11/2dg_slice_manifest_2026-11-11.csv"
+MANIFEST="${WKDIR}/data/interim/2DG_CCF_Integration/2026-11-23c/2dg_slice_manifest_2026-11-23c.csv"
 
 log() {
   echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*"
